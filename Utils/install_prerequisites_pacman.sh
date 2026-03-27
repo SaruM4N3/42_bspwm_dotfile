@@ -12,6 +12,29 @@ info()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
 error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 
+setup_timezone() {
+    current_tz=$(timedatectl show --property=Timezone --value 2>/dev/null || echo "unknown")
+    warn "Current timezone: $current_tz"
+    read -r -p "Enter your timezone (e.g. Europe/Paris, America/New_York) [Enter to keep current]: " user_tz
+    if [ -n "$user_tz" ]; then
+        sudo timedatectl set-timezone "$user_tz" && info "Timezone set to $user_tz."
+    fi
+    sudo timedatectl set-ntp true && info "NTP enabled."
+}
+
+ask_browser() {
+    printf "\nWhich browser do you want to install? (default: brave)\n"
+    printf "  1) brave\n  2) firefox\n  3) chromium\n  4) google-chrome\n"
+    read -r -p "Enter number [1]: " browser_choice
+    case "${browser_choice:-1}" in
+        2) BROWSER_PKG="firefox";        BROWSER_BIN="firefox" ;;
+        3) BROWSER_PKG="chromium";       BROWSER_BIN="chromium" ;;
+        4) BROWSER_PKG="google-chrome";  BROWSER_BIN="google-chrome-stable" ;;
+        *) BROWSER_PKG="brave-bin";      BROWSER_BIN="brave" ;;
+    esac
+    info "Browser selected: $BROWSER_BIN (package: $BROWSER_PKG)"
+}
+
 patch_makepkg() {
     # makepkg refuses to run as root — patch the check out (junest proot workaround)
     if grep -q 'EUID == 0' /usr/bin/makepkg 2>/dev/null; then
@@ -55,6 +78,10 @@ add_gh0stzk_repo() {
     sudo pacman -Sy --noconfirm
     info "gh0stzk-dotfiles repo added."
 }
+
+# ── Interactive setup (ask before any installs) ───────────────────────────────
+setup_timezone
+ask_browser
 
 # ── Update keyring + full system sync ────────────────────────────────────────
 info "Syncing package databases..."
@@ -241,6 +268,21 @@ if [ -d "$FONTS_SRC" ]; then
 else
     warn "Bundled fonts directory not found at $FONTS_SRC — skipping."
 fi
+
+# ── Browser ──────────────────────────────────────────────────────────────────
+info "Installing browser: $BROWSER_PKG..."
+sudo pacman -S --needed --noconfirm "$BROWSER_PKG"
+
+# Patch sxhkdrc (super+w) and OpenApps (--browser) with chosen browser
+DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+for sxhkd in \
+    "$DOTFILES_DIR/.config/bspwm/config/sxhkdrc" \
+    "$DOTFILES_DIR/.config/bspwm/config/.session/sxhkdrc"; do
+    [ -f "$sxhkd" ] && sed -i "s|^\tbrave$|\t$BROWSER_BIN|" "$sxhkd"
+done
+OPENAPPS="$DOTFILES_DIR/.config/bspwm/bin/OpenApps"
+[ -f "$OPENAPPS" ] && sed -i "/--browser)/,/;;/{s|^\t\t[a-z].*$|\t\t$BROWSER_BIN|}" "$OPENAPPS"
+info "sxhkdrc (super+w) and OpenApps --browser patched to use $BROWSER_BIN."
 
 # ── Default cursor theme (required by 05-gtk.sh on first boot) ───────────────
 info "Creating ~/.icons/default/index.theme..."
