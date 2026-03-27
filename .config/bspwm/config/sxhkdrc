@@ -50,9 +50,9 @@ super + c
 super + {y,v,m}
     OpenApps --{yazi,nvim,music}
 
-# Media apps (Pavucontrol, Telegram, Whatsapp)
-super + {p,t,w}
-    OpenApps --{soundcontrol,telegram,whats}
+# Media apps (Pavucontrol, Telegram)
+super + {p,t}
+    OpenApps --{soundcontrol,telegram}
 
 # Rice Editor App
 super + r
@@ -131,8 +131,8 @@ super + alt + {h,u}
     HideBar {-h,-u}
 
 # Change transparency on focused window
-super + {minus,equal,t}
-    picom-trans {-c -3,-c +3,-c -d}
+super + {minus,equal}
+    picom-trans {-c -3,-c +3}
 
 # Manage brightness
 XF86MonBrightness{Up,Down}
@@ -231,7 +231,7 @@ super + ctrl + b
   bspc node @/ -B
 
 # increase/decrease Node
-super + alt + {+,-}
+super + alt + {plus,minus}
     { \
        bspc node -z top_right 20 -20 ; bspc node -z bottom_left -20 20; \
     ,  bspc node -z top_right -20 20 ; bspc node -z bottom_left 20 -20; \
