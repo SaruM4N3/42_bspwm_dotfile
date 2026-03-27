@@ -213,11 +213,9 @@ done
 
 # ── Home dotfiles ──────────────────────────────────────────────────────────────
 info "Removing deployed home dotfiles..."
-for f in .zshrc .gtkrc-2.0; do
+for f in .zshrc.bak .gtkrc-2.0; do
     [ -f "$HOME/$f" ] && rm -f "$HOME/$f" && info "  removed: ~/$f"
 done
-# Restore backup if it exists
-[ -f "$HOME/.zshrc.bak" ] && mv "$HOME/.zshrc.bak" "$HOME/.zshrc" && info "  restored: ~/.zshrc from ~/.zshrc.bak"
 
 # ── Installer scripts ──────────────────────────────────────────────────────────
 info "Removing ~/.bspwminstaller/..."

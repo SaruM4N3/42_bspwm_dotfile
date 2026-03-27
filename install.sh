@@ -96,7 +96,7 @@ for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi bto
     fi
 done
 
-for f in .zshrc .gtkrc-2.0; do
+for f in .gtkrc-2.0; do
     if [ -f "$HOME/$f" ]; then
         cp "$HOME/$f" "$HOME/${f}.bak"
         mv "$HOME/$f" "$BACKUP_DIR/"
@@ -121,8 +121,8 @@ for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi bto
     fi
 done
 
-# Home files
-for f in .zshrc .gtkrc-2.0; do
+# Home files (.zshrc.bak = bspwm zshrc, swapped in by bspwm.sh; user's .zshrc untouched)
+for f in .zshrc.bak .gtkrc-2.0; do
     if [ -f "$REPO_DIR/$f" ]; then
         cp_safe "$REPO_DIR/$f" "$HOME/$f" file
         info "Deployed: ~/$f"
