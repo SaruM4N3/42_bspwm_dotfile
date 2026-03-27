@@ -2,6 +2,7 @@
 # ============================================================
 # install_prerequisites_pacman.sh
 # Install bspwm dotfiles dependencies inside junest (Arch / pacman)
+# Package list mirrors the original RiceInstaller by gh0stzk.
 # ============================================================
 
 set -e
@@ -43,7 +44,7 @@ sudo pacman -Syu --noconfirm
 info "Installing base-devel and git..."
 sudo pacman -S --needed --noconfirm base-devel git
 
-# ── Core WM (official repos) ─────────────────────────────────────────────────
+# ── Core WM ──────────────────────────────────────────────────────────────────
 info "Installing core WM packages..."
 sudo pacman -S --needed --noconfirm \
     bspwm \
@@ -53,56 +54,115 @@ sudo pacman -S --needed --noconfirm \
     dunst \
     xsettingsd \
     xorg-xrandr \
+    xorg-xdpyinfo \
+    xorg-xkill \
+    xorg-xprop \
+    xorg-xrdb \
+    xorg-xsetroot \
+    xorg-xwininfo \
     xdotool \
+    xdo \
     wmctrl
 
-# ── Terminal & launcher (official repos) ─────────────────────────────────────
-info "Installing terminal and launcher..."
+# ── Terminals ────────────────────────────────────────────────────────────────
+info "Installing terminals and launcher..."
 sudo pacman -S --needed --noconfirm \
     alacritty \
+    kitty \
     jgmenu
 
-# ── Media & audio (official repos) ───────────────────────────────────────────
+# ── File manager ─────────────────────────────────────────────────────────────
+info "Installing file manager..."
+sudo pacman -S --needed --noconfirm \
+    thunar \
+    tumbler \
+    gvfs-mtp \
+    yazi
+
+# ── Editors ──────────────────────────────────────────────────────────────────
+info "Installing editors..."
+sudo pacman -S --needed --noconfirm \
+    geany \
+    neovim
+
+# ── Media & audio ────────────────────────────────────────────────────────────
 info "Installing media packages..."
 sudo pacman -S --needed --noconfirm \
     mpd \
     mpc \
+    ncmpcpp \
     mpv \
     playerctl \
+    pamixer \
     ffmpeg
 
-# ── Bluetooth (official repos) ───────────────────────────────────────────────
+# ── Bluetooth ────────────────────────────────────────────────────────────────
 info "Installing bluetooth packages..."
 sudo pacman -S --needed --noconfirm \
     bluez \
     bluez-utils
 
-# ── System utilities (official repos) ────────────────────────────────────────
+# ── System utilities ─────────────────────────────────────────────────────────
 info "Installing system utilities..."
 sudo pacman -S --needed --noconfirm \
     brightnessctl \
     lxsession \
     xclip \
+    xdg-user-dirs \
     jq \
     curl \
     bc \
     feh \
-    imagemagick
+    maim \
+    imagemagick \
+    redshift \
+    xcolor \
+    libwebp \
+    webp-pixbuf-loader \
+    python-gobject \
+    pacman-contrib \
+    npm
 
-# ── Fonts (official repos) ───────────────────────────────────────────────────
+# ── CLI tools ────────────────────────────────────────────────────────────────
+info "Installing CLI tools..."
+sudo pacman -S --needed --noconfirm \
+    bat \
+    eza \
+    fzf
+
+# ── Icons & themes ───────────────────────────────────────────────────────────
+info "Installing icons and themes..."
+sudo pacman -S --needed --noconfirm \
+    papirus-icon-theme
+
+# ── Shell ────────────────────────────────────────────────────────────────────
+info "Installing zsh and plugins..."
+sudo pacman -S --needed --noconfirm \
+    zsh \
+    zsh-autosuggestions \
+    zsh-history-substring-search \
+    zsh-syntax-highlighting
+
+# ── Fonts ────────────────────────────────────────────────────────────────────
 info "Installing fonts..."
 sudo pacman -S --needed --noconfirm \
     fontconfig \
+    ttf-inconsolata \
     ttf-jetbrains-mono \
+    ttf-jetbrains-mono-nerd \
+    ttf-terminus-nerd \
+    ttf-ubuntu-mono-nerd \
     ttf-font-awesome
 
-# ── AUR packages (built from source with makepkg) ────────────────────────────
-patch_makepkg
-info "Installing picom-git (AUR)..."
-aur_install picom-git
-
+# ── Clipboard ────────────────────────────────────────────────────────────────
 info "Installing clipcat..."
 sudo pacman -S --needed --noconfirm clipcat
+
+# ── AUR packages ─────────────────────────────────────────────────────────────
+patch_makepkg
+
+info "Installing picom-git (AUR)..."
+aur_install picom-git
 
 info "Installing xwinwrap (AUR)..."
 aur_install xwinwrap-git
