@@ -1,0 +1,310 @@
+#!/usr/bin/env python3
+"""
+Logtime settings window — bspwm/polybar edition
+"""
+
+import gi
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk, Gdk
+import json, os, subprocess
+
+CREDS_FILE    = os.path.expanduser("~/.config/logtime/credentials.json")
+SETTINGS_FILE = os.path.expanduser("~/.config/logtime/settings.json")
+TOKEN_CACHE   = os.path.expanduser("~/.cache/logtime_token.json")
+
+DEFAULTS = {
+    "bonusDays":      0,
+    "giftDays":       0,
+    "displayFormat":  "ratio",
+    "showMinutes":    True,
+    "showCurrentDay": False,
+    "showMoney":      False,
+    "birthDate":      "",
+    "startColor":     "#ef4444",
+    "endColor":       "#4ade80",
+    "aheadColor":     "#00c8ff",
+    "colorGradient":  "exponential",
+    "fontSize":       "small",
+}
+
+CSS = b"""
+window { background-color: #2f354b; color: #FDFDFD; }
+frame { border: 1px solid #8897F4; border-radius: 6px; }
+frame > label { color: #8897F4; font-weight: bold; padding: 0 4px; }
+entry {
+    background-color: #1e2335; color: #FDFDFD;
+    border: 1px solid #8897F4; border-radius: 4px; padding: 4px 8px;
+}
+entry:focus { border-color: #79E6F3; }
+combobox button {
+    background-color: #1e2335; color: #FDFDFD;
+    border: 1px solid #8897F4; border-radius: 4px; padding: 3px 6px;
+}
+checkbutton label { color: #FDFDFD; }
+checkbutton check { background-color: #1e2335; border: 1px solid #8897F4; border-radius: 3px; }
+checkbutton:checked check { background-color: #8897F4; }
+spinbutton { background-color: #1e2335; color: #FDFDFD; border: 1px solid #8897F4; border-radius: 4px; }
+spinbutton button { background-color: #1e2335; color: #8897F4; border: none; }
+label { color: #FDFDFD; }
+colorbutton button { border: 1px solid #8897F4; border-radius: 4px; }
+button.save {
+    background-color: #5ADECD; color: #2f354b;
+    border: none; border-radius: 4px; font-weight: bold; padding: 6px 16px;
+}
+button.save:hover { background-color: #79E6F3; }
+button.cancel {
+    background-color: #1e2335; color: #FDFDFD;
+    border: 1px solid #8897F4; border-radius: 4px; padding: 6px 16px;
+}
+button.cancel:hover { background-color: #3a4060; }
+separator { background-color: #8897F4; min-height: 1px; opacity: 0.3; }
+"""
+
+
+def load_json(path, default=None):
+    try:
+        with open(path) as f:
+            return {**default, **json.load(f)} if default else json.load(f)
+    except Exception:
+        return dict(default) if default else {}
+
+
+def save_json(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def make_label(text, width=145):
+    lbl = Gtk.Label(label=text, xalign=0)
+    lbl.set_size_request(width, -1)
+    return lbl
+
+
+def make_row(*widgets):
+    row = Gtk.Box(spacing=10)
+    for w in widgets:
+        expand = isinstance(w, (Gtk.Entry, Gtk.ComboBoxText))
+        row.pack_start(w, expand, expand, 0)
+    return row
+
+
+def hex_to_rgba(h):
+    rgba = Gdk.RGBA()
+    rgba.parse(h)
+    return rgba
+
+
+def rgba_to_hex(rgba):
+    r, g, b = int(rgba.red * 255), int(rgba.green * 255), int(rgba.blue * 255)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def make_color_btn(hex_color):
+    btn = Gtk.ColorButton()
+    btn.set_rgba(hex_to_rgba(hex_color))
+    btn.set_use_alpha(False)
+    btn.set_title("Pick color")
+    return btn
+
+
+def make_section(title):
+    frame = Gtk.Frame(label=f"  {title}  ")
+    box   = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+    box.set_border_width(12)
+    frame.add(box)
+    return frame, box
+
+
+def refresh_bar():
+    """Restart the pam3 polybar instance via IPC."""
+    try:
+        result = subprocess.run(["pgrep", "-a", "polybar"], capture_output=True, text=True)
+        for line in result.stdout.strip().splitlines():
+            if "pam3" in line:
+                pid = line.split()[0]
+                subprocess.run(["polybar-msg", "-p", pid, "cmd", "restart"], capture_output=True)
+                return
+    except Exception:
+        pass
+
+
+class LogtimeSettings(Gtk.Window):
+    def __init__(self):
+        super().__init__(title="Logtime Settings")
+        self.set_default_size(440, -1)
+        self.set_border_width(16)
+        self.set_resizable(False)
+        self.set_position(Gtk.WindowPosition.CENTER)
+
+        provider = Gtk.CssProvider()
+        provider.load_from_data(CSS)
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(), provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
+        )
+
+        self.creds    = load_json(CREDS_FILE,    {"clientId": "", "clientSecret": ""})
+        self.settings = load_json(SETTINGS_FILE, DEFAULTS)
+
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        self.add(root)
+
+        # ── API Keys ──────────────────────────────────────────
+        api_frame, api_box = make_section("API Keys")
+
+        self.id_entry = Gtk.Entry()
+        self.id_entry.set_text(self.creds.get("clientId", ""))
+        self.id_entry.set_placeholder_text("u-s4-xxxxxxxxxxxxxxxxxxxx")
+
+        self.secret_entry = Gtk.Entry()
+        self.secret_entry.set_text(self.creds.get("clientSecret", ""))
+        self.secret_entry.set_visibility(False)
+        self.secret_entry.set_placeholder_text("s-s4-xxxxxxxxxxxxxxxxxxxx")
+
+        show_btn = Gtk.CheckButton(label="Show secret")
+        show_btn.connect("toggled", lambda b: self.secret_entry.set_visibility(b.get_active()))
+
+        api_box.pack_start(make_row(make_label("Client ID"),     self.id_entry),     False, False, 0)
+        api_box.pack_start(make_row(make_label("Client Secret"), self.secret_entry), False, False, 0)
+        api_box.pack_start(show_btn, False, False, 0)
+
+        # ── Display ───────────────────────────────────────────
+        disp_frame, disp_box = make_section("Display")
+
+        self.fmt_combo = Gtk.ComboBoxText()
+        for k, v in [("ratio", "Ratio  —  12h30/140h"),
+                     ("remaining", "Remaining  —  Remaining: 5h30"),
+                     ("all", "All  —  12h30/140h | Remaining: 5h30")]:
+            self.fmt_combo.append(k, v)
+        self.fmt_combo.set_active_id(self.settings.get("displayFormat", "ratio"))
+
+        self.size_combo = Gtk.ComboBoxText()
+        for k, v in [("small", "Small"), ("medium", "Medium"), ("large", "Large")]:
+            self.size_combo.append(k, v)
+        self.size_combo.set_active_id(self.settings.get("fontSize", "small"))
+
+        self.minutes_check = Gtk.CheckButton(label="Show minutes")
+        self.minutes_check.set_active(self.settings.get("showMinutes", True))
+
+        self.today_check = Gtk.CheckButton(label="Show today's hours")
+        self.today_check.set_active(self.settings.get("showCurrentDay", False))
+
+        disp_box.pack_start(make_row(make_label("Format"), self.fmt_combo), False, False, 0)
+        disp_box.pack_start(make_row(make_label("Font size"), self.size_combo), False, False, 0)
+        disp_box.pack_start(self.minutes_check, False, False, 0)
+        disp_box.pack_start(self.today_check,   False, False, 0)
+
+        # ── Gratification ─────────────────────────────────────
+        grat_frame, grat_box = make_section("Gratification  (Barème Auvergne-Rhône-Alpes)")
+
+        self.birth_entry = Gtk.Entry()
+        self.birth_entry.set_text(self.settings.get("birthDate", ""))
+        self.birth_entry.set_placeholder_text("YYYY-MM-DD")
+
+        self.money_check = Gtk.CheckButton(label="Show earned money")
+        self.money_check.set_active(self.settings.get("showMoney", False))
+
+        grat_box.pack_start(make_row(make_label("Birth date"), self.birth_entry), False, False, 0)
+        grat_box.pack_start(self.money_check, False, False, 0)
+
+        # ── Colors ────────────────────────────────────────────
+        col_frame, col_box = make_section("Colors")
+
+        self.start_btn = make_color_btn(self.settings.get("startColor",  "#ef4444"))
+        self.end_btn   = make_color_btn(self.settings.get("endColor",    "#4ade80"))
+        self.ahead_btn = make_color_btn(self.settings.get("aheadColor",  "#00c8ff"))
+
+        self.curve_combo = Gtk.ComboBoxText()
+        for k, v in [
+            ("exponential", "Exponential  (default)"),
+            ("linear",      "Linear"),
+            ("ease-out",    "Ease out"),
+            ("cosine",      "Cosine"),
+            ("sine",        "Sine  (S-curve)"),
+            ("smoothstep",  "Smoothstep  (S-curve)"),
+            ("ease-in-out", "Ease in-out  (S-curve)"),
+            ("quadratic",   "Quadratic"),
+            ("cubic",       "Cubic"),
+        ]:
+            self.curve_combo.append(k, v)
+        self.curve_combo.set_active_id(self.settings.get("colorGradient", "exponential"))
+
+        col_box.pack_start(make_row(make_label("Below target  (0%)"),  self.start_btn), False, False, 0)
+        col_box.pack_start(make_row(make_label("On target  (100%)"),   self.end_btn),   False, False, 0)
+        col_box.pack_start(make_row(make_label("Above target"),        self.ahead_btn), False, False, 0)
+        col_box.pack_start(make_row(make_label("Gradient curve"),      self.curve_combo), False, False, 0)
+
+        # ── Days ──────────────────────────────────────────────
+        days_frame, days_box = make_section("Days")
+
+        self.bonus_spin = Gtk.SpinButton.new_with_range(0, 30, 1)
+        self.bonus_spin.set_value(self.settings.get("bonusDays", 0))
+
+        self.gift_spin = Gtk.SpinButton.new_with_range(0, 30, 1)
+        self.gift_spin.set_value(self.settings.get("giftDays", 0))
+
+        days_box.pack_start(make_row(make_label("Bonus days  (+7h each)"),    self.bonus_spin), False, False, 0)
+        days_box.pack_start(make_row(make_label("Gift days  (−7h required)"), self.gift_spin),  False, False, 0)
+
+        # ── Buttons ───────────────────────────────────────────
+        btn_box = Gtk.Box(spacing=8)
+        btn_box.set_halign(Gtk.Align.END)
+
+        cancel_btn = Gtk.Button(label="Cancel")
+        cancel_btn.get_style_context().add_class("cancel")
+        cancel_btn.connect("clicked", lambda _: self.destroy())
+
+        save_btn = Gtk.Button(label="Save & Refresh")
+        save_btn.get_style_context().add_class("save")
+        save_btn.connect("clicked", self.on_save)
+
+        btn_box.pack_start(cancel_btn, False, False, 0)
+        btn_box.pack_start(save_btn,   False, False, 0)
+
+        for w in (api_frame, disp_frame, grat_frame, col_frame, days_frame, btn_box):
+            root.pack_start(w, False, False, 0)
+
+        self.connect("destroy", Gtk.main_quit)
+        self.show_all()
+
+    def on_save(self, _):
+        save_json(CREDS_FILE, {
+            "clientId":     self.id_entry.get_text().strip(),
+            "clientSecret": self.secret_entry.get_text().strip(),
+        })
+        save_json(SETTINGS_FILE, {
+            "bonusDays":      int(self.bonus_spin.get_value()),
+            "giftDays":       int(self.gift_spin.get_value()),
+            "displayFormat":  self.fmt_combo.get_active_id(),
+            "showMinutes":    self.minutes_check.get_active(),
+            "showCurrentDay": self.today_check.get_active(),
+            "showMoney":      self.money_check.get_active(),
+            "birthDate":      self.birth_entry.get_text().strip(),
+            "startColor":     rgba_to_hex(self.start_btn.get_rgba()),
+            "endColor":       rgba_to_hex(self.end_btn.get_rgba()),
+            "aheadColor":     rgba_to_hex(self.ahead_btn.get_rgba()),
+            "colorGradient":  self.curve_combo.get_active_id(),
+            "fontSize":       self.size_combo.get_active_id(),
+        })
+        try:
+            os.remove(TOKEN_CACHE)
+        except FileNotFoundError:
+            pass
+        refresh_bar()
+        self.destroy()
+
+
+if __name__ == "__main__":
+    # If already running, focus the existing window and exit
+    result = subprocess.run(
+        ["pgrep", "-f", "logtime-settings"],
+        capture_output=True, text=True
+    )
+    pids = [p for p in result.stdout.strip().splitlines() if p != str(os.getpid())]
+    if pids:
+        subprocess.run(["wmctrl", "-a", "Logtime Settings"])
+        raise SystemExit(0)
+
+    LogtimeSettings()
+    Gtk.main()

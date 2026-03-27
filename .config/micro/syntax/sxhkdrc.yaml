@@ -1,0 +1,29 @@
+filetype: sxhkdrc
+
+detect:
+  filename: "sxhkdrc"
+
+rules:
+  # Comments
+  - comment: "#.*$"
+
+  # Key modifiers → purple (statement)
+  - statement: "\\b(super|alt|ctrl|shift|hyper|mod[1-5]|lock)\\b"
+
+  # Release (@) and passthrough (~) prefixes → purple (preproc)
+  - preproc: "[@~]"
+
+  # + separator between keys → cyan (operator)
+  - symbol.operator: "\\+"
+
+  # Brace expansions {a,b,c} → blue (type)
+  - type: "\\{[^}]*\\}"
+
+  # Special/media keys → cyan (special)
+  - special: "\\b(Return|space|Tab|Escape|BackSpace|Delete|Insert|Home|End|Prior|Next|Up|Down|Left|Right|Print|pause|cancel|XF86[A-Za-z0-9]+)\\b"
+
+  # Function keys F1–F12 → orange (constant)
+  - constant: "\\bF[0-9]+\\b"
+
+  # _ placeholder inside brace expansions → pink
+  - identifier.var: "\\b_\\b"

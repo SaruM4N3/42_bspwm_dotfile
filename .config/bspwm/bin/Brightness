@@ -1,0 +1,96 @@
+#!/bin/sh
+# Brightness control — hardware (Dell) or software via xrandr (Mac/other)
+
+DIR="$HOME/.config/bspwm/config/assets"
+BRIGHTNESS_STEPS=5
+MIN_BRIGHTNESS=2
+XRANDR_STATE="$HOME/.config/bspwm/config/.brightness_xrandr"
+DISPLAY="${DISPLAY:-:0}"
+OUTPUT=$(xrandr | awk '/ connected/{print $1; exit}')
+
+# Detect best backlight device
+# Dell: dell_uart_backlight, Mac/AMD: acpi_video0, fallback: xrandr
+get_hw_device() {
+    [ -e /sys/class/backlight/dell_uart_backlight ] && echo "dell_uart_backlight" && return
+    [ -e /sys/class/backlight/acpi_video0 ]        && echo "acpi_video0"        && return
+    echo ""
+}
+
+use_hardware() {
+    [ -n "$(get_hw_device)" ]
+}
+
+# ── hardware mode (brightnessctl) ────────────────────────────────────────────
+
+get_hw_brightness() {
+    dev=$(get_hw_device)
+    brightnessctl -d "$dev" i | awk -F '[()%]' '/Current brightness:/ {print $2}'
+}
+
+adjust_hw() {
+    dev=$(get_hw_device)
+    current="$(get_hw_brightness)"
+    case $1 in
+        up)
+            [ "$current" -eq "$MIN_BRIGHTNESS" ] \
+                && brightnessctl -d "$dev" set "${BRIGHTNESS_STEPS}%" -q \
+                || brightnessctl -d "$dev" set "${BRIGHTNESS_STEPS}%+" -q ;;
+        down)
+            threshold=$((MIN_BRIGHTNESS + BRIGHTNESS_STEPS))
+            [ "$current" -le "$threshold" ] \
+                && brightnessctl -d "$dev" set "${MIN_BRIGHTNESS}%" -q \
+                || brightnessctl -d "$dev" set "${BRIGHTNESS_STEPS}%-" -q ;;
+    esac
+    send_notification "$(get_hw_brightness)"
+}
+
+# ── software mode (xrandr) ───────────────────────────────────────────────────
+
+get_xrandr_brightness() {
+    val=$(cat "$XRANDR_STATE" 2>/dev/null || echo "100")
+    echo "$val"
+}
+
+adjust_xrandr() {
+    current=$(get_xrandr_brightness)
+    case $1 in
+        up)
+            new=$((current + BRIGHTNESS_STEPS))
+            [ "$new" -gt 100 ] && new=100 ;;
+        down)
+            new=$((current - BRIGHTNESS_STEPS))
+            [ "$new" -lt "$MIN_BRIGHTNESS" ] && new=$MIN_BRIGHTNESS ;;
+    esac
+    echo "$new" > "$XRANDR_STATE"
+    xrandr --output "$OUTPUT" --brightness "$(echo "scale=2; $new/100" | bc)" 2>/dev/null
+    send_notification "$new"
+}
+
+# ── get current % for polybar ────────────────────────────────────────────────
+
+get_brightness() {
+    if use_hardware; then
+        get_hw_brightness
+    else
+        get_xrandr_brightness
+    fi
+}
+
+# ── notification ─────────────────────────────────────────────────────────────
+
+send_notification() {
+    dunstify "Brightness $1%" -i "$DIR/brightness.svg" -r 5555 -h int:value:"$1"
+}
+
+# ── entry point ──────────────────────────────────────────────────────────────
+
+case $1 in
+    up|down)
+        if use_hardware; then
+            adjust_hw "$1"
+        else
+            adjust_xrandr "$1"
+        fi ;;
+    get)
+        get_brightness ;;
+esac

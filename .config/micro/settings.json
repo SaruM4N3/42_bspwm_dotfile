@@ -1,0 +1,22 @@
+{
+    "colorscheme": "pamela",
+    "truecolor": "auto",
+    "colorcolumn": 0,
+    "cursorline": false,
+    "hlsearch": true,
+    "tabsize": 4,
+    "tabstospaces": true,
+    "autoclose": true,
+    "ruler": true,
+    "softwrap": false,
+    "mouse": true,
+    "scrollbar": true,
+    "savecursor": true,
+    "saveundo": true,
+    "syntax": true,
+    "statusline": true,
+    "autoindent": true,
+    "smartpaste": true,
+    "rmtrailingws": true,
+    "comment": true
+}

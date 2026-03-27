@@ -1,0 +1,226 @@
+#!/usr/bin/env bash
+#             __ _       _     _            _              _   _
+#  _ __ ___  / _(_)     | |__ | |_   _  ___| |_ ___   ___ | |_| |__
+# | '__/ _ \| |_| |_____| '_ \| | | | |/ _ \ __/ _ \ / _ \| __| '_ \
+# | | | (_) |  _| |_____| |_) | | |_| |  __/ || (_) | (_) | |_| | | |
+# |_|  \___/|_| |_|     |_.__/|_|\__,_|\___|\__\___/ \___/ \__|_| |_|
+#
+# Author: Nick Clyde (clydedroid) — rewritten for rofi script mode
+
+divider="---------"
+goback="Back"
+FAVORITES_FILE="$HOME/.config/bspwm/config/.bt_favorites"
+STATE_FILE="/tmp/rofi-bluetooth-state"
+
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+power_on()        { bluetoothctl show | grep -q "Powered: yes"; }
+scan_on()         { bluetoothctl show | grep -q "Discovering: yes" && echo "Scan: on" || echo "Scan: off"; }
+pairable_on()     { bluetoothctl show | grep -q "Pairable: yes"    && echo "Pairable: on"    || echo "Pairable: off"; }
+discoverable_on() { bluetoothctl show | grep -q "Discoverable: yes" && echo "Discoverable: on" || echo "Discoverable: off"; }
+
+device_connected() { bluetoothctl info "$1" | grep -q "Connected: yes"; }
+device_paired()    { bluetoothctl info "$1" | grep -q "Paired: yes" && echo "Paired: yes" || echo "Paired: no"; }
+device_trusted()   { bluetoothctl info "$1" | grep -q "Trusted: yes" && echo "Trusted: yes" || echo "Trusted: no"; }
+
+device_is_favorite() { [ -f "$FAVORITES_FILE" ] && grep -qF "$1 " "$FAVORITES_FILE"; }
+toggle_favorite() {
+    local mac="$1" name="$2"
+    if device_is_favorite "$mac"; then
+        grep -vF "$mac " "$FAVORITES_FILE" > "${FAVORITES_FILE}.tmp" && mv "${FAVORITES_FILE}.tmp" "$FAVORITES_FILE"
+    else
+        echo "$mac $name" >> "$FAVORITES_FILE"
+    fi
+}
+
+# Look up MAC by exact device name — checks favorites file first, then bluetoothctl
+find_mac() {
+    local target="$1"
+    if [ -f "$FAVORITES_FILE" ]; then
+        while IFS= read -r fav; do
+            local fmac fname
+            fmac=$(echo "$fav" | awk '{print $1}')
+            fname=$(echo "$fav" | cut -d' ' -f2-)
+            [ "$fname" = "$target" ] && echo "$fmac" && return
+        done < "$FAVORITES_FILE"
+    fi
+    bluetoothctl devices | while IFS= read -r line; do
+        local mac name
+        mac=$(echo "$line" | awk '{print $2}')
+        name=$(echo "$line" | cut -d' ' -f3-)
+        [ "$name" = "$target" ] && echo "$mac" && return
+    done
+}
+
+get_state() { cat "$STATE_FILE" 2>/dev/null || echo "main"; }
+set_state()  { echo "$1" > "$STATE_FILE"; }
+
+# ── status bar output ─────────────────────────────────────────────────────────
+
+print_status() {
+    if power_on; then
+        printf ''
+        mapfile -t paired < <(bluetoothctl devices Paired | grep Device | cut -d' ' -f2)
+        counter=0
+        for mac in "${paired[@]}"; do
+            if device_connected "$mac"; then
+                alias=$(bluetoothctl info "$mac" | grep "Alias" | cut -d' ' -f2-)
+                [ $counter -gt 0 ] && printf ", %s" "$alias" || printf " %s" "$alias"
+                ((counter++))
+            fi
+        done
+        printf "\n"
+    else
+        echo ""
+    fi
+}
+
+# ── menu builders ─────────────────────────────────────────────────────────────
+
+show_main_menu() {
+    printf '\0prompt\x1fBluetooth\n'
+    printf '\0no-custom\x1ftrue\n'
+    if power_on; then
+        _devlist=$(bluetoothctl devices | grep Device)
+        while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            mac=$(echo "$line" | awk '{print $2}')
+            name=$(echo "$line" | cut -d' ' -f3-)
+            echo "$name" | grep -qE '^[0-9A-Fa-f]{2}[:-]' && continue
+            device_is_favorite "$mac" && echo "★ $name"
+        done <<< "$_devlist"
+        while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            mac=$(echo "$line" | awk '{print $2}')
+            name=$(echo "$line" | cut -d' ' -f3-)
+            echo "$name" | grep -qE '^[0-9A-Fa-f]{2}[:-]' && continue
+            device_is_favorite "$mac" || echo "$name"
+        done <<< "$_devlist"
+        echo "$divider"
+        echo "⟳ Refresh"
+        echo "Power: on"
+        echo "$(scan_on)"
+        echo "$(pairable_on)"
+        echo "$(discoverable_on)"
+    else
+        echo "Power: off"
+    fi
+    echo "Exit"
+}
+
+show_device_menu() {
+    local mac="$1" name="$2"
+    printf '\0prompt\x1f%s\n' "$name"
+    printf '\0no-custom\x1ftrue\n'
+    device_connected "$mac" && echo "Connected: yes" || echo "Connected: no"
+    device_paired "$mac"
+    device_trusted "$mac"
+    device_is_favorite "$mac" && echo "Favorite: yes" || echo "Favorite: no"
+    echo "$divider"
+    echo "$goback"
+    echo "Exit"
+}
+
+# ── action handler ────────────────────────────────────────────────────────────
+
+process() {
+    local state chosen="$1"
+    state=$(get_state)
+
+    if [ "$state" = "main" ]; then
+        case "$chosen" in
+            "Exit"|"")
+                rm -f "$STATE_FILE"; exit 0 ;;
+            "$divider")
+                show_main_menu ;;
+            "⟳ Refresh")
+                kill $(pgrep -f "bluetoothctl.*scan on") 2>/dev/null
+                bluetoothctl scan off >/dev/null 2>&1
+                bluetoothctl --timeout 10 scan on >/dev/null 2>&1 &
+                sleep 1; show_main_menu ;;
+            "Power: on")
+                bluetoothctl power off >/dev/null 2>&1; show_main_menu ;;
+            "Power: off")
+                rfkill list bluetooth | grep -q 'blocked: yes' && rfkill unblock bluetooth && sleep 3
+                bluetoothctl power on >/dev/null 2>&1; show_main_menu ;;
+            "Scan: on")
+                kill $(pgrep -f "bluetoothctl.*scan on") 2>/dev/null
+                bluetoothctl scan off >/dev/null 2>&1; sleep 1; show_main_menu ;;
+            "Scan: off")
+                bluetoothctl --timeout 30 scan on > /dev/null 2>&1 &
+                sleep 1; show_main_menu ;;
+            "Pairable: on")  bluetoothctl pairable off >/dev/null 2>&1; show_main_menu ;;
+            "Pairable: off") bluetoothctl pairable on >/dev/null 2>&1;  show_main_menu ;;
+            "Discoverable: on")  bluetoothctl discoverable off >/dev/null 2>&1; show_main_menu ;;
+            "Discoverable: off") bluetoothctl discoverable on >/dev/null 2>&1;  show_main_menu ;;
+            *)
+                clean=$(echo "$chosen" | sed 's/^★ //')
+                mac=$(find_mac "$clean")
+                if [ -n "$mac" ]; then
+                    set_state "device|${mac}|${clean}"
+                    show_device_menu "$mac" "$clean"
+                else
+                    show_main_menu
+                fi ;;
+        esac
+    else
+        mac=$(echo "$state"  | cut -d'|' -f2)
+        name=$(echo "$state" | cut -d'|' -f3)
+        case "$chosen" in
+            "Exit"|"")
+                rm -f "$STATE_FILE"; exit 0 ;;
+            "$goback")
+                set_state "main"; show_main_menu ;;
+            "Connected: yes")
+                dunstify -i bluetooth -t 4000 "Bluetooth" "⏳ Disconnecting $name..."
+                ( bluetoothctl disconnect "$mac" >/dev/null 2>&1
+                  dunstify -i bluetooth -t 2000 "Bluetooth" "✓ Disconnected $name" ) &
+                rm -f "$STATE_FILE"; exit 0 ;;
+            "Connected: no")
+                dunstify -i bluetooth -t 4000 "Bluetooth" "⏳ Connecting to $name..."
+                ( timeout 15 bluetoothctl connect "$mac" >/dev/null 2>&1
+                  if device_connected "$mac"; then
+                      dunstify -i bluetooth -t 2000 "Bluetooth" "✓ Connected to $name"
+                  else
+                      dunstify -i bluetooth -t 3000 "Bluetooth" "✗ Failed to connect to $name"
+                  fi ) &
+                rm -f "$STATE_FILE"; exit 0 ;;
+            "Paired: yes")
+                dunstify -i bluetooth -t 3000 "Bluetooth" "⏳ Removing $name..."
+                ( bluetoothctl remove "$mac" >/dev/null 2>&1
+                  dunstify -i bluetooth -t 2000 "Bluetooth" "✓ Removed $name" ) &
+                rm -f "$STATE_FILE"; exit 0 ;;
+            "Paired: no")
+                dunstify -i bluetooth -t 4000 "Bluetooth" "⏳ Pairing with $name..."
+                ( bluetoothctl pair "$mac" >/dev/null 2>&1
+                  dunstify -i bluetooth -t 2000 "Bluetooth" "✓ Paired with $name" ) &
+                rm -f "$STATE_FILE"; exit 0 ;;
+            "Trusted: yes")   bluetoothctl untrust "$mac" >/dev/null 2>&1;    show_device_menu "$mac" "$name" ;;
+            "Trusted: no")    bluetoothctl trust   "$mac" >/dev/null 2>&1;    show_device_menu "$mac" "$name" ;;
+            "Favorite: yes"|"Favorite: no")
+                toggle_favorite "$mac" "$name"; show_device_menu "$mac" "$name" ;;
+            "$divider") show_device_menu "$mac" "$name" ;;
+            *) show_device_menu "$mac" "$name" ;;
+        esac
+    fi
+}
+
+# ── entry point ───────────────────────────────────────────────────────────────
+
+case "$1" in
+    --status)
+        print_status ;;
+    *)
+        if [ -z "$ROFI_RETV" ]; then
+            # Direct call — launch rofi in script mode (window stays open)
+            rm -f "$STATE_FILE"
+            rofi -modi "bluetooth:$0" -show bluetooth \
+                -theme "$HOME/.config/bspwm/config/rofi-themes/Bluetooth.rasi"
+        elif [ "$ROFI_RETV" = "0" ]; then
+            # Rofi initial call
+            show_main_menu
+        else
+            # Rofi called us with a selection
+            process "$1"
+        fi ;;
+esac
