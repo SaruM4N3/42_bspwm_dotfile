@@ -1,0 +1,260 @@
+#!/usr/bin/env python3
+"""
+Polybar logtime module for 42 API.
+Credentials: ~/.config/logtime/credentials.json  { "clientId": "...", "clientSecret": "..." }
+Settings:    ~/.config/logtime/settings.json
+Token cache: ~/.cache/logtime_token.json
+"""
+
+import json, math, os, sys, time, urllib.request, urllib.parse
+from datetime import date, datetime, timedelta, timezone
+
+CREDS_FILE    = os.path.expanduser("~/.config/logtime/credentials.json")
+CREDS_GNOME   = os.path.expanduser("~/.local/share/gnome-shell/extensions/LogtimeWidget@zsonie/utils/credentials.json")
+SETTINGS_FILE = os.path.expanduser("~/.config/logtime/settings.json")
+TOKEN_CACHE   = os.path.expanduser("~/.cache/logtime_token.json")
+
+DEFAULTS = {
+    "bonusDays":      0,
+    "giftDays":       0,
+    "displayFormat":  "ratio",
+    "showMinutes":    True,
+    "showCurrentDay": False,
+    "showMoney":      False,
+    "birthDate":      "",
+    "startColor":     "#ef4444",
+    "endColor":       "#4ade80",
+    "aheadColor":     "#00c8ff",
+    "colorGradient":  "exponential",
+    "fontSize":       "small",   # small | medium | large  →  T1 | T3 | T4
+}
+
+# polybar font tag per size (1-indexed: font-0=T1, font-2=T3, font-3=T4)
+FONT_TAG = {"small": 1, "medium": 3, "large": 4}
+
+
+def load_json(path, default=None):
+    try:
+        with open(path) as f:
+            data = json.load(f)
+            return {**default, **data} if default else data
+    except Exception:
+        return dict(default) if default else None
+
+
+def load_credentials():
+    for path in (CREDS_FILE, CREDS_GNOME):
+        d = load_json(path)
+        if d and d.get("clientId") and d.get("clientSecret"):
+            return d
+    return None
+
+
+def get_token(client_id, client_secret):
+    cache = load_json(TOKEN_CACHE)
+    if cache and cache.get("expires_at", 0) > time.time() + 120:
+        return cache["token"]
+    data = urllib.parse.urlencode({
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+    }).encode()
+    req = urllib.request.Request(
+        "https://api.intra.42.fr/oauth/token", data=data, method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read())
+            token = result["access_token"]
+            os.makedirs(os.path.dirname(TOKEN_CACHE), exist_ok=True)
+            with open(TOKEN_CACHE, "w") as f:
+                json.dump({"token": token, "expires_at": time.time() + result.get("expires_in", 7200)}, f)
+            return token
+    except Exception:
+        return None
+
+
+def get_locations(token, username):
+    url = f"https://api.intra.42.fr/v2/users/{username}/locations?per_page=100"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}", "User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read())
+    except Exception:
+        return None
+
+
+def calculate_easter(year):
+    a = year % 19;  b = year // 100;  c = year % 100
+    d = b // 4;     e = b % 4;        f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4;     k = c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day   = ((h + l - 7 * m + 114) % 31) + 1
+    return date(year, month, day) + timedelta(days=1)
+
+
+def get_french_holidays(year):
+    e = calculate_easter(year)
+    return {date(year,1,1), date(year,5,1), date(year,5,8), date(year,7,14),
+            date(year,8,15), date(year,11,1), date(year,11,11), date(year,12,25),
+            e, e + timedelta(days=39), e + timedelta(days=49)}
+
+
+def working_days_in_month(year, month):
+    holidays = get_french_holidays(year)
+    days_in_month = (date(year, month + 1, 1) - timedelta(days=1)).day if month < 12 else 31
+    return sum(1 for d in range(1, days_in_month + 1)
+               if date(year, month, d).weekday() < 5 and date(year, month, d) not in holidays)
+
+
+def sum_seconds(locations, year, month, day=None):
+    now = datetime.now(timezone.utc)
+    total = 0.0
+    for s in locations:
+        raw = s.get("begin_at")
+        if not raw:
+            continue
+        try:
+            begin = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            if begin.year != year or begin.month != month:
+                continue
+            if day is not None and begin.day != day:
+                continue
+            end_raw = s.get("end_at")
+            end = datetime.fromisoformat(end_raw.replace("Z", "+00:00")) if end_raw else now
+            total += (end - begin).total_seconds()
+        except Exception:
+            continue
+    return total
+
+
+def apply_curve(t, curve):
+    if   curve == "linear":      return t
+    elif curve == "ease-out":    return 1 - (1 - t) ** 2
+    elif curve == "cosine":      return math.sin(t * math.pi / 2)
+    elif curve == "sine":        return (1 - math.cos(t * math.pi)) / 2
+    elif curve == "smoothstep":  return t * t * (3 - 2 * t)
+    elif curve == "ease-in-out": return 4*t**3 if t < 0.5 else 1 - (-2*t+2)**3/2
+    elif curve == "quadratic":   return t ** 2
+    elif curve == "cubic":       return t ** 3
+    else:                        return 0 if t == 0 else 2 ** (10 * t - 10)  # exponential
+
+
+def interpolate_color(pct, start, end, ahead, curve):
+    def parse(h): h = h.lstrip("#"); return int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+    if pct >= 1.0:
+        r, g, b = parse(ahead)
+    else:
+        sr, sg, sb = parse(start)
+        er, eg, eb = parse(end)
+        t = apply_curve(max(0.0, min(1.0, pct)), curve)
+        r = sr + (er - sr) * t
+        g = sg + (eg - sg) * t
+        b = sb + (eb - sb) * t
+    return f"#{int(r):02x}{int(g):02x}{int(b):02x}"
+
+
+def get_monthly_rate(birth_date):
+    if not birth_date:
+        return None
+    try:
+        parts = birth_date.split("-")
+        birth = date(int(parts[0]), int(parts[1]), int(parts[2]))
+    except Exception:
+        return None
+    today = date.today()
+    age = today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
+    if age >= 26: return 769.49
+    if age >= 18: return 561.68
+    if age >= 16: return 224.68
+    return None
+
+
+def calculate_money(birth_date, total_hours, working_hours):
+    rate = get_monthly_rate(birth_date)
+    if rate is None:
+        return None
+    if working_hours <= 0:
+        return rate
+    return min(total_hours / working_hours, 1.0) * rate
+
+
+def format_hm(seconds, show_minutes):
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    return f"{h}h{m:02d}" if show_minutes else f"{h}h"
+
+
+def build_display(locations, cfg, today):
+    bonus      = cfg.get("bonusDays", 0)
+    gift       = cfg.get("giftDays", 0)
+    fmt        = cfg.get("displayFormat", "ratio")
+    show_min   = cfg.get("showMinutes", True)
+    show_day   = cfg.get("showCurrentDay", False)
+    show_money = cfg.get("showMoney", False)
+    birth_date = cfg.get("birthDate", "")
+
+    wd      = working_days_in_month(today.year, today.month)
+    req_h   = max(0, wd - min(gift, wd)) * 7
+    total_s = sum_seconds(locations, today.year, today.month) + bonus * 7 * 3600
+    total_h = int(total_s // 3600)
+    total_m = int((total_s % 3600) // 60)
+    rem_s   = req_h * 3600 - total_s
+    ahead   = rem_s < 0
+
+    ratio_str = f"{total_h}h{total_m:02d}/{req_h}h" if show_min else f"{total_h}h/{req_h}h"
+    rem_str   = (f"+{format_hm(abs(rem_s), show_min)} above!" if ahead
+                 else f"Remaining: {format_hm(abs(rem_s), show_min)}")
+
+    if   fmt == "remaining": text = rem_str
+    elif fmt == "all":       text = f"{ratio_str} | {rem_str}"
+    else:                    text = ratio_str
+
+    if show_day:
+        day_s = sum_seconds(locations, today.year, today.month, today.day)
+        text += f" | Today: {format_hm(day_s, show_min)}"
+
+    if show_money:
+        earned = calculate_money(birth_date, total_h, req_h)
+        if earned is not None:
+            text += f" | {earned:.2f}€"
+
+    pct   = (total_s / (req_h * 3600)) if req_h > 0 else 0.0
+    color = interpolate_color(pct,
+                               cfg.get("startColor",    "#ef4444"),
+                               cfg.get("endColor",      "#4ade80"),
+                               cfg.get("aheadColor",    "#00c8ff"),
+                               cfg.get("colorGradient", "exponential"))
+
+    font_n = FONT_TAG.get(cfg.get("fontSize", "small"), 1)
+    return f"%{{F{color}}}%{{T{font_n}}} {text}%{{T-}}%{{F-}}"
+
+
+def main():
+    creds = load_credentials()
+    if not creds:
+        print("No credentials — click to configure")
+        sys.exit(0)
+
+    token = get_token(creds["clientId"], creds["clientSecret"])
+    if not token:
+        print("Auth failed")
+        sys.exit(0)
+
+    username  = os.environ.get("USER") or os.getlogin()
+    locations = get_locations(token, username)
+    if locations is None:
+        print("API error")
+        sys.exit(0)
+
+    cfg  = load_json(SETTINGS_FILE, DEFAULTS)
+    print(build_display(locations, cfg, date.today()))
+
+
+if __name__ == "__main__":
+    main()

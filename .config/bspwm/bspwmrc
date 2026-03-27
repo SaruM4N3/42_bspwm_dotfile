@@ -1,0 +1,131 @@
+#!/bin/sh
+# =============================================================
+#  ██████╗ ███████╗██████╗ ██╗    ██╗███╗   ███╗██████╗  ██████╗
+#  ██╔══██╗██╔════╝██╔══██╗██║    ██║████╗ ████║██╔══██╗██╔════╝
+#  ██████╔╝███████╗██████╔╝██║ █╗ ██║██╔████╔██║██████╔╝██║
+#  ██╔══██╗╚════██║██╔═══╝ ██║███╗██║██║╚██╔╝██║██╔══██╗██║
+#  ██████╔╝███████║██║     ╚███╔███╔╝██║ ╚═╝ ██║██║  ██║╚██████╗
+#  ╚═════╝ ╚══════╝╚═╝      ╚══╝╚══╝ ╚═╝     ╚═╝╚═╝  ╚═╝ ╚═════╝
+# Author:  gh0stzk
+# Repo:    https://github.com/gh0stzk/dotfiles
+# Date:    24.04.2025 20:37:31
+# Copyright (C) 2021-2025 gh0stzk <z0mbi3.zk@protonmail.com>
+# =============================================================
+
+# Set environment variables
+export PATH="$HOME/.config/bspwm/bin:$PATH"
+export XDG_CURRENT_DESKTOP='bspwm'
+## Fix java applications
+export _JAVA_AWT_WM_NONREPARENTING=1
+
+#  ╦ ╦╔═╗╦═╗╦╔═╔═╗╔═╗╔═╗╔═╗╔═╗╔═╗
+#  ║║║║ ║╠╦╝╠╩╗╚═╗╠═╝╠═╣║  ║╣ ╚═╗
+#  ╚╩╝╚═╝╩╚═╩ ╩╚═╝╩  ╩ ╩╚═╝╚═╝╚═╝
+
+MonitorSetup
+
+#  ╔╗ ╔═╗╔═╗╦ ╦╔╦╗  ╔═╗╔═╗╔╗╔╔═╗╦╔═╗
+#  ╠╩╗╚═╗╠═╝║║║║║║  ║  ║ ║║║║╠╣ ║║ ╦
+#  ╚═╝╚═╝╩  ╚╩╝╩ ╩  ╚═╝╚═╝╝╚╝╚  ╩╚═╝
+
+bspc config external_rules_command "${HOME}"/.config/bspwm/bin/ExternalRules
+
+bspc config window_gap 3
+bspc config split_ratio               0.51
+bspc config single_monocle            true
+
+bspc config automatic_scheme          longest_side
+bspc config initial_polarity          second_child
+bspc config removal_adjustment        true
+
+bspc config focus_follows_pointer     true
+bspc config pointer_follows_focus     false
+bspc config pointer_follows_monitor   true
+bspc config pointer_motion_interval   7
+bspc config pointer_modifier          mod4
+bspc config pointer_action1           move
+bspc config pointer_action2           resize_side
+bspc config pointer_action3           resize_corner
+
+#  ╔═╗╦ ╦╔╦╗╔═╗╔═╗╔╦╗╔═╗╦═╗╔╦╗
+#  ╠═╣║ ║ ║ ║ ║╚═╗ ║ ╠═╣╠╦╝ ║
+#  ╩ ╩╚═╝ ╩ ╚═╝╚═╝ ╩ ╩ ╩╩╚═ ╩
+
+run() {
+  if ! pidof -q "$1"; then
+    "$@" &
+  fi
+}
+
+# Set system vars for polybar
+"$HOME"/.config/bspwm/bin/SetSysVars
+
+# Launch sxhkd daemon
+run sxhkd -c "${HOME}"/.config/bspwm/config/sxhkdrc
+
+# Restore config files from session save, fallback to original backup
+SESSION_DIR="$HOME/.config/bspwm/config/.session"
+BACKUP_DIR="$HOME/.local/share/gh0stzk/config/bspwm/config"
+CONFIG_DIR="$HOME/.config/bspwm/config"
+for f in picom.conf picom-animations.conf xsettingsd jgmenurc; do
+    if [ ! -s "$CONFIG_DIR/$f" ]; then
+        if [ -s "$SESSION_DIR/$f" ]; then
+            cp "$SESSION_DIR/$f" "$CONFIG_DIR/$f"
+        elif [ -f "$BACKUP_DIR/$f" ]; then
+            cp "$BACKUP_DIR/$f" "$CONFIG_DIR/$f"
+        fi
+    fi
+done
+# dunstrc: always restore from backup (module truncates global section each run)
+cp "$BACKUP_DIR/dunstrc" "$CONFIG_DIR/dunstrc"
+
+# Launch dunst
+mkdir -p /run/user/$(id -u)/dunst /run/user/$(id -u)/clipcat /run/user/$(id -u)/ft_lock
+pkill -x dunst 2>/dev/null; dunst -config "${HOME}"/.config/bspwm/config/dunstrc &
+
+# Load current theme
+"${HOME}"/.config/bspwm/bin/Theme.sh
+
+# Launch mpd
+pgrep -x mpd >/dev/null || mpd "${HOME}"/.config/mpd/mpd.conf
+
+# Kill gsd-power to prevent auto-brightness via iio-sensor-proxy
+pkill -x gsd-power 2>/dev/null
+
+# Launch picom - try configured backend, fall back to xrender if it crashes
+pkill -x picom 2>/dev/null
+picom --config "${HOME}"/.config/bspwm/config/picom.conf &
+sleep 0.8
+pidof -q picom || env -u DRI_PRIME picom --config "${HOME}"/.config/bspwm/config/picom.conf --backend glx &
+
+# Restore last animated wallpaper
+ANIMWALL_STATE="${HOME}/.config/bspwm/config/.animwall_index"
+ANIMWALL_DIR="${HOME}/Pictures/AnimatedWallpaper"
+if [ -f "$ANIMWALL_STATE" ]; then
+    idx=$(cat "$ANIMWALL_STATE")
+    video=$(find "$ANIMWALL_DIR" -type f \( -name "*.mp4" -o -name "*.mkv" -o -name "*.gif" \) | grep -v "3840x2160" | sort | sed -n "${idx}p")
+    [ -n "$video" ] && AnimatedWall --start "$video" &
+fi
+
+# Launch ft_lock daemon
+pgrep -x /host/usr/share/42/ft_lock -d
+
+# Launch xsettingsd
+run xsettingsd --config="${HOME}"/.config/bspwm/config/xsettingsd >/dev/null 2>&1
+
+# Launch eww daemon
+pidof -q eww || { eww -c "${HOME}"/.config/bspwm/eww daemon & }
+
+# Launch clipboard daemon
+run clipcatd
+
+# Launch polkit
+run lxpolkit
+
+# Start one time message
+[ ! -f "$HOME/.config/bspwm/config/.first_run_done" ] && alacritty --hold -e sh -c 'cat "$HOME/.config/bspwm/config/FirstMessage.txt"; sleep 0.1' && touch "$HOME/.config/bspwm/config/.first_run_done"
+
+# Start dbus if not running
+if ! pgrep -x dbus-daemon >/dev/null; then
+    eval "$(dbus-launch --sh-syntax --exit-with-session)"
+fi

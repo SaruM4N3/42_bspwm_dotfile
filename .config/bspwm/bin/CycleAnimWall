@@ -1,0 +1,25 @@
+#!/bin/sh
+# Cycle through animated wallpapers
+
+ASSETS="$HOME/Pictures/AnimatedWallpaper"
+STATE_FILE="$HOME/.config/bspwm/config/.animwall_index"
+
+TMPLIST=$(mktemp)
+find "$ASSETS" -type f \( -name "*.mp4" -o -name "*.mkv" -o -name "*.gif" \) | \
+    grep -v "3840x2160" | sort > "$TMPLIST"
+
+TOTAL=$(wc -l < "$TMPLIST")
+if [ "$TOTAL" -eq 0 ]; then
+    rm "$TMPLIST"
+    exit 1
+fi
+
+current=$(cat "$STATE_FILE" 2>/dev/null || echo 0)
+next=$(( (current % TOTAL) + 1 ))
+echo "$next" > "$STATE_FILE"
+
+video=$(sed -n "${next}p" "$TMPLIST")
+rm "$TMPLIST"
+
+AnimatedWall --stop
+AnimatedWall --start "$video"

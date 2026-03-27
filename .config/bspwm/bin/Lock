@@ -1,0 +1,18 @@
+#!/bin/sh
+
+save-config.sh
+LOG=$HOME/lock.log
+echo "--- $(date) ---" >> $LOG
+
+# Refresh KRB5CCNAME in case ticket file was renewed/replaced since login
+KRB5_TICKET=$(find /tmp -maxdepth 1 -name "krb5cc_$(id -u)_*" 2>/dev/null | head -1)
+if [ -n "$KRB5_TICKET" ]; then
+    export KRB5CCNAME="FILE:$KRB5_TICKET"
+fi
+
+echo "DISPLAY=$DISPLAY" >> $LOG
+echo "XAUTHORITY=$XAUTHORITY" >> $LOG
+echo "USER=$USER" >> $LOG
+echo "KRB5CCNAME=$KRB5CCNAME" >> $LOG
+/host/usr/share/42/ft_lock >> $LOG 2>&1
+echo "ft_lock exit: $?" >> $LOG

@@ -1,0 +1,15 @@
+# Temporary / runtime state
+.config/bspwm/config/.animwall_index
+.config/bspwm/config/.bt_favorites
+.config/bspwm/config/.brightness_xrandr
+/tmp/
+
+# Micro editor caches/backups
+.config/micro/backups/
+.config/micro/buffers/
+
+# Misc
+*.log
+*.tmp
+*.bak
+*.swp

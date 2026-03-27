@@ -1,0 +1,36 @@
+filetype: polybar
+
+detect:
+  filename: "(config\\.ini|modules\\.ini)"
+  header: "^\\[(bar|module|global|color|settings)/"
+
+rules:
+  # Comments (semicolon)
+  - comment: ";.*$"
+
+  # Section headers [bar/pam1] etc. → blue (type)
+  - type: "^\\[.*\\]$"
+
+  # Variable references ${color.red} → cyan (special)
+  - special: "\\$\\{[^}]+\\}"
+
+  # Polybar format tags %{F#fff} %{T2} etc. → cyan (special)
+  - special: "%\\{[^}]*\\}"
+
+  # Hex color values #rrggbb / #aarrggbb → green (constant.string)
+  - constant.string: "#[0-9a-fA-F]\\{3,8\\}"
+
+  # Keys (left of =) → identifier (red)
+  - identifier: "^[a-zA-Z][a-zA-Z0-9._-]*"
+
+  # Numbers → orange (constant)
+  - constant: "\\b[0-9]+(px|pt|%)?\\b"
+
+  # Boolean values true/false → purple (statement)
+  - statement: "\\b(true|false)\\b"
+
+  # env: references → yellow (preproc)
+  - preproc: "\\$\\{env:[^}]+\\}"
+
+  # include-file directive → preproc
+  - preproc: "^include-file"
