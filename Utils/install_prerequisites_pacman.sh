@@ -100,8 +100,8 @@ patch_makepkg
 info "Installing picom-git (AUR)..."
 aur_install picom-git
 
-info "Installing clipcat (AUR)..."
-aur_install clipcat
+info "Installing clipcat-bin (AUR)..."
+aur_install clipcat-bin
 
 info "Installing xwinwrap (AUR)..."
 aur_install xwinwrap-git
