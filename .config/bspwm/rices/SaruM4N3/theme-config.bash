@@ -106,5 +106,5 @@ geany_theme="z0mbi3-LoveLace"
 ENGINE="Animated"
 
 CUSTOM_DIR="/path/to/your/wallpapers/directory"
-DEFAULT_WALL="/home/zsonie/.config/bspwm/rices/pamela/walls/wall-05.webp"
+DEFAULT_WALL="/home/zsonie/.config/bspwm/rices/SaruM4N3/walls/wall-05.webp"
 ANIMATED_WALL="/home/zsonie/Pictures/AnimatedWallpaper/frieren-campfire-night.3840x2160.mp4"

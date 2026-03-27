@@ -6,7 +6,7 @@ BAR_CFG="${HOME}/.config/bspwm/rices/${RICE}/config.ini"
 
 if [ "$SCREEN_W" -le 2560 ]; then
     # 1080p/1440p: smaller bar height and fonts
-    BAR_CFG="/tmp/pamela-bar-scaled.ini"
+    BAR_CFG="/tmp/SaruM4N3-bar-scaled.ini"
     RICE_DIR="${HOME}/.config/bspwm/rices/${RICE}"
     sed \
         -e "s|include-file = ../../config/|include-file = ${HOME}/.config/bspwm/config/|g" \
