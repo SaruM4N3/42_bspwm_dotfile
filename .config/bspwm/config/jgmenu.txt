@@ -25,7 +25,7 @@ Jan,echo jan > ~/.config/bspwm/.rice ; ~/.config/bspwm/bin/Theme.sh,colors
 Karla,echo karla > ~/.config/bspwm/.rice ; ~/.config/bspwm/bin/Theme.sh,colors
 Marisol,echo marisol > ~/.config/bspwm/.rice ; ~/.config/bspwm/bin/Theme.sh,colors
 Melissa,echo melissa > ~/.config/bspwm/.rice ; ~/.config/bspwm/bin/Theme.sh,colors
-Pamela,echo pamela > ~/.config/bspwm/.rice ; ~/.config/bspwm/bin/Theme.sh,colors
+SaruM4N3,echo SaruM4N3 > ~/.config/bspwm/.rice ; ~/.config/bspwm/bin/Theme.sh,colors
 Silvia,echo silvia > ~/.config/bspwm/.rice ; ~/.config/bspwm/bin/Theme.sh,colors
 Varinka,echo varinka > ~/.config/bspwm/.rice ; ~/.config/bspwm/bin/Theme.sh,colors
 Yael,echo yael > ~/.config/bspwm/.rice ; ~/.config/bspwm/bin/Theme.sh,colors
