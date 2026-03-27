@@ -111,6 +111,12 @@ if [ -d "$REPO_DIR/Utils" ]; then
     info "Deployed: ~/Utils"
 fi
 
+# Fix hardcoded paths (replace repo author's username with the installing user)
+info "Rewriting hardcoded user paths to: $HOME"
+grep -rl "/home/zsonie" "$HOME/.config/bspwm" "$HOME/Utils" 2>/dev/null | while read -r f; do
+    sed -i "s|/home/zsonie|$HOME|g" "$f"
+done
+
 # Animated wallpapers (split 1080p + 4K archives)
 mkdir -p "$HOME/Pictures"
 for tar in "$REPO_DIR/Pictures"/AnimatedWallpaper-*.tar; do
