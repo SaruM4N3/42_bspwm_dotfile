@@ -10,6 +10,7 @@ warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
 error() { echo -e "${RED}[✗]${NC} $*"; }
 
 confirm() {
+    [ "${UNINSTALL_SKIP_CONFIRM:-0}" = "1" ] && return
     printf "\n%b\n" "${YELLOW}[!]${NC} This will remove all packages and files installed by install_prerequisites_pacman.sh."
     printf "    It will NOT remove your dotfiles directory.\n"
     printf "Continue? [y/N]: "
@@ -170,8 +171,10 @@ if grep -q '\[gh0stzk-dotfiles\]' /etc/pacman.conf 2>/dev/null; then
 fi
 
 # ── Remove chaotic-aur repo from pacman.conf ─────────────────────────────────
-printf "\nRemove chaotic-aur from pacman.conf? [y/N]: "
-read -r rm_chaotic
+if [ "${UNINSTALL_SKIP_CONFIRM:-0}" = "1" ]; then rm_chaotic="y"; else
+    printf "\nRemove chaotic-aur from pacman.conf? [y/N]: "
+    read -r rm_chaotic
+fi
 if [ "$rm_chaotic" = "y" ] || [ "$rm_chaotic" = "Y" ]; then
     info "Removing chaotic-aur from pacman.conf..."
     sudo sed -i '/\[chaotic-aur\]/,/^$/d' /etc/pacman.conf
@@ -237,8 +240,10 @@ for f in colorscript sysfetch; do
 done
 
 # ── Animated wallpapers ────────────────────────────────────────────────────────
-printf "\nRemove ~/Pictures/AnimatedWallpaper? [y/N]: "
-read -r rm_walls
+if [ "${UNINSTALL_SKIP_CONFIRM:-0}" = "1" ]; then rm_walls="y"; else
+    printf "\nRemove ~/Pictures/AnimatedWallpaper? [y/N]: "
+    read -r rm_walls
+fi
 if [ "$rm_walls" = "y" ] || [ "$rm_walls" = "Y" ]; then
     rm -rf "$HOME/Pictures/AnimatedWallpaper"
     info "Removed: ~/Pictures/AnimatedWallpaper"
