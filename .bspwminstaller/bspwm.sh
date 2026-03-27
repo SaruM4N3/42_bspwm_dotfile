@@ -59,7 +59,7 @@ swap_zshrc() {
 swap_zshrc
 
 # launch bspwm via junest (proot with fakeroot for sudo/pacman support)
-/home/zsonie/.local/share/junest/bin/junest -b "--bind /sgoinfre /sgoinfre --bind /goinfre /goinfre --bind /dev/shm /dev/shm --bind /run /run --bind /usr /host/usr" -- DRI_PRIME=1 bspwm
+"$HOME/.local/share/junest/bin/junest" -b "--bind /sgoinfre /sgoinfre --bind /goinfre /goinfre --bind /dev/shm /dev/shm --bind /run /run --bind /usr /host/usr" -- DRI_PRIME=1 bspwm
 
 # Swap ~/.zshrc <-> ~/.zshrc.bak back on bspwm exit
 swap_zshrc
