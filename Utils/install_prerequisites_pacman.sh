@@ -44,6 +44,18 @@ add_chaotic_repo() {
     info "chaotic-aur added."
 }
 
+add_gh0stzk_repo() {
+    if grep -q '\[gh0stzk-dotfiles\]' /etc/pacman.conf 2>/dev/null; then
+        info "gh0stzk-dotfiles repo already configured."
+        return
+    fi
+    info "Adding gh0stzk-dotfiles repository..."
+    printf '\n[gh0stzk-dotfiles]\nSigLevel = Optional TrustAll\nServer = http://gh0stzk.github.io/pkgs/x86_64\n' \
+        | sudo tee -a /etc/pacman.conf
+    sudo pacman -Sy --noconfirm
+    info "gh0stzk-dotfiles repo added."
+}
+
 # ── Update keyring + full system sync ────────────────────────────────────────
 info "Syncing package databases..."
 echo "n" | sudo pacman -Syu || true
@@ -59,8 +71,9 @@ sudo pacman -Syu --noconfirm
 info "Installing base-devel and git..."
 sudo pacman -S --needed --noconfirm base-devel git
 
-# ── Chaotic-AUR (binary AUR repo — provides eww-git, picom-git, etc.) ────────
+# ── Chaotic-AUR + gh0stzk custom repo ────────────────────────────────────────
 add_chaotic_repo
+add_gh0stzk_repo
 
 # ── Core WM ──────────────────────────────────────────────────────────────────
 info "Installing core WM packages..."
@@ -146,12 +159,32 @@ info "Installing CLI tools..."
 sudo pacman -S --needed --noconfirm \
     bat \
     eza \
-    fzf
+    btop \
+    micro
 
 # ── Icons & themes ───────────────────────────────────────────────────────────
 info "Installing icons and themes..."
 sudo pacman -S --needed --noconfirm \
     papirus-icon-theme
+
+# ── gh0stzk GTK themes, cursors and icon packs ───────────────────────────────
+info "Installing gh0stzk GTK themes, cursors and icon sets..."
+sudo pacman -S --needed --noconfirm \
+    gh0stzk-gtk-themes \
+    gh0stzk-cursor-qogirr \
+    gh0stzk-icons-beautyline \
+    gh0stzk-icons-candy \
+    gh0stzk-icons-catppuccin-mocha \
+    gh0stzk-icons-dracula \
+    gh0stzk-icons-glassy \
+    gh0stzk-icons-gruvbox-plus-dark \
+    gh0stzk-icons-hack \
+    gh0stzk-icons-luv \
+    gh0stzk-icons-sweet-rainbow \
+    gh0stzk-icons-tokyo-night \
+    gh0stzk-icons-vimix-white \
+    gh0stzk-icons-zafiro \
+    gh0stzk-icons-zafiro-purple
 
 # ── Shell ────────────────────────────────────────────────────────────────────
 info "Installing zsh and plugins..."
@@ -176,19 +209,22 @@ sudo pacman -S --needed --noconfirm \
 info "Installing clipcat..."
 sudo pacman -S --needed --noconfirm clipcat
 
-# ── picom + eww (official/chaotic-aur) ───────────────────────────────────────
-info "Installing picom and eww..."
-sudo pacman -S --needed --noconfirm \
-    picom \
-    eww
+# ── picom (official repo) ─────────────────────────────────────────────────────
+info "Installing picom..."
+sudo pacman -S --needed --noconfirm picom
 
-# ── xwinwrap-git (AUR — low vote count, unlikely in chaotic-aur) ─────────────
-patch_makepkg
-info "Installing xwinwrap-git (AUR)..."
-aur_install xwinwrap-git
+# ── eww-git (chaotic-aur prebuilt) ───────────────────────────────────────────
+info "Installing eww-git from chaotic-aur..."
+sudo pacman -S --needed --noconfirm eww-git
 
-# ── AUR packages (not available in chaotic-aur) ───────────────────────────────
+# ── AUR packages ──────────────────────────────────────────────────────────────
 patch_makepkg
+
+info "Installing xwinwrap-0.9-bin (AUR)..."
+aur_install xwinwrap-0.9-bin
+
+info "Installing fzf-tab-git (AUR)..."
+aur_install fzf-tab-git
 
 info "Installing ttf-material-design-icons (AUR)..."
 aur_install ttf-material-design-icons-desktop-git
@@ -205,6 +241,25 @@ if [ -d "$FONTS_SRC" ]; then
 else
     warn "Bundled fonts directory not found at $FONTS_SRC — skipping."
 fi
+
+# ── Default cursor theme (required by 05-gtk.sh on first boot) ───────────────
+info "Creating ~/.icons/default/index.theme..."
+mkdir -p "$HOME/.icons/default"
+if [ ! -f "$HOME/.icons/default/index.theme" ]; then
+    printf '[Icon Theme]\nName=Default\nComment=Default Cursor Theme\nInherits=Qogirr-Dark\n' \
+        > "$HOME/.icons/default/index.theme"
+fi
+
+# ── Config backup dir (required by bspwmrc on every startup) ─────────────────
+info "Setting up ~/.local/share/gh0stzk/config/bspwm/config backup dir..."
+DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BACKUP_CFG="$HOME/.local/share/gh0stzk/config/bspwm/config"
+mkdir -p "$BACKUP_CFG"
+for f in dunstrc picom.conf picom-animations.conf xsettingsd jgmenurc; do
+    src="$DOTFILES_DIR/.config/bspwm/config/$f"
+    [ -f "$src" ] && cp "$src" "$BACKUP_CFG/$f"
+done
+info "Backup config files copied."
 
 # ── Bluetooth service ─────────────────────────────────────────────────────────
 warn "Bluetooth: enable the service on your host system with:"
