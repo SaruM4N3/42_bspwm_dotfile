@@ -4,6 +4,9 @@
 # Install junest (Arch Linux in a container), bootstrap pacman,
 # then run install_prerequisites_pacman.sh inside it.
 #
+# Uses bubblewrap (-b) mode — required on 42 school machines
+# where PRoot (default junest mode) is blocked by seccomp.
+#
 # Usage: bash Utils/install_junest.sh
 # ============================================================
 
@@ -21,30 +24,30 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ ! -x "$JUNEST_BIN" ]; then
     info "Installing junest..."
     git clone https://github.com/fsquillace/junest.git "$HOME/.local/share/junest"
-    export PATH="$HOME/.local/share/junest/bin:$PATH"
 else
     info "junest already installed at $JUNEST_BIN"
-    export PATH="$HOME/.local/share/junest/bin:$PATH"
 fi
 
-# ── 2. Bootstrap junest environment (downloads Arch base image) ───────────────
+export PATH="$HOME/.local/share/junest/bin:$PATH"
+
+# ── 2. Bootstrap junest environment (downloads Arch base image) ──────────────
 if [ ! -f "$HOME/.junest/usr/bin/pacman" ]; then
     info "Setting up junest Arch environment..."
-    junest setup
+    "$JUNEST_BIN" setup
 else
     info "junest environment already set up."
 fi
 
-# ── 3. Install archlinux-keyring + full system update inside junest ───────────
-info "Installing archlinux-keyring and running full system update inside junest..."
-junest -- bash -c "
+# ── 3. System update + keyring inside junest (bubblewrap mode) ───────────────
+info "Updating pacman keyring and system inside junest..."
+"$JUNEST_BIN" -b -- bash -c "
     pacman -Sy --noconfirm archlinux-keyring &&
     pacman-key --populate archlinux &&
     pacman -Syu --noconfirm
 "
 
-# ── 4. Run the prerequisites install script inside junest ─────────────────────
+# ── 4. Run prerequisites script inside junest (bubblewrap mode) ──────────────
 info "Running install_prerequisites_pacman.sh inside junest..."
-junest -- bash "$SCRIPT_DIR/install_prerequisites_pacman.sh"
+"$JUNEST_BIN" -b -- bash "$SCRIPT_DIR/install_prerequisites_pacman.sh"
 
 info "All done. You can now launch bspwm via Utils/bspwm.sh."
