@@ -100,15 +100,8 @@ patch_makepkg
 info "Installing picom-git (AUR)..."
 aur_install picom-git
 
-info "Installing clipcat (GitHub release binary)..."
-CLIPCAT_VER=$(curl -s https://api.github.com/repos/xrelkd/clipcat/releases/latest \
-    | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
-curl -L "https://github.com/xrelkd/clipcat/releases/download/v${CLIPCAT_VER}/clipcat-v${CLIPCAT_VER}-x86_64-unknown-linux-musl.tar.gz" \
-    -o /tmp/clipcat.tar.gz
-tar -xzf /tmp/clipcat.tar.gz -C /tmp/
-sudo install -m755 /tmp/clipcat*/clipcatd  /usr/local/bin/clipcatd
-sudo install -m755 /tmp/clipcat*/clipcatctl /usr/local/bin/clipcatctl
-rm -rf /tmp/clipcat*
+info "Installing clipcat..."
+sudo pacman -S --needed --noconfirm clipcat
 
 info "Installing xwinwrap (AUR)..."
 aur_install xwinwrap-git
