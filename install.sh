@@ -23,18 +23,6 @@ ask()     { echo -e "${BLD}${BLU}[?]${NC} $*"; }
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
-JUNEST_FLAG="$HOME/.cache/junest_packages_done"
-
-# ── If running inside junest: install packages and exit immediately ───────────
-if [ -n "$JUNEST_ENV" ]; then
-    info "Inside junest — installing packages..."
-    echo ""
-    bash "$REPO_DIR/Utils/install_prerequisites_pacman.sh"
-    touch "$JUNEST_FLAG"
-    echo ""
-    info "Done! Type 'exit' to leave junest, then re-run install.sh on the host."
-    exit 0
-fi
 
 # ── Checks ────────────────────────────────────────────────────────────────────
 [ "$(id -u)" = 0 ] && error "Do not run as root."
@@ -71,36 +59,9 @@ case "$yn" in [Yy]) ;; *) echo "Cancelled."; exit 0 ;; esac
 
 # ── Step 1: junest setup + package install ───────────────────────────────────
 clear
-info "Step 1/8 — Setting up junest..."
+info "Step 1/8 — Installing junest and packages..."
 echo ""
-
-# ── Packages already installed (flag present): skip ──────────────────────────
-if [ -f "$JUNEST_FLAG" ]; then
-    info "junest packages already installed, skipping."
-else
-    bash "$REPO_DIR/Utils/install_junest.sh"
-    echo ""
-    echo -e "${BLD}${YEL}  ┌──────────────────────────────────────────────────────────────┐${NC}"
-    echo -e "${BLD}${YEL}  │  Packages must be installed inside junest. Follow steps:    │${NC}"
-    echo -e "${BLD}${YEL}  │                                                              │${NC}"
-    echo -e "${BLD}${YEL}  │  ${NC}[ on host ]${YEL}                                                  │${NC}"
-    echo -e "${BLD}${YEL}  │  ${GRN}1.${YEL} Enter junest:  ${NC}${BLU}junest -b${NC}${YEL}                                 │${NC}"
-    echo -e "${BLD}${YEL}  │                                                              │${NC}"
-    echo -e "${BLD}${YEL}  │  ${NC}[ inside junest ]${YEL}                                            │${NC}"
-    echo -e "${BLD}${YEL}  │  ${GRN}2.${YEL} Re-run:        ${NC}${BLU}bash ~/bspwm-dotfiles/install.sh${NC}${YEL}          │${NC}"
-    echo -e "${BLD}${YEL}  │  ${GRN}3.${YEL} Exit junest:   ${NC}${BLU}exit${NC}${YEL}                                      │${NC}"
-    echo -e "${BLD}${YEL}  │                                                              │${NC}"
-    echo -e "${BLD}${YEL}  │  ${NC}[ on host ]${YEL}                                                  │${NC}"
-    echo -e "${BLD}${YEL}  │  ${GRN}4.${YEL} Re-run:        ${NC}${BLU}bash ~/bspwm-dotfiles/install.sh${NC}${YEL}          │${NC}"
-    echo -e "${BLD}${YEL}  └──────────────────────────────────────────────────────────────┘${NC}"
-    echo ""
-    ask "Press Enter once you have exited junest to continue..."
-    read -r
-    if [ ! -f "$JUNEST_FLAG" ]; then
-        warn "Package install flag not found — packages may not be installed."
-        warn "Continuing anyway, but bspwm may not work until packages are installed."
-    fi
-fi
+bash "$REPO_DIR/Utils/install_junest.sh"
 
 # ── Step 2: Backup existing configs ──────────────────────────────────────────
 clear
