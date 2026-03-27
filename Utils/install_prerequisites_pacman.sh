@@ -30,6 +30,10 @@ sudo pacman-key --populate archlinux
 info "Running full system upgrade..."
 sudo pacman -Syu --noconfirm
 
+# ── Base build tools ─────────────────────────────────────────────────────────
+info "Installing base-devel and git..."
+sudo pacman -S --needed --noconfirm base-devel git
+
 # ── Check for yay (AUR helper) ────────────────────────────────────────────────
 if ! command -v yay &>/dev/null; then
     warn "yay not found — installing it first..."
