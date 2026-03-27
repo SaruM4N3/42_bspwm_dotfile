@@ -176,8 +176,8 @@ alias conf_keybinds="micro ~/.config/bspwm/config/sxhkdrc"
 alias conf_general="micro ~/.config/bspwm/bspwmrc"
 alias conf_picom="micro ~/.config/bspwm/config/picom.conf"
 alias conf_picomanim="micro ~/.config/bspwm/config/picom.conf"
-alias conf_topbar="micro /home/zsonie/.config/bspwm/rices/pamela/config.ini"
-alias conf_micro="micro /home/zsonie/.config/micro/settings.json"
+alias conf_topbar='micro "$HOME/.config/bspwm/rices/$(cat "$HOME/.config/bspwm/.rice")/config.ini"'
+alias conf_micro="micro $HOME/.config/micro/settings.json"
 
 #  ┌─┐┬┌┬┐  ┌─┐┬  ┬┌─┐┌─┐┌─┐┌─┐
 #  │ ┬│ │   ├─┤│  │├─┤└─┐├┤ └─┐

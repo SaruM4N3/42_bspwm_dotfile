@@ -24,6 +24,26 @@ ask()     { echo -e "${BLD}${BLU}[?]${NC} $*"; }
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 
+# ── Safe copy: ask before overwriting existing files/dirs ─────────────────────
+cp_safe() {
+    local src="$1" dst="$2" is_dir="$3"
+    local name
+    name=$(basename "$src")
+    if [ -e "$dst" ]; then
+        printf "%b" "${BLD}${YEL}[?]${NC} '$dst' already exists. Overwrite? [y/N]: "
+        read -r ow
+        case "$ow" in
+            y|Y) ;;
+            *) warn "Skipped: $dst"; return 0 ;;
+        esac
+    fi
+    if [ "$is_dir" = "dir" ]; then
+        cp -r "$src" "$dst"
+    else
+        cp "$src" "$dst"
+    fi
+}
+
 # ── Checks ────────────────────────────────────────────────────────────────────
 [ "$(id -u)" = 0 ] && error "Do not run as root."
 
@@ -96,7 +116,7 @@ mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.local/share"
 # ~/.config/* entries
 for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime; do
     if [ -d "$REPO_DIR/.config/$cfg" ]; then
-        cp -r "$REPO_DIR/.config/$cfg" "$HOME/.config/"
+        cp_safe "$REPO_DIR/.config/$cfg" "$HOME/.config/$cfg" dir
         info "Deployed: ~/.config/$cfg"
     fi
 done
@@ -104,14 +124,14 @@ done
 # Home files
 for f in .zshrc .gtkrc-2.0; do
     if [ -f "$REPO_DIR/$f" ]; then
-        cp "$REPO_DIR/$f" "$HOME/"
+        cp_safe "$REPO_DIR/$f" "$HOME/$f" file
         info "Deployed: ~/$f"
     fi
 done
 
 # Installer scripts
 if [ -d "$REPO_DIR/.bspwminstaller" ]; then
-    cp -r "$REPO_DIR/.bspwminstaller/." "$HOME/.bspwminstaller/"
+    cp_safe "$REPO_DIR/.bspwminstaller" "$HOME/.bspwminstaller" dir
     info "Deployed: ~/.bspwminstaller"
 fi
 
@@ -134,7 +154,7 @@ clear
 info "Step 4/8 — Installing fonts, desktop entries, and bin scripts..."
 echo ""
 
-# Fonts
+# Fonts (always overwrite — bundled fonts are versioned in the repo)
 if [ -d "$REPO_DIR/.local/share/fonts" ]; then
     mkdir -p "$HOME/.local/share/fonts"
     cp -r "$REPO_DIR/.local/share/fonts/." "$HOME/.local/share/fonts/"
@@ -145,21 +165,24 @@ fi
 # Desktop entries
 if [ -d "$REPO_DIR/.local/share/applications" ]; then
     mkdir -p "$HOME/.local/share/applications"
-    cp -r "$REPO_DIR/.local/share/applications/." "$HOME/.local/share/applications/"
+    for f in "$REPO_DIR/.local/share/applications/"*; do
+        cp_safe "$f" "$HOME/.local/share/applications/$(basename "$f")" file
+    done
     info "Desktop entries installed."
 fi
 
 # Asciiart
 if [ -d "$REPO_DIR/.local/share/asciiart" ]; then
-    mkdir -p "$HOME/.local/share/asciiart"
-    cp -r "$REPO_DIR/.local/share/asciiart/." "$HOME/.local/share/asciiart/"
+    cp_safe "$REPO_DIR/.local/share/asciiart" "$HOME/.local/share/asciiart" dir
     info "Asciiart installed."
 fi
 
 # Local bin (colorscript, sysfetch)
 if [ -d "$REPO_DIR/.local/bin" ]; then
     mkdir -p "$HOME/.local/bin"
-    cp -r "$REPO_DIR/.local/bin/." "$HOME/.local/bin/"
+    for f in "$REPO_DIR/.local/bin/"*; do
+        cp_safe "$f" "$HOME/.local/bin/$(basename "$f")" file
+    done
     chmod +x "$HOME/.local/bin/"*
     info "Local bin scripts installed."
 fi
