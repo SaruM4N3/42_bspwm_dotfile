@@ -57,11 +57,24 @@ ask "Continue? [y/N]: "
 read -r yn
 case "$yn" in [Yy]) ;; *) echo "Cancelled."; exit 0 ;; esac
 
-# ── Step 1: junest + dependencies ────────────────────────────────────────────
+# ── Step 1: junest setup + manual package install ────────────────────────────
 clear
-info "Step 1/8 — Installing junest and dependencies..."
+info "Step 1/8 — Setting up junest..."
 echo ""
 bash "$REPO_DIR/Utils/install_junest.sh"
+
+echo ""
+echo -e "${BLD}${YEL}  ┌─────────────────────────────────────────────────────────┐${NC}"
+echo -e "${BLD}${YEL}  │  Manual step required — packages must be installed      │${NC}"
+echo -e "${BLD}${YEL}  │  inside junest. Open a new terminal and run:            │${NC}"
+echo -e "${BLD}${YEL}  │                                                         │${NC}"
+echo -e "${BLD}${YEL}  │  ${GRN}1.${YEL} Enter junest:  ${NC}${BLU}junest -b${YEL}                          ${YEL}│${NC}"
+echo -e "${BLD}${YEL}  │  ${GRN}2.${YEL} Run packages: ${NC}${BLU}bash ~/bspwm-dotfiles/Utils/install_prerequisites_pacman.sh${YEL}  │${NC}"
+echo -e "${BLD}${YEL}  │  ${GRN}3.${YEL} Exit junest:  ${NC}${BLU}exit${YEL}                               ${YEL}│${NC}"
+echo -e "${BLD}${YEL}  └─────────────────────────────────────────────────────────┘${NC}"
+echo ""
+ask "Press Enter once you have exited junest to continue..."
+read -r
 
 # ── Step 2: Backup existing configs ──────────────────────────────────────────
 clear
