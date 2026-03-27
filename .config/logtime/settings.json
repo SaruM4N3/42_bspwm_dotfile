@@ -1,0 +1,14 @@
+{
+  "bonusDays":      0,
+  "giftDays":       0,
+  "displayFormat":  "ratio",
+  "showMinutes":    true,
+  "showCurrentDay": false,
+  "showMoney":      false,
+  "birthDate":      "",
+  "startColor":     "#ef4444",
+  "endColor":       "#4ade80",
+  "aheadColor":     "#00c8ff",
+  "colorGradient":  "exponential",
+  "fontSize":       "large"
+}

@@ -47,7 +47,9 @@ echo -e "    ${GRN}[2]${NC} Backup your existing configs"
 echo -e "    ${GRN}[3]${NC} Deploy all dotfiles to their locations"
 echo -e "    ${GRN}[4]${NC} Install fonts and desktop entries"
 echo -e "    ${GRN}[5]${NC} Configure OpenWeatherMap API key and city"
-echo -e "    ${GRN}[6]${NC} Set zsh as your default shell"
+echo -e "    ${GRN}[6]${NC} Configure 42 API credentials"
+echo -e "    ${GRN}[7]${NC} Register GNOME Super+B shortcut"
+echo -e "    ${GRN}[8]${NC} Set zsh as your default shell"
 echo ""
 warn "Your existing configs will be backed up, not deleted."
 echo ""
@@ -57,17 +59,17 @@ case "$yn" in [Yy]) ;; *) echo "Cancelled."; exit 0 ;; esac
 
 # ── Step 1: junest + dependencies ────────────────────────────────────────────
 clear
-info "Step 1/6 — Installing junest and dependencies..."
+info "Step 1/8 — Installing junest and dependencies..."
 echo ""
 bash "$REPO_DIR/Utils/install_junest.sh"
 
 # ── Step 2: Backup existing configs ──────────────────────────────────────────
 clear
-info "Step 2/6 — Backing up existing configs..."
+info "Step 2/8 — Backing up existing configs..."
 BACKUP_DIR="$HOME/.config-backup-$TIMESTAMP"
 mkdir -p "$BACKUP_DIR"
 
-for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi; do
+for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime; do
     if [ -d "$HOME/.config/$cfg" ]; then
         mv "$HOME/.config/$cfg" "$BACKUP_DIR/"
         info "Backed up: ~/.config/$cfg"
@@ -85,13 +87,13 @@ done
 
 # ── Step 3: Deploy dotfiles ───────────────────────────────────────────────────
 clear
-info "Step 3/6 — Deploying dotfiles..."
+info "Step 3/8 — Deploying dotfiles..."
 echo ""
 
 mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.local/share"
 
 # ~/.config/* entries
-for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi; do
+for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime; do
     if [ -d "$REPO_DIR/.config/$cfg" ]; then
         cp -r "$REPO_DIR/.config/$cfg" "$HOME/.config/"
         info "Deployed: ~/.config/$cfg"
@@ -128,7 +130,7 @@ done
 
 # ── Step 4: Fonts + desktop entries + bin ────────────────────────────────────
 clear
-info "Step 4/6 — Installing fonts, desktop entries, and bin scripts..."
+info "Step 4/8 — Installing fonts, desktop entries, and bin scripts..."
 echo ""
 
 # Fonts
@@ -166,7 +168,7 @@ command -v xdg-user-dirs-update >/dev/null && xdg-user-dirs-update
 
 # ── Step 5: Weather API key ───────────────────────────────────────────────────
 clear
-info "Step 5/6 — OpenWeatherMap setup..."
+info "Step 5/8 — OpenWeatherMap setup..."
 echo ""
 WEATHER_BIN="$HOME/.config/bspwm/bin/Weather"
 if [ -f "$WEATHER_BIN" ]; then
@@ -189,9 +191,40 @@ else
     warn "Weather script not found, skipping."
 fi
 
-# ── Step 6: Set zsh as default shell ─────────────────────────────────────────
+# ── Step 6: 42 API credentials ───────────────────────────────────────────────
 clear
-info "Step 6/6 — Setting default shell to zsh..."
+info "Step 6/8 — 42 API credentials setup..."
+echo ""
+LOGTIME_CREDS="$HOME/.config/logtime/credentials.json"
+mkdir -p "$(dirname "$LOGTIME_CREDS")"
+if [ ! -f "$LOGTIME_CREDS" ]; then
+    ask "Enter your 42 API client ID (leave blank to skip): "
+    read -r FT_ID
+    ask "Enter your 42 API client secret (leave blank to skip): "
+    read -r FT_SECRET
+    if [ -n "$FT_ID" ] && [ -n "$FT_SECRET" ]; then
+        printf '{"clientId": "%s", "clientSecret": "%s"}\n' "$FT_ID" "$FT_SECRET" > "$LOGTIME_CREDS"
+        info "Credentials saved to $LOGTIME_CREDS"
+    else
+        warn "Skipped. Fill in ~/.config/logtime/credentials.json manually."
+    fi
+else
+    info "Credentials file already exists, skipping."
+fi
+
+# ── Step 7: GNOME Super+B shortcut ───────────────────────────────────────────
+clear
+info "Step 7/8 — Registering GNOME keyboard shortcut (Super+B → bspwm)..."
+echo ""
+if command -v dconf >/dev/null 2>&1; then
+    bash "$HOME/Utils/add-gnome-shortcut.sh"
+else
+    warn "dconf not found — skipping GNOME shortcut registration."
+fi
+
+# ── Step 8: Set zsh as default shell ─────────────────────────────────────────
+clear
+info "Step 8/8 — Setting default shell to zsh..."
 echo ""
 
 ZSH_PATH=$(command -v zsh 2>/dev/null)
@@ -213,9 +246,7 @@ echo ""
 echo -e "${BLD}${GRN}  ✓ Installation complete!${NC}"
 echo ""
 echo -e "  ${YEL}Next steps:${NC}"
-echo -e "  1. Fill in your 42 API credentials:"
-echo -e "     ${BLU}~/.config/logtime/credentials.json${NC}"
-echo -e "  2. Launch bspwm via:"
+echo -e "  1. Launch bspwm via:"
 echo -e "     ${BLU}~/Utils/bspwm.sh${NC}"
 echo ""
 warn "Note: ft_lock (/host/usr/share/42/ft_lock) is 42-school specific."
