@@ -1,10 +1,7 @@
 #!/bin/bash
 # ============================================================
 # install_prerequisites_pacman.sh
-# Install bspwm dotfiles dependencies inside junest (Arch / pacman + yay)
-#
-# Notes:
-#   - AUR builds need --asroot because makepkg refuses to run as root
+# Install bspwm dotfiles dependencies inside junest (Arch / pacman)
 # ============================================================
 
 set -e
@@ -14,19 +11,23 @@ info()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
 error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 
-YAY_FLAGS="--needed --noconfirm --mflags '--asroot'"
+aur_install() {
+    local pkg="$1"
+    info "Building AUR package: $pkg"
+    rm -rf "/tmp/$pkg"
+    git clone "https://aur.archlinux.org/${pkg}.git" "/tmp/$pkg"
+    (cd "/tmp/$pkg" && makepkg -si --noconfirm --asroot)
+    rm -rf "/tmp/$pkg"
+}
 
 # ── Update keyring + full system sync ────────────────────────────────────────
-# Step 1: sync DBs only — answer "n" so it aborts before signature checks fail
 info "Syncing package databases..."
 echo "n" | sudo pacman -Syu || true
 
-# Step 2: install fresh keyring now that DBs are synced
 info "Installing fresh archlinux-keyring..."
 sudo pacman -S --noconfirm archlinux-keyring
 sudo pacman-key --populate archlinux
 
-# Step 3: full upgrade now that keyring is valid
 info "Running full system upgrade..."
 sudo pacman -Syu --noconfirm
 
@@ -34,24 +35,11 @@ sudo pacman -Syu --noconfirm
 info "Installing base-devel and git..."
 sudo pacman -S --needed --noconfirm base-devel git
 
-# ── Check for yay (AUR helper) ────────────────────────────────────────────────
-# Build from source to match the installed libalpm — yay-bin causes mismatch
-if ! command -v yay &>/dev/null; then
-    warn "yay not found — building from source..."
-    sudo pacman -S --needed --noconfirm go
-    rm -rf /tmp/yay
-    git clone https://aur.archlinux.org/yay.git /tmp/yay
-    (cd /tmp/yay && makepkg -si --noconfirm --asroot)
-    rm -rf /tmp/yay
-    hash -r  # refresh PATH so yay is found immediately
-fi
-
-# ── Core WM ───────────────────────────────────────────────────────────────────
+# ── Core WM (official repos) ─────────────────────────────────────────────────
 info "Installing core WM packages..."
-yay -S $YAY_FLAGS \
+sudo pacman -S --needed --noconfirm \
     bspwm \
     sxhkd \
-    picom-git \
     polybar \
     rofi \
     dunst \
@@ -60,30 +48,30 @@ yay -S $YAY_FLAGS \
     xdotool \
     wmctrl
 
-# ── Terminal & launcher ───────────────────────────────────────────────────────
+# ── Terminal & launcher (official repos) ─────────────────────────────────────
 info "Installing terminal and launcher..."
-yay -S $YAY_FLAGS \
+sudo pacman -S --needed --noconfirm \
     alacritty \
     jgmenu
 
-# ── Media & audio ─────────────────────────────────────────────────────────────
+# ── Media & audio (official repos) ───────────────────────────────────────────
 info "Installing media packages..."
-yay -S $YAY_FLAGS \
+sudo pacman -S --needed --noconfirm \
     mpd \
     mpc \
     mpv \
     playerctl \
     ffmpeg
 
-# ── Bluetooth ─────────────────────────────────────────────────────────────────
+# ── Bluetooth (official repos) ───────────────────────────────────────────────
 info "Installing bluetooth packages..."
-yay -S $YAY_FLAGS \
+sudo pacman -S --needed --noconfirm \
     bluez \
     bluez-utils
 
-# ── Brightness, system ────────────────────────────────────────────────────────
+# ── System utilities (official repos) ────────────────────────────────────────
 info "Installing system utilities..."
-yay -S $YAY_FLAGS \
+sudo pacman -S --needed --noconfirm \
     brightnessctl \
     lxsession \
     xclip \
@@ -93,25 +81,29 @@ yay -S $YAY_FLAGS \
     feh \
     imagemagick
 
-# ── Clipboard ─────────────────────────────────────────────────────────────────
-info "Installing clipcat (AUR)..."
-yay -S $YAY_FLAGS clipcat
-
-# ── Animated wallpaper (xwinwrap) ─────────────────────────────────────────────
-info "Installing xwinwrap (AUR)..."
-yay -S $YAY_FLAGS xwinwrap-git
-
-# ── eww widgets ───────────────────────────────────────────────────────────────
-info "Installing eww (AUR)..."
-yay -S $YAY_FLAGS eww-git
-
-# ── Fonts ─────────────────────────────────────────────────────────────────────
+# ── Fonts (official repos) ───────────────────────────────────────────────────
 info "Installing fonts..."
-yay -S $YAY_FLAGS \
+sudo pacman -S --needed --noconfirm \
     ttf-jetbrains-mono \
-    ttf-font-awesome \
-    ttf-material-design-icons-desktop-git
+    ttf-font-awesome
 
+# ── AUR packages (built from source with makepkg) ────────────────────────────
+info "Installing picom-git (AUR)..."
+aur_install picom-git
+
+info "Installing clipcat (AUR)..."
+aur_install clipcat
+
+info "Installing xwinwrap (AUR)..."
+aur_install xwinwrap-git
+
+info "Installing eww (AUR)..."
+aur_install eww-git
+
+info "Installing ttf-material-design-icons (AUR)..."
+aur_install ttf-material-design-icons-desktop-git
+
+# ── Bundled fonts ─────────────────────────────────────────────────────────────
 info "Copying bundled fonts to ~/.local/share/fonts..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FONTS_SRC="$SCRIPT_DIR/../.local/share/fonts"
@@ -125,7 +117,6 @@ else
 fi
 
 # ── Bluetooth service ─────────────────────────────────────────────────────────
-# systemd doesn't run inside junest — bluetooth must be enabled on the host
 warn "Bluetooth: enable the service on your host system with:"
 warn "  sudo systemctl enable --now bluetooth.service"
 
