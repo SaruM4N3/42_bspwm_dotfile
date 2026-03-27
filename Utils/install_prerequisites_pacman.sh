@@ -177,11 +177,11 @@ info "Installing clipcat..."
 sudo pacman -S --needed --noconfirm clipcat
 
 # ── Chaotic-AUR packages (prebuilt binaries — much faster than AUR build) ────
-info "Installing picom-git, xwinwrap, eww-git from chaotic-aur..."
+info "Installing picom, xwinwrap, eww from chaotic-aur..."
 sudo pacman -S --needed --noconfirm \
-    picom-git \
-    xwinwrap-git \
-    eww-git
+    picom \
+    xwinwrap \
+    eww
 
 # ── AUR packages (not available in chaotic-aur) ───────────────────────────────
 patch_makepkg
