@@ -36,11 +36,11 @@ sudo pacman -S --needed --noconfirm base-devel git
 
 # ── Check for yay (AUR helper) ────────────────────────────────────────────────
 if ! command -v yay &>/dev/null; then
-    warn "yay not found — installing it first..."
-    sudo pacman -S --needed --noconfirm git base-devel
-    git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
-    (cd /tmp/yay-bin && makepkg -si --noconfirm --asroot)
-    rm -rf /tmp/yay-bin
+    warn "yay not found — building from source (avoids libalpm version mismatch)..."
+    sudo pacman -S --needed --noconfirm go
+    git clone https://aur.archlinux.org/yay.git /tmp/yay
+    (cd /tmp/yay && makepkg -si --noconfirm --asroot)
+    rm -rf /tmp/yay
 fi
 
 # ── Core WM ───────────────────────────────────────────────────────────────────
