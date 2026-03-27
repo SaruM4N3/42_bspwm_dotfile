@@ -108,7 +108,7 @@ if [ -f "$ANIMWALL_STATE" ]; then
 fi
 
 # Launch ft_lock daemon
-pgrep -x /host/usr/share/42/ft_lock -d
+pgrep -x ft_lock >/dev/null || /host/usr/share/42/ft_lock -d &
 
 # Launch xsettingsd
 run xsettingsd --config="${HOME}"/.config/bspwm/config/xsettingsd >/dev/null 2>&1
