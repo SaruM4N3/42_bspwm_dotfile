@@ -80,7 +80,6 @@ add_gh0stzk_repo() {
 }
 
 # ── Interactive setup (ask before any installs) ───────────────────────────────
-setup_timezone
 ask_browser
 
 # ── Update keyring + full system sync ────────────────────────────────────────
@@ -302,6 +301,9 @@ for f in dunstrc picom.conf picom-animations.conf xsettingsd jgmenurc; do
     [ -f "$src" ] && cp "$src" "$BACKUP_CFG/$f"
 done
 info "Backup config files copied."
+
+# ── Timezone / NTP ────────────────────────────────────────────────────────────
+setup_timezone
 
 # ── Bluetooth service ─────────────────────────────────────────────────────────
 warn "Bluetooth: enable the service on your host system with:"
