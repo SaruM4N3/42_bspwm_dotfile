@@ -92,6 +92,7 @@ sudo pacman -S --needed --noconfirm \
 # ── Fonts (official repos) ───────────────────────────────────────────────────
 info "Installing fonts..."
 sudo pacman -S --needed --noconfirm \
+    fontconfig \
     ttf-jetbrains-mono \
     ttf-font-awesome
 
@@ -119,7 +120,7 @@ FONTS_SRC="$SCRIPT_DIR/../.local/share/fonts"
 if [ -d "$FONTS_SRC" ]; then
     mkdir -p "$HOME/.local/share/fonts"
     cp -r "$FONTS_SRC"/. "$HOME/.local/share/fonts/"
-    fc-cache -fv
+    fc-cache -fv || warn "fc-cache failed — fonts may need a manual cache refresh."
     info "Fonts installed."
 else
     warn "Bundled fonts directory not found at $FONTS_SRC — skipping."
