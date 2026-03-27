@@ -12,25 +12,17 @@ info()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
 error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 
-setup_timezone() {
-    current_tz=$(timedatectl show --property=Timezone --value 2>/dev/null || echo "unknown")
-    warn "Current timezone: $current_tz"
-    read -r -p "Enter your timezone (e.g. Europe/Paris, America/New_York) [Enter to keep current]: " user_tz
-    if [ -n "$user_tz" ]; then
-        sudo timedatectl set-timezone "$user_tz" && info "Timezone set to $user_tz."
-    fi
-    sudo timedatectl set-ntp true && info "NTP enabled."
-}
-
 ask_browser() {
     printf "\nWhich browser do you want to install? (default: brave)\n"
     printf "  1) brave\n  2) firefox\n  3) chromium\n  4) google-chrome\n"
-    read -r -p "Enter number [1]: " browser_choice
-    case "${browser_choice:-1}" in
-        2) BROWSER_PKG="firefox";        BROWSER_BIN="firefox" ;;
-        3) BROWSER_PKG="chromium";       BROWSER_BIN="chromium" ;;
-        4) BROWSER_PKG="google-chrome";  BROWSER_BIN="google-chrome-stable" ;;
-        *) BROWSER_PKG="brave-bin";      BROWSER_BIN="brave" ;;
+    printf "Enter number [1]: "
+    read -r browser_choice
+    case "$browser_choice" in
+        1|"") BROWSER_PKG="brave-bin";      BROWSER_BIN="brave" ;;
+        2)    BROWSER_PKG="firefox";        BROWSER_BIN="firefox" ;;
+        3)    BROWSER_PKG="chromium";       BROWSER_BIN="chromium" ;;
+        4)    BROWSER_PKG="google-chrome";  BROWSER_BIN="google-chrome-stable" ;;
+        *)    BROWSER_PKG="brave-bin";      BROWSER_BIN="brave" ;;
     esac
     info "Browser selected: $BROWSER_BIN (package: $BROWSER_PKG)"
 }
@@ -301,9 +293,6 @@ for f in dunstrc picom.conf picom-animations.conf xsettingsd jgmenurc; do
     [ -f "$src" ] && cp "$src" "$BACKUP_CFG/$f"
 done
 info "Backup config files copied."
-
-# ── Timezone / NTP ────────────────────────────────────────────────────────────
-setup_timezone
 
 # ── Bluetooth service ─────────────────────────────────────────────────────────
 warn "Bluetooth: enable the service on your host system with:"
