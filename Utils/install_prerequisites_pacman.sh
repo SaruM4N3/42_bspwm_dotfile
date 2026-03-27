@@ -35,12 +35,15 @@ info "Installing base-devel and git..."
 sudo pacman -S --needed --noconfirm base-devel git
 
 # ── Check for yay (AUR helper) ────────────────────────────────────────────────
+# Build from source to match the installed libalpm — yay-bin causes mismatch
 if ! command -v yay &>/dev/null; then
-    warn "yay not found — building from source (avoids libalpm version mismatch)..."
+    warn "yay not found — building from source..."
     sudo pacman -S --needed --noconfirm go
+    rm -rf /tmp/yay
     git clone https://aur.archlinux.org/yay.git /tmp/yay
     (cd /tmp/yay && makepkg -si --noconfirm --asroot)
     rm -rf /tmp/yay
+    hash -r  # refresh PATH so yay is found immediately
 fi
 
 # ── Core WM ───────────────────────────────────────────────────────────────────
