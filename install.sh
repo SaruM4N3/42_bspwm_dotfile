@@ -23,6 +23,18 @@ ask()     { echo -e "${BLD}${BLU}[?]${NC} $*"; }
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
+JUNEST_FLAG="$HOME/.cache/junest_packages_done"
+
+# ── If running inside junest: install packages and exit immediately ───────────
+if [ -n "$JUNEST_ENV" ]; then
+    info "Inside junest — installing packages..."
+    echo ""
+    bash "$REPO_DIR/Utils/install_prerequisites_pacman.sh"
+    touch "$JUNEST_FLAG"
+    echo ""
+    info "Done! Type 'exit' to leave junest, then re-run install.sh on the host."
+    exit 0
+fi
 
 # ── Checks ────────────────────────────────────────────────────────────────────
 [ "$(id -u)" = 0 ] && error "Do not run as root."
@@ -59,19 +71,6 @@ case "$yn" in [Yy]) ;; *) echo "Cancelled."; exit 0 ;; esac
 
 # ── Step 1: junest setup + package install ───────────────────────────────────
 clear
-JUNEST_FLAG="$HOME/.cache/junest_packages_done"
-
-# ── If running inside junest: install packages and exit ──────────────────────
-if [ -n "$JUNEST_ENV" ]; then
-    info "Detected junest environment — installing packages..."
-    echo ""
-    bash "$REPO_DIR/Utils/install_prerequisites_pacman.sh"
-    touch "$JUNEST_FLAG"
-    echo ""
-    info "Done! Exit junest and re-run install.sh to continue."
-    exit 0
-fi
-
 info "Step 1/8 — Setting up junest..."
 echo ""
 
