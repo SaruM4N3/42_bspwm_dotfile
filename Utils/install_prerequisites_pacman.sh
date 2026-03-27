@@ -20,9 +20,17 @@ error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 YAY_FLAGS="--needed --noconfirm --mflags '--asroot'"
 
 # ── Update keyring + full system sync ────────────────────────────────────────
-info "Updating pacman keyring and system..."
-pacman -Sy --noconfirm archlinux-keyring
+# Step 1: sync DBs only — answer "n" so it aborts before signature checks fail
+info "Syncing package databases..."
+echo "n" | pacman -Syu || true
+
+# Step 2: install fresh keyring now that DBs are synced
+info "Installing fresh archlinux-keyring..."
+pacman -S --noconfirm archlinux-keyring
 pacman-key --populate archlinux
+
+# Step 3: full upgrade now that keyring is valid
+info "Running full system upgrade..."
 pacman -Syu --noconfirm
 
 # ── Check for yay (AUR helper) ────────────────────────────────────────────────
