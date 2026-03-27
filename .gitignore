@@ -12,4 +12,5 @@
 *.log
 *.tmp
 *.bak
+!.zshrc.bak
 *.swp
