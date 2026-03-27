@@ -11,12 +11,20 @@ info()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
 error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 
+patch_makepkg() {
+    # makepkg refuses to run as root — patch the check out (junest proot workaround)
+    if grep -q 'EUID == 0' /usr/bin/makepkg 2>/dev/null; then
+        sudo sed -i 's/|| (( EUID == 0 ))//' /usr/bin/makepkg
+        info "makepkg root check patched."
+    fi
+}
+
 aur_install() {
     local pkg="$1"
     info "Building AUR package: $pkg"
     rm -rf "/tmp/$pkg"
     git clone "https://aur.archlinux.org/${pkg}.git" "/tmp/$pkg"
-    (cd "/tmp/$pkg" && makepkg -si --noconfirm --asroot)
+    (cd "/tmp/$pkg" && makepkg -si --noconfirm)
     rm -rf "/tmp/$pkg"
 }
 
@@ -88,6 +96,7 @@ sudo pacman -S --needed --noconfirm \
     ttf-font-awesome
 
 # ── AUR packages (built from source with makepkg) ────────────────────────────
+patch_makepkg
 info "Installing picom-git (AUR)..."
 aur_install picom-git
 
