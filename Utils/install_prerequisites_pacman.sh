@@ -18,11 +18,11 @@ ask_browser() {
     printf "Enter number [1]: "
     read -r browser_choice
     case "$browser_choice" in
-        1|"") BROWSER_PKG="brave-bin";      BROWSER_BIN="brave" ;;
-        2)    BROWSER_PKG="firefox";        BROWSER_BIN="firefox" ;;
-        3)    BROWSER_PKG="chromium";       BROWSER_BIN="chromium" ;;
-        4)    BROWSER_PKG="google-chrome";  BROWSER_BIN="google-chrome-stable" ;;
-        *)    BROWSER_PKG="brave-bin";      BROWSER_BIN="brave" ;;
+        1|""|brave)      BROWSER_PKG="brave-bin";      BROWSER_BIN="brave" ;;
+        2|firefox)       BROWSER_PKG="firefox";        BROWSER_BIN="firefox" ;;
+        3|chromium)      BROWSER_PKG="chromium";       BROWSER_BIN="chromium" ;;
+        4|google-chrome) BROWSER_PKG="google-chrome";  BROWSER_BIN="google-chrome-stable" ;;
+        *)               BROWSER_PKG="brave-bin";      BROWSER_BIN="brave" ;;
     esac
     info "Browser selected: $BROWSER_BIN (package: $BROWSER_PKG)"
 }

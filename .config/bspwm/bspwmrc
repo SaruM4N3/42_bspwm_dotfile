@@ -98,14 +98,7 @@ picom --config "${HOME}"/.config/bspwm/config/picom.conf &
 sleep 0.8
 pidof -q picom || env -u DRI_PRIME picom --config "${HOME}"/.config/bspwm/config/picom.conf --backend glx &
 
-# Restore last animated wallpaper
-ANIMWALL_STATE="${HOME}/.config/bspwm/config/.animwall_index"
-ANIMWALL_DIR="${HOME}/Pictures/AnimatedWallpaper"
-if [ -f "$ANIMWALL_STATE" ]; then
-    idx=$(cat "$ANIMWALL_STATE")
-    video=$(find "$ANIMWALL_DIR" -type f \( -name "*.mp4" -o -name "*.mkv" -o -name "*.gif" \) | grep -v "3840x2160" | sort | sed -n "${idx}p")
-    [ -n "$video" ] && AnimatedWall --start "$video" &
-fi
+# Animated wallpaper is restored by Theme.sh → 06-wallpaper.sh (ENGINE=Animated)
 
 # Launch ft_lock daemon
 pgrep -x ft_lock >/dev/null || /host/usr/share/42/ft_lock -d &

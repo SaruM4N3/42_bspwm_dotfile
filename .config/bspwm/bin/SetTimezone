@@ -1,0 +1,21 @@
+#!/bin/sh
+# =============================================================
+# SetTimezone - Pick a timezone via rofi and apply it
+# Works without systemd (uses ln -sf on /etc/localtime)
+# Right-click the polybar date module to trigger this.
+# =============================================================
+
+ROFI_THEME="$HOME/.config/bspwm/config/rofi-themes/style_2.rasi"
+
+TZ=$(find /usr/share/zoneinfo -type f | sed 's|/usr/share/zoneinfo/||' | grep '/' | sort | \
+    rofi -dmenu -p "Timezone" -theme "$ROFI_THEME")
+
+[ -z "$TZ" ] && exit 0
+
+sudo ln -sf "/usr/share/zoneinfo/$TZ" /etc/localtime
+echo "$TZ" | sudo tee /etc/timezone > /dev/null
+
+# Restart polybar so the date module picks up the new timezone
+polybar-msg cmd restart >/dev/null 2>&1 || true
+
+notify-send "Timezone" "Set to $TZ" -i preferences-system-time 2>/dev/null || true

@@ -1,5 +1,13 @@
-# Detect primary screen width and scale bar config accordingly
-SCREEN_W=$(xrandr --current 2>/dev/null | awk '/primary/{match($0,/[0-9]+x[0-9]+/); if(RSTART){split(substr($0,RSTART,RLENGTH),a,"x"); print a[1]; exit}}')
+# Detect primary screen width; fall back to first connected monitor if no primary
+SCREEN_W=$(xrandr --current 2>/dev/null | awk '
+    /primary/ && match($0,/[0-9]+x[0-9]+/) {
+        split(substr($0,RSTART,RLENGTH),a,"x"); w=a[1]; exit
+    }
+    / connected / && !w && match($0,/[0-9]+x[0-9]+/) {
+        split(substr($0,RSTART,RLENGTH),a,"x"); w=a[1]
+    }
+    END { if (w) print w }
+')
 : "${SCREEN_W:=3840}"
 
 BAR_CFG="${HOME}/.config/bspwm/rices/${RICE}/config.ini"
@@ -18,8 +26,6 @@ if [ "$SCREEN_W" -le 2560 ]; then
         -e 's/:size=10;/:size=9;/g' \
         -e 's/:size=12;/:size=9;/g' \
         -e 's/:size=14;/:size=11;/g' \
-        -e 's/;3"/;4"/g' \
-        -e 's/;2"/;4"/g' \
         "${RICE_DIR}/config.ini" > "$BAR_CFG"
     # pam2 workspace icons: bump icon font larger than the rest
     sed -i "/\[bar\/pam2\]/,/\[bar\/pam3\]/{
