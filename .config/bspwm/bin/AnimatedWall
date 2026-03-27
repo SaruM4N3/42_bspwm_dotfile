@@ -66,7 +66,8 @@ start() {
 }
 
 stop() {
-    killall xwinwrap > /dev/null 2>&1
+    killall -w xwinwrap > /dev/null 2>&1
+    true
 }
 
 print_help() {

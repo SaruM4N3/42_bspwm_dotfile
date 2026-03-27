@@ -76,6 +76,18 @@ for f in picom.conf picom-animations.conf xsettingsd jgmenurc; do
         fi
     fi
 done
+
+# Restore micro editor settings from session
+MICRO_DIR="$HOME/.config/micro"
+MICRO_SESSION="$SESSION_DIR/micro"
+if [ -d "$MICRO_SESSION" ]; then
+    mkdir -p "$MICRO_DIR/colorschemes"
+    [ -s "$MICRO_SESSION/settings.json" ] && cp "$MICRO_SESSION/settings.json" "$MICRO_DIR/settings.json"
+    [ -s "$MICRO_SESSION/bindings.json" ] && cp "$MICRO_SESSION/bindings.json" "$MICRO_DIR/bindings.json"
+    for cs in "$MICRO_SESSION/colorschemes/"*.micro; do
+        [ -f "$cs" ] && cp "$cs" "$MICRO_DIR/colorschemes/"
+    done
+fi
 # dunstrc: always restore from backup (module truncates global section each run)
 cp "$BACKUP_DIR/dunstrc" "$CONFIG_DIR/dunstrc"
 
