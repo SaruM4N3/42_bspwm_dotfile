@@ -111,6 +111,14 @@ if [ -d "$REPO_DIR/Utils" ]; then
     info "Deployed: ~/Utils"
 fi
 
+# Animated wallpapers (split 1080p + 4K archives)
+mkdir -p "$HOME/Pictures"
+for tar in "$REPO_DIR/Pictures"/AnimatedWallpaper-*.tar; do
+    [ -f "$tar" ] || continue
+    tar -xf "$tar" -C "$HOME/Pictures/"
+    info "Extracted: $(basename $tar)"
+done
+
 # ── Step 4: Fonts + desktop entries + bin ────────────────────────────────────
 clear
 info "Step 4/5 — Installing fonts, desktop entries, and bin scripts..."
