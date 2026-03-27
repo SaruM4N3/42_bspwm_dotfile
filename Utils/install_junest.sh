@@ -1,11 +1,9 @@
 #!/bin/bash
 # ============================================================
 # install_junest.sh
-# Install junest (Arch Linux in a container), bootstrap pacman,
-# then run install_prerequisites_pacman.sh inside it.
-#
-# Uses bubblewrap (-b) mode — required on 42 school machines
-# where PRoot (default junest mode) is blocked by seccomp.
+# Install junest and bootstrap the Arch environment.
+# Does NOT install packages — run install_prerequisites_pacman.sh
+# manually inside junest for that (see install.sh step 1).
 #
 # Usage: bash Utils/install_junest.sh
 # ============================================================
@@ -18,27 +16,26 @@ warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
 error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 
 JUNEST_BIN="$HOME/.local/share/junest/bin/junest"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── 1. Install junest if not already present ─────────────────────────────────
 if [ ! -x "$JUNEST_BIN" ]; then
-    info "Installing junest..."
+    info "Cloning junest..."
     git clone https://github.com/fsquillace/junest.git "$HOME/.local/share/junest"
 else
-    info "junest already installed at $JUNEST_BIN"
+    info "junest already installed."
 fi
 
 export PATH="$HOME/.local/share/junest/bin:$PATH"
 
-# ── 2. Bootstrap junest environment (downloads Arch base image) ──────────────
+# ── 2. Bootstrap Arch base image ─────────────────────────────────────────────
 if [ ! -f "$HOME/.junest/usr/bin/pacman" ]; then
-    info "Setting up junest Arch environment..."
+    info "Downloading Arch base image (this may take a while)..."
     "$JUNEST_BIN" setup
 else
-    info "junest environment already set up."
+    info "junest Arch environment already set up."
 fi
 
-# ── 3. System update + keyring inside junest (bubblewrap mode) ───────────────
+# ── 3. Update keyring + system ───────────────────────────────────────────────
 info "Updating pacman keyring and system inside junest..."
 "$JUNEST_BIN" -b -- bash -c "
     pacman -Sy --noconfirm archlinux-keyring &&
@@ -46,8 +43,4 @@ info "Updating pacman keyring and system inside junest..."
     pacman -Syu --noconfirm
 "
 
-# ── 4. Run prerequisites script inside junest (bubblewrap mode) ──────────────
-info "Running install_prerequisites_pacman.sh inside junest..."
-"$JUNEST_BIN" -b -- bash "$SCRIPT_DIR/install_prerequisites_pacman.sh"
-
-info "All done. You can now launch bspwm via Utils/bspwm.sh."
+info "junest is ready."
