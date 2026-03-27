@@ -1,6 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Brave
-Exec=bash -c "source $HOME/.zshrc && brave"
-Icon=/sgoinfre/stdgames/.resources/stdgames.png
-Categories=Game;
