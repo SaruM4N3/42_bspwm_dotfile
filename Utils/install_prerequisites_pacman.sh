@@ -4,7 +4,6 @@
 # Install bspwm dotfiles dependencies inside junest (Arch / pacman + yay)
 #
 # Notes:
-#   - Runs inside junest proot → uid 0, no sudo, no systemd
 #   - AUR builds need --asroot because makepkg refuses to run as root
 # ============================================================
 
@@ -15,28 +14,26 @@ info()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
 error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 
-# In junest proot we are uid 0 — pacman works, sudo does not exist
-# AUR builds via makepkg need --asroot
 YAY_FLAGS="--needed --noconfirm --mflags '--asroot'"
 
 # ── Update keyring + full system sync ────────────────────────────────────────
 # Step 1: sync DBs only — answer "n" so it aborts before signature checks fail
 info "Syncing package databases..."
-echo "n" | pacman -Syu || true
+echo "n" | sudo pacman -Syu || true
 
 # Step 2: install fresh keyring now that DBs are synced
 info "Installing fresh archlinux-keyring..."
-pacman -S --noconfirm archlinux-keyring
-pacman-key --populate archlinux
+sudo pacman -S --noconfirm archlinux-keyring
+sudo pacman-key --populate archlinux
 
 # Step 3: full upgrade now that keyring is valid
 info "Running full system upgrade..."
-pacman -Syu --noconfirm
+sudo pacman -Syu --noconfirm
 
 # ── Check for yay (AUR helper) ────────────────────────────────────────────────
 if ! command -v yay &>/dev/null; then
     warn "yay not found — installing it first..."
-    pacman -S --needed --noconfirm git base-devel
+    sudo pacman -S --needed --noconfirm git base-devel
     git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
     (cd /tmp/yay-bin && makepkg -si --noconfirm --asroot)
     rm -rf /tmp/yay-bin
