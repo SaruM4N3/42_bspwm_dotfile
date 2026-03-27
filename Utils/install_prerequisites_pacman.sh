@@ -180,7 +180,7 @@ sudo pacman -S --needed --noconfirm clipcat
 info "Installing picom, xwinwrap, eww from chaotic-aur..."
 sudo pacman -S --needed --noconfirm \
     picom \
-    xwinwrap \
+    xwinwrap-git \
     eww
 
 # ── AUR packages (not available in chaotic-aur) ───────────────────────────────
