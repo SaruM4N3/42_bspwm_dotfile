@@ -117,8 +117,9 @@ done
 
 for f in .zshrc .gtkrc-2.0; do
     if [ -f "$HOME/$f" ]; then
+        cp "$HOME/$f" "$HOME/${f}.bak"
         mv "$HOME/$f" "$BACKUP_DIR/"
-        info "Backed up: ~/$f"
+        info "Backed up: ~/$f → ~/${f}.bak + $BACKUP_DIR/"
     fi
 done
 
