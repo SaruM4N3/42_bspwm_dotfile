@@ -1,7 +1,11 @@
 #!/bin/bash
 # ============================================================
 # install_prerequisites_pacman.sh
-# Install bspwm dotfiles dependencies (Arch Linux / pacman + yay)
+# Install bspwm dotfiles dependencies inside junest (Arch / pacman + yay)
+#
+# Notes:
+#   - Runs inside junest proot → uid 0, no sudo, no systemd
+#   - AUR builds need --asroot because makepkg refuses to run as root
 # ============================================================
 
 set -e
@@ -9,20 +13,24 @@ set -e
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 info()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
-error() { echo -e "${RED}[✗]${NC} $*"; }
+error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
+
+# In junest proot we are uid 0 — pacman works, sudo does not exist
+# AUR builds via makepkg need --asroot
+YAY_FLAGS="--needed --noconfirm --mflags '--asroot'"
 
 # ── Check for yay (AUR helper) ────────────────────────────────────────────────
 if ! command -v yay &>/dev/null; then
     warn "yay not found — installing it first..."
-    sudo pacman -S --needed git base-devel
+    pacman -S --needed --noconfirm git base-devel
     git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
-    (cd /tmp/yay-bin && makepkg -si --noconfirm)
+    (cd /tmp/yay-bin && makepkg -si --noconfirm --asroot)
     rm -rf /tmp/yay-bin
 fi
 
 # ── Core WM ───────────────────────────────────────────────────────────────────
 info "Installing core WM packages..."
-yay -S --needed --noconfirm \
+yay -S $YAY_FLAGS \
     bspwm \
     sxhkd \
     picom-git \
@@ -36,13 +44,13 @@ yay -S --needed --noconfirm \
 
 # ── Terminal & launcher ───────────────────────────────────────────────────────
 info "Installing terminal and launcher..."
-yay -S --needed --noconfirm \
+yay -S $YAY_FLAGS \
     alacritty \
     jgmenu
 
 # ── Media & audio ─────────────────────────────────────────────────────────────
 info "Installing media packages..."
-yay -S --needed --noconfirm \
+yay -S $YAY_FLAGS \
     mpd \
     mpc \
     mpv \
@@ -50,14 +58,14 @@ yay -S --needed --noconfirm \
     ffmpeg
 
 # ── Bluetooth ─────────────────────────────────────────────────────────────────
-info "Installing bluetooth..."
-yay -S --needed --noconfirm \
+info "Installing bluetooth packages..."
+yay -S $YAY_FLAGS \
     bluez \
     bluez-utils
 
 # ── Brightness, system ────────────────────────────────────────────────────────
 info "Installing system utilities..."
-yay -S --needed --noconfirm \
+yay -S $YAY_FLAGS \
     brightnessctl \
     lxsession \
     xclip \
@@ -69,19 +77,19 @@ yay -S --needed --noconfirm \
 
 # ── Clipboard ─────────────────────────────────────────────────────────────────
 info "Installing clipcat (AUR)..."
-yay -S --needed --noconfirm clipcat
+yay -S $YAY_FLAGS clipcat
 
 # ── Animated wallpaper (xwinwrap) ─────────────────────────────────────────────
 info "Installing xwinwrap (AUR)..."
-yay -S --needed --noconfirm xwinwrap-git
+yay -S $YAY_FLAGS xwinwrap-git
 
 # ── eww widgets ───────────────────────────────────────────────────────────────
 info "Installing eww (AUR)..."
-yay -S --needed --noconfirm eww-git
+yay -S $YAY_FLAGS eww-git
 
 # ── Fonts ─────────────────────────────────────────────────────────────────────
 info "Installing fonts..."
-yay -S --needed --noconfirm \
+yay -S $YAY_FLAGS \
     ttf-jetbrains-mono \
     ttf-font-awesome \
     ttf-material-design-icons-desktop-git
@@ -98,9 +106,10 @@ else
     warn "Bundled fonts directory not found at $FONTS_SRC — skipping."
 fi
 
-# ── Enable bluetooth service ──────────────────────────────────────────────────
-info "Enabling bluetooth service..."
-sudo systemctl enable --now bluetooth.service
+# ── Bluetooth service ─────────────────────────────────────────────────────────
+# systemd doesn't run inside junest — bluetooth must be enabled on the host
+warn "Bluetooth: enable the service on your host system with:"
+warn "  sudo systemctl enable --now bluetooth.service"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
