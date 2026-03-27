@@ -7,7 +7,7 @@ NEW_KEY="custom5"
 NEW_DIR="$BASE/custom-keybindings/$NEW_KEY/"
 
 NAME="launchbspwm"
-COMMAND="$HOME/Utils/bspwm.sh"
+COMMAND="$HOME/.bspwminstaller/bspwm.sh"
 BINDING="<Super>b"
 
 # Read current list

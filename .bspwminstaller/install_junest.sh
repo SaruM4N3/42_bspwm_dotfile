@@ -4,7 +4,7 @@
 # Install junest, bootstrap the Arch environment, then
 # automatically run install_prerequisites_pacman.sh inside it.
 #
-# Usage: bash Utils/install_junest.sh
+# Usage: bash .bspwminstaller/install_junest.sh
 # ============================================================
 
 set -e
