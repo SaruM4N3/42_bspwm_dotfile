@@ -122,3 +122,7 @@ run lxpolkit
 if ! pgrep -x dbus-daemon >/dev/null; then
     eval "$(dbus-launch --sh-syntax --exit-with-session)"
 fi
+
+# Apply timezone (junest has no systemd; enforce on every startup)
+sudo ln -sf /usr/share/zoneinfo/Europe/Paris /etc/localtime
+echo "Europe/Paris" | sudo tee /etc/timezone > /dev/null 2>&1
