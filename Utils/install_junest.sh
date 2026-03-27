@@ -1,9 +1,8 @@
 #!/bin/bash
 # ============================================================
 # install_junest.sh
-# Install junest and bootstrap the Arch environment.
-# Does NOT install packages — run install_prerequisites_pacman.sh
-# manually inside junest for that (see install.sh step 1).
+# Install junest, bootstrap the Arch environment, then
+# automatically run install_prerequisites_pacman.sh inside it.
 #
 # Usage: bash Utils/install_junest.sh
 # ============================================================
@@ -16,6 +15,7 @@ warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
 error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 
 JUNEST_BIN="$HOME/.local/share/junest/bin/junest"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── 1. Install junest if not already present ─────────────────────────────────
 if [ ! -x "$JUNEST_BIN" ]; then
@@ -35,4 +35,8 @@ else
     info "junest Arch environment already set up."
 fi
 
-info "junest is ready. Enter it with: junest -b"
+# ── 3. Run prerequisites inside junest (proot mode — sudo works) ─────────────
+info "Running package installation inside junest..."
+"$JUNEST_BIN" -- bash "$SCRIPT_DIR/install_prerequisites_pacman.sh"
+
+info "All packages installed."
