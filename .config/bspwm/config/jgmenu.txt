@@ -34,21 +34,23 @@ z0mbi3,echo z0mbi3 > ~/.config/bspwm/.rice ; ~/.config/bspwm/bin/Theme.sh,colors
 ^tag(favorites)
 Editor,OpenApps --editor,standard-notes
 Neovim,OpenApps --nvim,nvim
-Firefox,OpenApps --browser,firefox
+Browser,OpenApps --browser,internet-web-browser
 Retroarch,retroarch,retroarch
 
 ^tag(wg)
 User Card,OpenApps --usercard,system-users
 Music Player,OpenApps --player,musique
+Animated Wall,AnimWallSelect,video-x-generic
+Cycle AnimWall,CycleAnimWall,video-x-generic
 
 ^tag(wm)
 Rice Editor,RiceEditor,preferences-desktop-theme
 Keybinds,OpenApps --KeyHelp,preferences-desktop-keyboard-shortcuts
 Restart WM,bspc wm -r,system-reboot
 Soft Reload,SoftReload,system-reboot
-Logout,bspc quit,system-log-out
+Logout,quit.sh,system-log-out
 
 ^tag(exit)
-Block computer,ScreenLocker -r,system-lock-screen
+Block computer,Lock,system-lock-screen
 Reboot,systemctl reboot,system-reboot
 Shutdown,systemctl poweroff,system-shutdown
