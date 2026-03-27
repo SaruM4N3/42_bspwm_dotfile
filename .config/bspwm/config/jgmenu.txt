@@ -40,7 +40,7 @@ Retroarch,retroarch,retroarch
 ^tag(wg)
 User Card,OpenApps --usercard,system-users
 Music Player,OpenApps --player,musique
-Animated Wall,AnimWallSelect,video-x-generic
+Animated Wall,SmartWallSelect,video-x-generic
 Cycle AnimWall,CycleAnimWall,video-x-generic
 
 ^tag(wm)
