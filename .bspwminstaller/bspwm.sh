@@ -48,8 +48,21 @@ killall -9 gnome-shell 2>/dev/null
 
 ft_lock -d
 
+# Swap ~/.zshrc <-> ~/.zshrc.bak before entering bspwm
+swap_zshrc() {
+    if [ -f "$HOME/.zshrc" ] && [ -f "$HOME/.zshrc.bak" ]; then
+        mv "$HOME/.zshrc" "$HOME/.zshrc.tmp"
+        mv "$HOME/.zshrc.bak" "$HOME/.zshrc"
+        mv "$HOME/.zshrc.tmp" "$HOME/.zshrc.bak"
+    fi
+}
+swap_zshrc
+
 # launch bspwm via junest (proot with fakeroot for sudo/pacman support)
 /home/zsonie/.local/share/junest/bin/junest -b "--bind /sgoinfre /sgoinfre --bind /goinfre /goinfre --bind /dev/shm /dev/shm --bind /run /run --bind /usr /host/usr" -- DRI_PRIME=1 bspwm
+
+# Swap ~/.zshrc <-> ~/.zshrc.bak back on bspwm exit
+swap_zshrc
 
 # Re-query PIDs in case processes were respawned during the session
 MONITOR_PID_NOW=$(pgrep -f "gnome-session-ctl --monitor")

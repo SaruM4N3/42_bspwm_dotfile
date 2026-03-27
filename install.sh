@@ -61,7 +61,7 @@ case "$yn" in [Yy]) ;; *) echo "Cancelled."; exit 0 ;; esac
 clear
 info "Step 1/8 — Installing junest and packages..."
 echo ""
-bash "$REPO_DIR/Utils/install_junest.sh"
+bash "$REPO_DIR/.bspwminstaller/install_junest.sh"
 
 # ── Step 2: Backup existing configs ──────────────────────────────────────────
 clear
@@ -109,15 +109,15 @@ for f in .zshrc .gtkrc-2.0; do
     fi
 done
 
-# Utils scripts
-if [ -d "$REPO_DIR/Utils" ]; then
-    cp -r "$REPO_DIR/Utils/." "$HOME/Utils/"
-    info "Deployed: ~/Utils"
+# Installer scripts
+if [ -d "$REPO_DIR/.bspwminstaller" ]; then
+    cp -r "$REPO_DIR/.bspwminstaller/." "$HOME/.bspwminstaller/"
+    info "Deployed: ~/.bspwminstaller"
 fi
 
 # Fix hardcoded paths (replace repo author's username with the installing user)
 info "Rewriting hardcoded user paths to: $HOME"
-grep -rl "/home/zsonie" "$HOME/.config/bspwm" "$HOME/Utils" 2>/dev/null | while read -r f; do
+grep -rl "/home/zsonie" "$HOME/.config/bspwm" "$HOME/.bspwminstaller" 2>/dev/null | while read -r f; do
     sed -i "s|/home/zsonie|$HOME|g" "$f"
 done
 
@@ -199,7 +199,7 @@ clear
 info "Step 7/8 — Registering GNOME keyboard shortcut (Super+B → bspwm)..."
 echo ""
 if command -v dconf >/dev/null 2>&1; then
-    bash "$HOME/Utils/add-gnome-shortcut.sh"
+    bash "$HOME/.bspwminstaller/add-gnome-shortcut.sh"
 else
     warn "dconf not found — skipping GNOME shortcut registration."
 fi
@@ -229,7 +229,7 @@ echo -e "${BLD}${GRN}  ✓ Installation complete!${NC}"
 echo ""
 echo -e "  ${YEL}Next steps:${NC}"
 echo -e "  1. Launch bspwm via:"
-echo -e "     ${BLU}~/Utils/bspwm.sh${NC}"
+echo -e "     ${BLU}~/.bspwminstaller/bspwm.sh${NC}"
 echo ""
 warn "Note: ft_lock (/host/usr/share/42/ft_lock) is 42-school specific."
 warn "      Change the lock button in eww/profilecard if running elsewhere."
