@@ -19,6 +19,12 @@ error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 # AUR builds via makepkg need --asroot
 YAY_FLAGS="--needed --noconfirm --mflags '--asroot'"
 
+# ── Update keyring + full system sync ────────────────────────────────────────
+info "Updating pacman keyring and system..."
+pacman -Sy --noconfirm archlinux-keyring
+pacman-key --populate archlinux
+pacman -Syu --noconfirm
+
 # ── Check for yay (AUR helper) ────────────────────────────────────────────────
 if ! command -v yay &>/dev/null; then
     warn "yay not found — installing it first..."
