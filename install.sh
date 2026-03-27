@@ -46,7 +46,8 @@ echo -e "    ${GRN}[1]${NC} Install junest + Arch dependencies inside it"
 echo -e "    ${GRN}[2]${NC} Backup your existing configs"
 echo -e "    ${GRN}[3]${NC} Deploy all dotfiles to their locations"
 echo -e "    ${GRN}[4]${NC} Install fonts and desktop entries"
-echo -e "    ${GRN}[5]${NC} Set zsh as your default shell"
+echo -e "    ${GRN}[5]${NC} Configure OpenWeatherMap API key and city"
+echo -e "    ${GRN}[6]${NC} Set zsh as your default shell"
 echo ""
 warn "Your existing configs will be backed up, not deleted."
 echo ""
@@ -56,13 +57,13 @@ case "$yn" in [Yy]) ;; *) echo "Cancelled."; exit 0 ;; esac
 
 # ── Step 1: junest + dependencies ────────────────────────────────────────────
 clear
-info "Step 1/5 — Installing junest and dependencies..."
+info "Step 1/6 — Installing junest and dependencies..."
 echo ""
 bash "$REPO_DIR/Utils/install_junest.sh"
 
 # ── Step 2: Backup existing configs ──────────────────────────────────────────
 clear
-info "Step 2/5 — Backing up existing configs..."
+info "Step 2/6 — Backing up existing configs..."
 BACKUP_DIR="$HOME/.config-backup-$TIMESTAMP"
 mkdir -p "$BACKUP_DIR"
 
@@ -84,7 +85,7 @@ done
 
 # ── Step 3: Deploy dotfiles ───────────────────────────────────────────────────
 clear
-info "Step 3/5 — Deploying dotfiles..."
+info "Step 3/6 — Deploying dotfiles..."
 echo ""
 
 mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.local/share"
@@ -127,7 +128,7 @@ done
 
 # ── Step 4: Fonts + desktop entries + bin ────────────────────────────────────
 clear
-info "Step 4/5 — Installing fonts, desktop entries, and bin scripts..."
+info "Step 4/6 — Installing fonts, desktop entries, and bin scripts..."
 echo ""
 
 # Fonts
@@ -163,9 +164,34 @@ fi
 # Generate XDG user dirs
 command -v xdg-user-dirs-update >/dev/null && xdg-user-dirs-update
 
-# ── Step 5: Set zsh as default shell ─────────────────────────────────────────
+# ── Step 5: Weather API key ───────────────────────────────────────────────────
 clear
-info "Step 5/5 — Setting default shell to zsh..."
+info "Step 5/6 — OpenWeatherMap setup..."
+echo ""
+WEATHER_BIN="$HOME/.config/bspwm/bin/Weather"
+if [ -f "$WEATHER_BIN" ]; then
+    ask "Enter your OpenWeatherMap API key (leave blank to skip): "
+    read -r OWM_KEY
+    if [ -n "$OWM_KEY" ]; then
+        sed -i "s|^KEY=.*|KEY=\"$OWM_KEY\"|" "$WEATHER_BIN"
+        info "API key set."
+    else
+        warn "Skipped. Edit ~/.config/bspwm/bin/Weather manually to add your key."
+    fi
+
+    ask "Enter your city name for weather (leave blank to keep default): "
+    read -r OWM_CITY
+    if [ -n "$OWM_CITY" ]; then
+        sed -i "s|^CITY=.*|CITY=\"$OWM_CITY\"|" "$WEATHER_BIN"
+        info "City set to: $OWM_CITY"
+    fi
+else
+    warn "Weather script not found, skipping."
+fi
+
+# ── Step 6: Set zsh as default shell ─────────────────────────────────────────
+clear
+info "Step 6/6 — Setting default shell to zsh..."
 echo ""
 
 ZSH_PATH=$(command -v zsh 2>/dev/null)
@@ -187,11 +213,9 @@ echo ""
 echo -e "${BLD}${GRN}  ✓ Installation complete!${NC}"
 echo ""
 echo -e "  ${YEL}Next steps:${NC}"
-echo -e "  1. Fill in your OpenWeatherMap API key:"
-echo -e "     ${BLU}~/.config/bspwm/bin/Weather${NC}"
-echo -e "  2. Fill in your 42 API credentials:"
+echo -e "  1. Fill in your 42 API credentials:"
 echo -e "     ${BLU}~/.config/logtime/credentials.json${NC}"
-echo -e "  3. Launch bspwm via:"
+echo -e "  2. Launch bspwm via:"
 echo -e "     ${BLU}~/Utils/bspwm.sh${NC}"
 echo ""
 warn "Note: ft_lock (/host/usr/share/42/ft_lock) is 42-school specific."
