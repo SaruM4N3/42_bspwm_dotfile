@@ -272,9 +272,9 @@ super + n ; {1-9}
 super + b
     quit.sh
 
-# Animated wallpaper selector
+# Wallpaper selector (AnimWallSelect if ENGINE=Animated, else WallSelect)
 super + shift + w
-    AnimWallSelect
+    SmartWallSelect
 
 # Cycle animated wallpaper
 super + ctrl + w
