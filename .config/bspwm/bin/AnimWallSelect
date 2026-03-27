@@ -4,6 +4,7 @@
 ASSETS="$HOME/Pictures/AnimatedWallpaper"
 CACHE_DIR="$HOME/.cache/$USER/animwalls"
 STATE_FILE="$HOME/.config/bspwm/config/.animwall_index"
+LAST_FILE="$HOME/.config/bspwm/config/.animwall_last"
 
 mkdir -p "$CACHE_DIR"
 
@@ -33,6 +34,7 @@ done | LC_ALL=C sort | $rofi_command)
 # Save state index for CycleAnimWall compatibility
 index=$(echo "$selection" | grep -o '[0-9]*' | head -1)
 [ -n "$index" ] && echo "$index" > "$STATE_FILE"
+echo "$ASSETS/$selection" > "$LAST_FILE"
 
 AnimatedWall --stop
 AnimatedWall --start "$ASSETS/$selection"

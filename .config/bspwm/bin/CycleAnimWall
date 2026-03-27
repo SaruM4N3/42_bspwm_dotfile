@@ -3,6 +3,7 @@
 
 ASSETS="$HOME/Pictures/AnimatedWallpaper"
 STATE_FILE="$HOME/.config/bspwm/config/.animwall_index"
+LAST_FILE="$HOME/.config/bspwm/config/.animwall_last"
 
 TMPLIST=$(mktemp)
 find "$ASSETS" -type f \( -name "*.mp4" -o -name "*.mkv" -o -name "*.gif" \) | \
@@ -21,5 +22,6 @@ echo "$next" > "$STATE_FILE"
 video=$(sed -n "${next}p" "$TMPLIST")
 rm "$TMPLIST"
 
+echo "$video" > "$LAST_FILE"
 AnimatedWall --stop
 AnimatedWall --start "$video"
