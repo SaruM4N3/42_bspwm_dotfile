@@ -202,8 +202,54 @@ rm -f "$HOME/.icons/default/index.theme"
 rmdir "$HOME/.icons/default" 2>/dev/null || true
 rmdir "$HOME/.icons" 2>/dev/null || true
 
+# ── Deployed config directories ───────────────────────────────────────────────
+info "Removing deployed ~/.config entries..."
+for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime; do
+    [ -d "$HOME/.config/$cfg" ] && rm -rf "$HOME/.config/$cfg" && info "  removed: ~/.config/$cfg"
+done
+
+# ── Home dotfiles ──────────────────────────────────────────────────────────────
+info "Removing deployed home dotfiles..."
+for f in .zshrc .gtkrc-2.0; do
+    [ -f "$HOME/$f" ] && rm -f "$HOME/$f" && info "  removed: ~/$f"
+done
+# Restore backup if it exists
+[ -f "$HOME/.zshrc.bak" ] && mv "$HOME/.zshrc.bak" "$HOME/.zshrc" && info "  restored: ~/.zshrc from ~/.zshrc.bak"
+
+# ── Installer scripts ──────────────────────────────────────────────────────────
+info "Removing ~/.bspwminstaller/..."
+rm -rf "$HOME/.bspwminstaller"
+
+# ── Desktop entries ────────────────────────────────────────────────────────────
+info "Removing deployed desktop entries..."
+for f in riceditor.desktop zfetch.desktop zombie.svg; do
+    [ -f "$HOME/.local/share/applications/$f" ] && rm -f "$HOME/.local/share/applications/$f" && info "  removed: $f"
+done
+
+# ── Asciiart ──────────────────────────────────────────────────────────────────
+info "Removing ~/.local/share/asciiart/..."
+rm -rf "$HOME/.local/share/asciiart"
+
+# ── Local bin ─────────────────────────────────────────────────────────────────
+info "Removing deployed local bin scripts..."
+for f in colorscript sysfetch; do
+    [ -f "$HOME/.local/bin/$f" ] && rm -f "$HOME/.local/bin/$f" && info "  removed: ~/.local/bin/$f"
+done
+
+# ── Animated wallpapers ────────────────────────────────────────────────────────
+printf "\nRemove ~/Pictures/AnimatedWallpaper? [y/N]: "
+read -r rm_walls
+if [ "$rm_walls" = "y" ] || [ "$rm_walls" = "Y" ]; then
+    rm -rf "$HOME/Pictures/AnimatedWallpaper"
+    info "Removed: ~/Pictures/AnimatedWallpaper"
+fi
+
+# ── ZSH config dir ────────────────────────────────────────────────────────────
+info "Removing ~/.config/zsh/ (history, compdump)..."
+rm -rf "$HOME/.config/zsh"
+
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 info "Uninstall complete."
-warn "Your dotfiles directory has NOT been removed."
+warn "Your dotfiles repository has NOT been removed."
 warn "Run 'sudo pacman -Qdtq | sudo pacman -Rns -' to clean up any remaining orphans."
