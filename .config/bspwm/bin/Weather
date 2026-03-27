@@ -20,8 +20,8 @@
 # =============================================================
 
 # ===== Configuration =====
-KEY="YOUR_OPENWEATHERMAP_API_KEY"  # Get one free at https://openweathermap.org/api
-CITY="Lyon"  # Go to https://openweathermap.org/find to find your city/town
+KEY="8b05d62206f459e1d298cbe5844d7d87"
+CITY="Lyon"
 UNITS="metric" # metric | imperial
 
 # Wait for internet

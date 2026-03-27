@@ -10,31 +10,37 @@ mkdir -p "$CACHE_DIR"
 
 rofi_command="rofi -dmenu -theme $HOME/.config/bspwm/config/rofi-themes/WallSelect.rasi"
 
+# Build sorted list of 1080p videos (exclude 3840x2160 like CycleAnimWall does)
+TMPLIST=$(mktemp)
+find "$ASSETS" -type f \( -name "*.mp4" -o -name "*.mkv" -o -name "*.gif" \) | \
+    grep -v "3840x2160" | sort > "$TMPLIST"
+
 # Generate thumbnail for each video if not cached or video is newer
-for video in "$ASSETS"/*.mp4 "$ASSETS"/*.mkv "$ASSETS"/*.gif; do
-    [ -f "$video" ] || continue
+while IFS= read -r video; do
     name=$(basename "$video")
     thumb="$CACHE_DIR/${name}.jpg"
     if [ ! -f "$thumb" ] || [ "$video" -nt "$thumb" ]; then
         ffmpeg -y -i "$video" -vframes 1 -vf "scale=500:500:force_original_aspect_ratio=increase,crop=500:500" \
             "$thumb" >/dev/null 2>&1
     fi
-done
+done < "$TMPLIST"
 
 # Build rofi list with thumbnails
-selection=$(for video in "$ASSETS"/*.mp4 "$ASSETS"/*.mkv "$ASSETS"/*.gif; do
-    [ -f "$video" ] || continue
+selection=$(while IFS= read -r video; do
     name=$(basename "$video")
     thumb="$CACHE_DIR/${name}.jpg"
     [ -f "$thumb" ] && printf '%s\000icon\037%s\n' "$name" "$thumb"
-done | LC_ALL=C sort | $rofi_command)
+done < "$TMPLIST" | $rofi_command)
 
-[ -z "$selection" ] && exit 0
+[ -z "$selection" ] && { rm -f "$TMPLIST"; exit 0; }
 
-# Save state index for CycleAnimWall compatibility
-index=$(echo "$selection" | grep -o '[0-9]*' | head -1)
-[ -n "$index" ] && echo "$index" > "$STATE_FILE"
-echo "$ASSETS/$selection" > "$LAST_FILE"
+video_path="$ASSETS/$selection"
+
+# Save state for CycleAnimWall compatibility (index in sorted list)
+idx=$(grep -n "/$selection$" "$TMPLIST" | cut -d: -f1)
+[ -n "$idx" ] && echo "$idx" > "$STATE_FILE"
+echo "$video_path" > "$LAST_FILE"
+rm -f "$TMPLIST"
 
 AnimatedWall --stop
-AnimatedWall --start "$ASSETS/$selection"
+AnimatedWall --start "$video_path"

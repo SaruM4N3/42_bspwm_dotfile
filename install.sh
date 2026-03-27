@@ -171,26 +171,7 @@ command -v xdg-user-dirs-update >/dev/null && xdg-user-dirs-update
 clear
 info "Step 5/8 — OpenWeatherMap setup..."
 echo ""
-WEATHER_BIN="$HOME/.config/bspwm/bin/Weather"
-if [ -f "$WEATHER_BIN" ]; then
-    ask "Enter your OpenWeatherMap API key (leave blank to skip): "
-    read -r OWM_KEY
-    if [ -n "$OWM_KEY" ]; then
-        sed -i "s|^KEY=.*|KEY=\"$OWM_KEY\"|" "$WEATHER_BIN"
-        info "API key set."
-    else
-        warn "Skipped. Edit ~/.config/bspwm/bin/Weather manually to add your key."
-    fi
-
-    ask "Enter your city name for weather (leave blank to keep default): "
-    read -r OWM_CITY
-    if [ -n "$OWM_CITY" ]; then
-        sed -i "s|^CITY=.*|CITY=\"$OWM_CITY\"|" "$WEATHER_BIN"
-        info "City set to: $OWM_CITY"
-    fi
-else
-    warn "Weather script not found, skipping."
-fi
+info "API key and city are already configured in the Weather script."
 
 # ── Step 6: 42 API credentials ───────────────────────────────────────────────
 clear
