@@ -29,6 +29,21 @@ aur_install() {
     rm -rf "/tmp/$pkg"
 }
 
+add_chaotic_repo() {
+    if grep -q '\[chaotic-aur\]' /etc/pacman.conf 2>/dev/null; then
+        info "chaotic-aur already configured."
+        return
+    fi
+    info "Adding chaotic-aur repository..."
+    sudo pacman-key --recv-key 3056513887B78AEB --keyserver keyserver.ubuntu.com
+    sudo pacman-key --lsign-key 3056513887B78AEB
+    sudo pacman -U --noconfirm --needed 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst'
+    sudo pacman -U --noconfirm --needed 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst'
+    echo -e '\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist' | sudo tee -a /etc/pacman.conf
+    sudo pacman -Sy --noconfirm
+    info "chaotic-aur added."
+}
+
 # ── Update keyring + full system sync ────────────────────────────────────────
 info "Syncing package databases..."
 echo "n" | sudo pacman -Syu || true
@@ -43,6 +58,9 @@ sudo pacman -Syu --noconfirm
 # ── Base build tools ─────────────────────────────────────────────────────────
 info "Installing base-devel and git..."
 sudo pacman -S --needed --noconfirm base-devel git
+
+# ── Chaotic-AUR (binary AUR repo — provides eww-git, picom-git, etc.) ────────
+add_chaotic_repo
 
 # ── Core WM ──────────────────────────────────────────────────────────────────
 info "Installing core WM packages..."
@@ -158,17 +176,15 @@ sudo pacman -S --needed --noconfirm \
 info "Installing clipcat..."
 sudo pacman -S --needed --noconfirm clipcat
 
-# ── AUR packages ─────────────────────────────────────────────────────────────
+# ── Chaotic-AUR packages (prebuilt binaries — much faster than AUR build) ────
+info "Installing picom-git, xwinwrap, eww-git from chaotic-aur..."
+sudo pacman -S --needed --noconfirm \
+    picom-git \
+    xwinwrap-git \
+    eww-git
+
+# ── AUR packages (not available in chaotic-aur) ───────────────────────────────
 patch_makepkg
-
-info "Installing picom-git (AUR)..."
-aur_install picom-git
-
-info "Installing xwinwrap (AUR)..."
-aur_install xwinwrap-git
-
-info "Installing eww (AUR)..."
-aur_install eww-git
 
 info "Installing ttf-material-design-icons (AUR)..."
 aur_install ttf-material-design-icons-desktop-git
