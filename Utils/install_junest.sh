@@ -35,12 +35,4 @@ else
     info "junest Arch environment already set up."
 fi
 
-# ── 3. Update keyring + system ───────────────────────────────────────────────
-info "Updating pacman keyring and system inside junest..."
-"$JUNEST_BIN" -b -- bash -c "
-    pacman -Sy --noconfirm archlinux-keyring &&
-    pacman-key --populate archlinux &&
-    pacman -Syu --noconfirm
-"
-
-info "junest is ready."
+info "junest is ready. Enter it with: junest -b"
