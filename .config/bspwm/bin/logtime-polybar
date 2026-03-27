@@ -9,10 +9,12 @@ Token cache: ~/.cache/logtime_token.json
 import json, math, os, sys, time, urllib.request, urllib.parse
 from datetime import date, datetime, timedelta, timezone
 
-CREDS_FILE    = os.path.expanduser("~/.config/logtime/credentials.json")
-CREDS_GNOME   = os.path.expanduser("~/.local/share/gnome-shell/extensions/LogtimeWidget@zsonie/utils/credentials.json")
-SETTINGS_FILE = os.path.expanduser("~/.config/logtime/settings.json")
-TOKEN_CACHE   = os.path.expanduser("~/.cache/logtime_token.json")
+CREDS_FILE      = os.path.expanduser("~/.config/logtime/credentials.json")
+CREDS_GNOME     = os.path.expanduser("~/.local/share/gnome-shell/extensions/LogtimeWidget@zsonie/utils/credentials.json")
+SETTINGS_FILE   = os.path.expanduser("~/.config/logtime/settings.json")
+TOKEN_CACHE     = os.path.expanduser("~/.cache/logtime_token.json")
+LOCATIONS_CACHE = os.path.expanduser("~/.cache/logtime_locations.json")
+LOCATIONS_TTL   = 300  # seconds before re-fetching
 
 DEFAULTS = {
     "bonusDays":      0,
@@ -75,7 +77,22 @@ def get_token(client_id, client_secret):
         return None
 
 
-def get_locations(token, username):
+def load_locations_cache():
+    cache = load_json(LOCATIONS_CACHE)
+    if not cache or cache.get("data") is None:
+        return None, False
+    if cache.get("fetched_at", 0) > time.time() - LOCATIONS_TTL:
+        return cache["data"], False  # fresh
+    return cache["data"], True       # stale but usable
+
+
+def save_locations_cache(data):
+    os.makedirs(os.path.dirname(LOCATIONS_CACHE), exist_ok=True)
+    with open(LOCATIONS_CACHE, "w") as f:
+        json.dump({"fetched_at": time.time(), "data": data}, f)
+
+
+def fetch_locations(token, username):
     results = []
     page = 1
     headers = {"Authorization": f"Bearer {token}", "User-Agent": "Mozilla/5.0"}
@@ -94,6 +111,17 @@ def get_locations(token, username):
             break
         page += 1
     return results
+
+
+def get_locations(token, username):
+    cached, is_stale = load_locations_cache()
+    if cached is not None and not is_stale:
+        return cached, False
+    fresh = fetch_locations(token, username)
+    if fresh is not None:
+        save_locations_cache(fresh)
+        return fresh, False
+    return cached, True  # None or stale — caller decides
 
 
 def calculate_easter(year):
@@ -259,14 +287,17 @@ def main():
         print("Auth failed")
         sys.exit(0)
 
-    username  = os.environ.get("USER") or os.getlogin()
-    locations = get_locations(token, username)
+    username          = os.environ.get("USER") or os.getlogin()
+    locations, stale  = get_locations(token, username)
     if locations is None:
         print("API error")
         sys.exit(0)
 
-    cfg  = load_json(SETTINGS_FILE, DEFAULTS)
-    print(build_display(locations, cfg, date.today()))
+    cfg    = load_json(SETTINGS_FILE, DEFAULTS)
+    output = build_display(locations, cfg, date.today())
+    if stale:
+        output += " ~"
+    print(output)
 
 
 if __name__ == "__main__":
