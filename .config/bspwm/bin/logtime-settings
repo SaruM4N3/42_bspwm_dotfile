@@ -117,11 +117,11 @@ def make_section(title):
 
 
 def refresh_bar():
-    """Restart the pam3 polybar instance via IPC."""
+    """Restart the saru4 polybar instance via IPC."""
     try:
         result = subprocess.run(["pgrep", "-a", "polybar"], capture_output=True, text=True)
         for line in result.stdout.strip().splitlines():
-            if "pam3" in line:
+            if "saru4" in line:
                 pid = line.split()[0]
                 subprocess.run(["polybar-msg", "-p", pid, "cmd", "restart"], capture_output=True)
                 return

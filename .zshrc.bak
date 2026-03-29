@@ -33,11 +33,6 @@ else
     compinit -C -d "$zcompdump"
 fi
 
-if [[ ! -f "${zcompdump}.zwc" || "$zcompdump" -nt "${zcompdump}.zwc" ]]; then
-    zcompile -U "$zcompdump"
-fi
-
-
 autoload -Uz add-zsh-hook
 autoload -Uz vcs_info
 precmd () { vcs_info }

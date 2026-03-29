@@ -146,6 +146,10 @@ XF86Audio{RaiseVolume,LowerVolume,Mute}
 XF86Audio{Next,Prev,Play,Stop}
     MediaControl {--next,--previous,--toggle,--stop}
 
+# Bluetooth mic toggle (A2DP hi-fi ↔ HFP mic enabled)
+super + shift + F9
+    BtMicToggle
+
 #####################
 # ----- Bspwm ----- #
 #####################
@@ -279,3 +283,7 @@ super + shift + w
 # Cycle animated wallpaper
 super + ctrl + w
     CycleAnimWall
+
+# Cycle wallpaper engine (Random → Animated → Slideshow)
+super + shift + e
+    CycleWallEngine

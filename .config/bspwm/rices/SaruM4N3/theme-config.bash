@@ -1,8 +1,6 @@
 #############################
-#		Pamela Theme		#
+#		SaruM4N3 Theme		#
 #############################
-# Copyright (C) 2021-2025 gh0stzk <z0mbi3.zk@protonmail.com>
-# https://github.com/gh0stzk/dotfiles
 
 # (Lovelace) colorscheme from Elenapan
 bg="#1D1F28"

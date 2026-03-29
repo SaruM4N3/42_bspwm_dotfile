@@ -1,0 +1,30 @@
+#!/bin/sh
+# BtMicToggle — toggle the active Bluetooth headset between
+# A2DP (high-quality audio, no mic) and HFP (mic enabled, mono 16kHz).
+# Sends a dunst notification showing the new mode.
+
+CARD=$(pactl list cards short 2>/dev/null | awk '/bluez_card/ { print $2; exit }')
+
+if [ -z "$CARD" ]; then
+    dunstify -u low -i audio-headphones "Bluetooth" "No Bluetooth audio device connected"
+    exit 1
+fi
+
+CURRENT=$(pactl list cards 2>/dev/null \
+    | awk '/'"$CARD"'/,/Active Profile:/ { if (/Active Profile:/) { print $NF } }')
+
+case "$CURRENT" in
+    a2dp_sink)
+        pactl set-card-profile "$CARD" handsfree_head_unit
+        dunstify -u low -i audio-input-microphone \
+            "Bluetooth — Mic ON" "Switched to HFP (mic enabled, mono 16kHz)"
+        ;;
+    handsfree_head_unit)
+        pactl set-card-profile "$CARD" a2dp_sink
+        dunstify -u low -i audio-headphones \
+            "Bluetooth — Hi-Fi" "Switched to A2DP (stereo, no mic)"
+        ;;
+    *)
+        dunstify -u low -i audio-headphones "Bluetooth" "Unknown profile: $CURRENT"
+        ;;
+esac
