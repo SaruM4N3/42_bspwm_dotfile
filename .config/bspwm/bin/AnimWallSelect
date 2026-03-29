@@ -15,15 +15,17 @@ TMPLIST=$(mktemp)
 find "$ASSETS" -type f \( -name "*.mp4" -o -name "*.mkv" -o -name "*.gif" \) | \
     grep -v "3840x2160" | sort > "$TMPLIST"
 
-# Generate thumbnail for each video if not cached or video is newer
+# Generate thumbnails in parallel — only for missing/stale entries
+# 300px matches the rofi element-icon size (25% of 1080p = 270px)
 while IFS= read -r video; do
     name=$(basename "$video")
     thumb="$CACHE_DIR/${name}.jpg"
     if [ ! -f "$thumb" ] || [ "$video" -nt "$thumb" ]; then
-        ffmpeg -y -i "$video" -vframes 1 -vf "scale=500:500:force_original_aspect_ratio=increase,crop=500:500" \
-            "$thumb" >/dev/null 2>&1
+        ffmpeg -y -i "$video" -vframes 1 -vf "scale=300:300:force_original_aspect_ratio=increase,crop=300:300" \
+            "$thumb" >/dev/null 2>&1 &
     fi
 done < "$TMPLIST"
+wait
 
 # Build rofi list with thumbnails
 selection=$(while IFS= read -r video; do
