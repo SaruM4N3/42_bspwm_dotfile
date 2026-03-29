@@ -1,0 +1,58 @@
+#!/bin/sh
+# CycleWallEngine — cycle the wallpaper ENGINE for the active rice.
+# Cycle order: Random → Animated → Slideshow → Random
+# (Animated is skipped if ANIMATED_WALL is not set in theme-config.bash)
+
+RICE=$(cat "$HOME/.config/bspwm/.rice" 2>/dev/null)
+CFG="$HOME/.config/bspwm/rices/${RICE}/theme-config.bash"
+
+[ -f "$CFG" ] || { dunstify -u low -i preferences-desktop-wallpaper "Wall Engine" "No config for rice: $RICE"; exit 1; }
+
+CURRENT=$(grep '^ENGINE=' "$CFG" | cut -d'"' -f2)
+ANIMATED_WALL=$(grep '^ANIMATED_WALL=' "$CFG" | cut -d'"' -f2)
+
+# Determine next engine
+case "$CURRENT" in
+    Random)
+        [ -n "$ANIMATED_WALL" ] && NEXT="Animated" || NEXT="Slideshow"
+        ;;
+    Animated) NEXT="Slideshow" ;;
+    *)        NEXT="Random" ;;
+esac
+
+# Write new ENGINE to theme-config.bash
+sed -i "s|^ENGINE=.*|ENGINE=\"$NEXT\"|" "$CFG"
+
+# Stop any running animated wallpaper / slideshow
+pkill -f "xwinwrap" 2>/dev/null
+pkill -f "mpv" 2>/dev/null
+[ -f /tmp/wall_refresh.pid ] && kill "$(cat /tmp/wall_refresh.pid)" 2>/dev/null
+rm -f /tmp/wall_refresh.pid
+
+# Apply new engine
+case "$NEXT" in
+    Random)
+        wall=$(find "$HOME/.config/bspwm/rices/$RICE/walls" -type f \
+            \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
+            | shuf -n 1)
+        feh --bg-fill "$wall"
+        WallSync &
+        dunstify -u low -i preferences-desktop-wallpaper "Wall Engine" "Switched to Random"
+        ;;
+    Animated)
+        AnimatedWall --start "$ANIMATED_WALL"
+        WallSync --animated &
+        dunstify -u low -i preferences-desktop-wallpaper "Wall Engine" "Switched to Animated"
+        ;;
+    Slideshow)
+        (while true; do
+            wall=$(find "$HOME/.config/bspwm/rices/$RICE/walls" -type f \
+                \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
+                | shuf -n 1)
+            feh --bg-fill "$wall"
+            WallSync &
+            sleep 900
+        done) & echo $! > /tmp/wall_refresh.pid
+        dunstify -u low -i preferences-desktop-wallpaper "Wall Engine" "Switched to Slideshow"
+        ;;
+esac

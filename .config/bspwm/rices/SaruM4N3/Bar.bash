@@ -27,8 +27,8 @@ if [ "$SCREEN_W" -le 2560 ]; then
         -e 's/:size=12;/:size=9;/g' \
         -e 's/:size=14;/:size=11;/g' \
         "${RICE_DIR}/config.ini" > "$BAR_CFG"
-    # pam2 workspace icons: bump icon font larger than the rest
-    sed -i "/\[bar\/pam2\]/,/\[bar\/pam3\]/{
+    # saru2 workspace icons: bump icon font larger than the rest
+    sed -i "/\[bar\/saru2\]/,/\[bar\/saru3\]/{
         s/Material Design Icons Desktop:size=9;/Material Design Icons Desktop:size=12;/g
     }" "$BAR_CFG"
     # Adjust bspwm top padding: offset_y(8) + height(30) + gap(5) = 43
@@ -38,11 +38,12 @@ fi
 # This file launch the bar/s
 for mon in $(polybar --list-monitors | cut -d":" -f1); do
 	(
-    MONITOR=$mon polybar -q pam1 -c "$BAR_CFG" &
-	MONITOR=$mon polybar -q pam2 -c "$BAR_CFG" &
-	MONITOR=$mon polybar -q pam3 -c "$BAR_CFG" &
-	MONITOR=$mon polybar -q pam4 -c "$BAR_CFG" &
-	MONITOR=$mon polybar -q pam5 -c "$BAR_CFG" &
-	MONITOR=$mon polybar -q pam6 -c "$BAR_CFG" &
+    MONITOR=$mon polybar -q saru1 -c "$BAR_CFG" &
+	MONITOR=$mon polybar -q saru2 -c "$BAR_CFG" &
+	MONITOR=$mon polybar -q saru3 -c "$BAR_CFG" &
+	MONITOR=$mon polybar -q saru4 -c "$BAR_CFG" &
+	MONITOR=$mon polybar -q saru5 -c "$BAR_CFG" &
+	MONITOR=$mon polybar -q saru6 -c "$BAR_CFG" &
+	MONITOR=$mon polybar -q saru7 -c "$BAR_CFG" &
     )
 done

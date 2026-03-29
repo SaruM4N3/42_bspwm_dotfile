@@ -5,10 +5,10 @@ Maybe it's your first time using a window manager or maybe not, here are some ti
 
     - (Alt + F1) For a list of all keyboard shortcuts (If it doesn't open, please visit https://github.com/gh0stzk/dotfiles/wiki/Installing-EWW)
     - (Super + Enter) Opens the terminal
-    - (Super + x) To close windows/apps.
+    - (Super + q) To close windows/apps.
     - (Super + Space bar) Opens the apps menu
     - (Alt + Space bar) Open the menu to change the theme
-    - (Super + arrows) Move between workspaces (there are *6)
+    - (Ctrl + Super + arrows) Move between workspaces (there are 9)
 
 Remember that I tried to make the environment in a MINIMALIST way but giving you what you need to make it comfortable and efficient for your daily work. However, some of the features you can find are:
 
@@ -16,13 +16,13 @@ Remember that I tried to make the environment in a MINIMALIST way but giving you
 
     - If your computer has Bluetooth, the icon will appear in the different bars and open a Bluetooth manager. But you should always have a specialized app like Blueman.
 
-    - Scratchpad (super + alt + o)
+    - Scratchpad (super + shift + enter)
 
     - Clipboard Manager (super + alt + c)
 
-    - Terminal Selector (super + alt + t) You can choose between 2 terminals, "Alacritty" and "Kitty". By default, it is Alacritty.
-
     - Wallpaper selector (super + alt + w) The first time you run it in each theme, it may take 3 to 5 seconds for the menu to appear because the images are being cached the first time.
+
+    - Smart Wallpaper Selector (super + shift + w) — picks animated or static wallpaper depending on the current rice.
 
     - Screenshot menu (super + alt + s)
 

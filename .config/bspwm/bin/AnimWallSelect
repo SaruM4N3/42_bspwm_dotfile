@@ -44,5 +44,10 @@ idx=$(grep -n "/$selection$" "$TMPLIST" | cut -d: -f1)
 echo "$video_path" > "$LAST_FILE"
 rm -f "$TMPLIST"
 
+# Persist to theme-config.bash so ENGINE=Animated always restores the right wall
+RICE=$(cat "$HOME/.config/bspwm/.rice" 2>/dev/null)
+CFG="$HOME/.config/bspwm/rices/${RICE}/theme-config.bash"
+[ -f "$CFG" ] && sed -i "s|^ANIMATED_WALL=.*|ANIMATED_WALL=\"$video_path\"|" "$CFG"
+
 AnimatedWall --stop
 AnimatedWall --start "$video_path"
