@@ -66,7 +66,12 @@ start() {
 }
 
 stop() {
-    killall -w xwinwrap > /dev/null 2>&1
+    # Kill mpv children of xwinwrap first (GPU teardown is slow on SIGTERM),
+    # then kill xwinwrap itself — both with SIGKILL for instant termination
+    for pid in $(pgrep xwinwrap 2>/dev/null); do
+        kill -9 "$(pgrep -P "$pid" 2>/dev/null)" 2>/dev/null
+        kill -9 "$pid" 2>/dev/null
+    done
     true
 }
 
