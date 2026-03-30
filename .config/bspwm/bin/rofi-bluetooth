@@ -27,7 +27,7 @@ device_is_favorite() { [ -f "$FAVORITES_FILE" ] && grep -qF "$1 " "$FAVORITES_FI
 toggle_favorite() {
     local mac="$1" name="$2"
     if device_is_favorite "$mac"; then
-        grep -vF "$mac " "$FAVORITES_FILE" > "${FAVORITES_FILE}.tmp" && mv "${FAVORITES_FILE}.tmp" "$FAVORITES_FILE"
+        grep -vF "$mac " "$FAVORITES_FILE" > "${FAVORITES_FILE}.tmp"; mv "${FAVORITES_FILE}.tmp" "$FAVORITES_FILE"
     else
         echo "$mac $name" >> "$FAVORITES_FILE"
     fi
@@ -187,13 +187,21 @@ process() {
                 rm -f "$STATE_FILE"; exit 0 ;;
             "Paired: yes")
                 dunstify -i bluetooth -t 3000 "Bluetooth" "⏳ Removing $name..."
-                ( bluetoothctl remove "$mac" >/dev/null 2>&1
-                  dunstify -i bluetooth -t 2000 "Bluetooth" "✓ Removed $name" ) &
+                ( timeout 15 bluetoothctl remove "$mac" >/dev/null 2>&1
+                  if ! bluetoothctl info "$mac" >/dev/null 2>&1 || bluetoothctl info "$mac" | grep -q "not available"; then
+                      dunstify -i bluetooth -t 2000 "Bluetooth" "✓ Removed $name"
+                  else
+                      dunstify -i bluetooth -t 3000 "Bluetooth" "✗ Failed to remove $name"
+                  fi ) &
                 rm -f "$STATE_FILE"; exit 0 ;;
             "Paired: no")
                 dunstify -i bluetooth -t 4000 "Bluetooth" "⏳ Pairing with $name..."
-                ( bluetoothctl pair "$mac" >/dev/null 2>&1
-                  dunstify -i bluetooth -t 2000 "Bluetooth" "✓ Paired with $name" ) &
+                ( timeout 15 bluetoothctl pair "$mac" >/dev/null 2>&1
+                  if bluetoothctl info "$mac" | grep -q "Paired: yes"; then
+                      dunstify -i bluetooth -t 2000 "Bluetooth" "✓ Paired with $name"
+                  else
+                      dunstify -i bluetooth -t 3000 "Bluetooth" "✗ Failed to pair with $name"
+                  fi ) &
                 rm -f "$STATE_FILE"; exit 0 ;;
             "Trusted: yes")   bluetoothctl untrust "$mac" >/dev/null 2>&1;    show_device_menu "$mac" "$name" ;;
             "Trusted: no")    bluetoothctl trust   "$mac" >/dev/null 2>&1;    show_device_menu "$mac" "$name" ;;
