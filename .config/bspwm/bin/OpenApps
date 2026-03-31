@@ -92,7 +92,11 @@ case "$1" in
 		eww -c "$WIDGET_DIR" open --toggle csheet
 		;;
 	--usercard)
-		eww -c "$WIDGET_DIR" open --toggle launchermenu
+		if eww -c "$WIDGET_DIR" active-windows 2>/dev/null | grep -q "launchermenu"; then
+			eww -c "$WIDGET_DIR" close launchermenu
+		else
+			eww -c "$WIDGET_DIR" open launchermenu
+		fi
 		;;
 	--player)
 		eww -c "$WIDGET_DIR" open --toggle music
