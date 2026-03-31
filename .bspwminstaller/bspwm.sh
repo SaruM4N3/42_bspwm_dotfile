@@ -3,7 +3,7 @@
 # Ensure junest bin_wrappers are in PATH — GNOME keyboard shortcut runs in a
 # non-interactive shell that never sources ~/.zshrc, so tools like xdotool/wmctrl
 # (installed in junest, not on host Ubuntu) would not be found otherwise.
-export PATH="$HOME/.junest/usr/bin_wrappers:$HOME/.local/share/junest/bin:$PATH"
+# export PATH="$HOME/.junest/usr/bin_wrappers:$HOME/.local/share/junest/bin:$PATH"
 
 # Init LOGDIR
 BSPLOGDIR=$HOME/.BspwmLogs
