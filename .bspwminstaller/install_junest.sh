@@ -39,7 +39,6 @@ fi
 
 # Apply immediately for current script
 export PATH="$HOME/.local/share/junest/bin:$PATH"
-export PATH="$HOME/.local/share/junest/bin:$HOME/.junest/usr/bin_wrappers:$PATH"
 
 # ── 2. Bootstrap Arch base image ─────────────────────────────────────────────
 if [ ! -f "$HOME/.junest/usr/bin/pacman" ]; then
