@@ -155,7 +155,7 @@ sudo pacman -S --needed --noconfirm \
 info "Installing system utilities..."
 sudo pacman -S --needed --noconfirm \
     brightnessctl \
-    lxpolkit \
+    lxsession \
     xclip \
     xdg-user-dirs \
     jq \
