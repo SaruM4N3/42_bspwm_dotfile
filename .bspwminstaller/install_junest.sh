@@ -26,12 +26,13 @@ else
 fi
 # ── Add junest to zshrc ──────────────────────────────────────────────────────
 ZSHRC="$HOME/.zshrc"
-LINE='export PATH="$HOME/.local/share/junest/bin:$PATH"'
-LINEBWRAP='export PATH="$HOME/.local/share/junest/bin:$HOME/.junest/usr/bin_wrappers:$PATH"'
+[ -f "$ZSHRC" ] || touch "$ZSHRC"
 
-if ! grep -q 'junest/bin' "$ZSHRC"; then
+LINE='export PATH="$HOME/.local/share/junest/bin:$HOME/.junest/usr/bin_wrappers:$PATH"'
+
+if ! grep -qxF "$LINE" "$ZSHRC"; then
     info "Adding junest to PATH in .zshrc..."
-    echo 'export PATH="$HOME/.local/share/junest/bin:$HOME/.junest/usr/bin_wrappers:$PATH"' >> "$ZSHRC"
+    echo "$LINE" >> "$ZSHRC"
 else
     info "junest PATH already present in .zshrc."
 fi
