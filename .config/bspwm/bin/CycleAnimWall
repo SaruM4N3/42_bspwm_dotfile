@@ -7,7 +7,7 @@ LAST_FILE="$HOME/.config/bspwm/config/.animwall_last"
 
 TMPLIST=$(mktemp)
 find "$ASSETS" -type f \( -name "*.mp4" -o -name "*.mkv" -o -name "*.gif" \) | \
-    grep -v "3840x2160" | sort > "$TMPLIST"
+    sort > "$TMPLIST"
 
 TOTAL=$(wc -l < "$TMPLIST")
 if [ "$TOTAL" -eq 0 ]; then

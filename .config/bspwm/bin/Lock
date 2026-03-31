@@ -1,7 +1,9 @@
 #!/bin/sh
 
 save-config.sh
-LOG=$HOME/lock.log
+BSPLOGDIR=$HOME/.BspwmLogs
+mkdir -p "$BSPLOGDIR"
+LOG=$BSPLOGDIR/lock.log
 echo "--- $(date) ---" >> $LOG
 
 # Refresh KRB5CCNAME in case ticket file was renewed/replaced since login
@@ -14,5 +16,30 @@ echo "DISPLAY=$DISPLAY" >> $LOG
 echo "XAUTHORITY=$XAUTHORITY" >> $LOG
 echo "USER=$USER" >> $LOG
 echo "KRB5CCNAME=$KRB5CCNAME" >> $LOG
+
+# Save animated wallpaper path and kill mpv + xwinwrap before locking
+WALL_RESUME="$BSPLOGDIR/wall_resume"
+MPV_PID=$(pgrep -x mpv | head -1)
+if [ -n "$MPV_PID" ]; then
+    tr '\0' '\n' < "/proc/$MPV_PID/cmdline" | tail -1 > "$WALL_RESUME"
+    echo "stopping animated wall (mpv pid: $MPV_PID)..." >> $LOG
+    kill -9 "$MPV_PID" 2>/dev/null
+    pkill -9 -x xwinwrap 2>/dev/null
+else
+    rm -f "$WALL_RESUME"
+    echo "animated wall not running" >> $LOG
+fi
+
+echo "ft_lock launch: $(date '+%T.%3N')" >> $LOG
 /host/usr/share/42/ft_lock >> $LOG 2>&1
-echo "ft_lock exit: $?" >> $LOG
+echo "ft_lock exit: $? at $(date '+%T.%3N')" >> $LOG
+
+# Wait for bspwm node focus (user is back after unlock), then restart wallpaper
+if [ -f "$WALL_RESUME" ]; then
+    WALL_PATH=$(cat "$WALL_RESUME")
+    echo "waiting for bspwm node focus to restore wall..." >> $LOG
+    bspc subscribe node_focus | head -1 > /dev/null 2>&1
+    echo "restarting animated wall: $WALL_PATH" >> $LOG
+    "$HOME/.config/bspwm/bin/AnimatedWall" --start "$WALL_PATH"
+    rm -f "$WALL_RESUME"
+fi

@@ -155,7 +155,7 @@ sudo pacman -S --needed --noconfirm \
 info "Installing system utilities..."
 sudo pacman -S --needed --noconfirm \
     brightnessctl \
-    lxsession \
+    lxpolkit \
     xclip \
     xdg-user-dirs \
     jq \
@@ -169,8 +169,7 @@ sudo pacman -S --needed --noconfirm \
     libwebp \
     webp-pixbuf-loader \
     python-gobject \
-    pacman-contrib \
-    npm
+    pacman-contrib
 
 # ── CLI tools ────────────────────────────────────────────────────────────────
 info "Installing CLI tools..."

@@ -1,9 +1,10 @@
-#  ╔═╗╔═╗╦ ╦╦═╗╔═╗  ╔═╗╔═╗╔╗╔╔═╗╦╔═╗	- z0mbi3
-#  ╔═╝╚═╗╠═╣╠╦╝║    ║  ║ ║║║║╠╣ ║║ ╦	- https://github.com/gh0stzk/dotfiles
-#  ╚═╝╚═╝╩ ╩╩╚═╚═╝  ╚═╝╚═╝╝╚╝╚  ╩╚═╝	- My zsh conf
+#  ╔═╗╔═╗╦ ╦╦═╗╔═╗  ╔═╗╔═╗╔╗╔╔═╗╦╔═╗
+#  ╔═╝╚═╗╠═╣╠╦╝║    ║  ║ ║║║║╠╣ ║║ ╦
+#  ╚═╝╚═╝╩ ╩╩╚═╚═╝  ╚═╝╚═╝╝╚╝╚  ╩╚═╝
 
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
+
 
 #  ┬  ┬┌─┐┬─┐┌─┐
 #  └┐┌┘├─┤├┬┘└─┐
@@ -89,7 +90,7 @@ setopt hist_find_no_dups
 setopt AUTOCD              # change directory just by typing its name
 setopt PROMPT_SUBST        # enable command substitution in prompt
 setopt MENU_COMPLETE       # Automatically highlight first element of completion menu
-setopt LIST_PACKED		   # The completion menu takes less space.
+setopt LIST_PACKED		     # The completion menu takes less space.
 setopt AUTO_LIST           # Automatically list choices on ambiguous completion.
 setopt COMPLETE_IN_WORD    # Complete from both ends of a word.
 
@@ -157,6 +158,14 @@ alias cat="bat --theme=base16"
 alias ls='eza --icons=always --color=always -a'
 alias ll='eza --icons=always --color=always -la'
 
+alias conf_zsh="micro ~/.zshrc"
+alias conf_keybinds="micro ~/.config/bspwm/config/sxhkdrc"
+alias conf_general="micro ~/.config/bspwm/bspwmrc"
+alias conf_picom="micro ~/.config/bspwm/config/picom.conf"
+alias conf_picomanim="micro ~/.config/bspwm/config/picom-animations.conf"
+alias conf_topbar='micro "$HOME/.config/bspwm/rices/$(cat "$HOME/.config/bspwm/.rice")/config.ini"'
+alias conf_micro="micro $HOME/.config/micro/settings.json"
+
 #  ┌─┐┬ ┬┌┬┐┌─┐  ┌─┐┌┬┐┌─┐┬─┐┌┬┐
 #  ├─┤│ │ │ │ │  └─┐ │ ├─┤├┬┘ │
 #  ┴ ┴└─┘ ┴ └─┘  └─┘ ┴ ┴ ┴┴└─ ┴
@@ -166,15 +175,21 @@ export PATH=~/.local/share/junest/bin:$PATH
 export PATH=$PATH:~/.junest/usr/bin_wrappers
 typeset -U path  # deduplicate PATH entries
 
-alias conf_zsh="micro ~/.zshrc"
-alias conf_keybinds="micro ~/.config/bspwm/config/sxhkdrc"
-alias conf_general="micro ~/.config/bspwm/bspwmrc"
-alias conf_picom="micro ~/.config/bspwm/config/picom.conf"
-alias conf_picomanim="micro ~/.config/bspwm/config/picom.conf"
-alias conf_topbar='micro "$HOME/.config/bspwm/rices/$(cat "$HOME/.config/bspwm/.rice")/config.ini"'
-alias conf_micro="micro $HOME/.config/micro/settings.json"
-
 #  ┌─┐┬┌┬┐  ┌─┐┬  ┬┌─┐┌─┐┌─┐┌─┐
 #  │ ┬│ │   ├─┤│  │├─┤└─┐├┤ └─┐
 #  └─┘┴ ┴   ┴ ┴┴─┘┴┴ ┴└─┘└─┘└─┘
 source ~/.oh-my-zsh/plugins/git/git.plugin.zsh
+
+# Self-check: if loaded outside junest (GNOME), swap back to GNOME config and reload
+_swap_zshrc() {
+    if [ -f "$HOME/.zshrc" ] && [ -f "$HOME/.zshrc.bak" ]; then
+        mv "$HOME/.zshrc" "$HOME/.zshrc.tmp"
+        mv "$HOME/.zshrc.bak" "$HOME/.zshrc"
+        mv "$HOME/.zshrc.tmp" "$HOME/.zshrc.bak"
+    fi
+}
+if [[ -z "$JUNEST_ENV" ]]; then
+    _swap_zshrc
+    exec zsh
+fi
+unset -f _swap_zshrc

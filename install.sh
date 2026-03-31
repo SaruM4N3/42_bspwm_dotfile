@@ -24,24 +24,45 @@ ask()     { echo -e "${BLD}${BLU}[?]${NC} $*"; }
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 
-# ── Safe copy: ask before overwriting existing files/dirs ─────────────────────
-cp_safe() {
+# ── Diff-aware copy ───────────────────────────────────────────────────────────
+# For files: shows a diff if the destination exists and differs, then asks.
+# For dirs:  lists changed/added/removed files, then asks.
+# If destination doesn't exist, copies silently.
+cp_smart() {
     local src="$1" dst="$2" is_dir="$3"
-    local name
-    name=$(basename "$src")
-    if [ -e "$dst" ]; then
-        printf "%b" "${BLD}${YEL}[?]${NC} '$dst' already exists. Overwrite? [y/N]: "
-        read -r ow
-        case "$ow" in
-            y|Y) ;;
-            *) warn "Skipped: $dst"; return 0 ;;
-        esac
+
+    if [ ! -e "$dst" ]; then
+        [ "$is_dir" = "dir" ] && cp -r "$src" "$dst" || cp "$src" "$dst"
+        return 0
     fi
+
     if [ "$is_dir" = "dir" ]; then
-        cp -r "$src" "$dst"
+        local changes
+        changes=$(diff -rq "$src" "$dst" 2>/dev/null)
+        if [ -z "$changes" ]; then
+            info "Unchanged: $dst"
+            return 0
+        fi
+        echo -e "\n${BLD}${YEL}  Changes detected in $dst:${NC}"
+        echo "$changes" | head -30
     else
-        cp "$src" "$dst"
+        if diff -q "$src" "$dst" >/dev/null 2>&1; then
+            info "Unchanged: $dst"
+            return 0
+        fi
+        echo -e "\n${BLD}${YEL}  Diff for $dst:${NC}"
+        diff --color=always "$dst" "$src" 2>/dev/null | head -50 || true
     fi
+
+    echo ""
+    printf "%b" "${BLD}${BLU}[?]${NC} Overwrite '$(basename "$dst")'? [y/N]: "
+    read -r ow
+    case "$ow" in
+        y|Y)
+            [ "$is_dir" = "dir" ] && cp -r "$src" "$dst" || cp "$src" "$dst"
+            ;;
+        *) warn "Skipped: $dst" ;;
+    esac
 }
 
 # ── Checks ────────────────────────────────────────────────────────────────────
@@ -66,10 +87,8 @@ echo -e "    ${GRN}[1]${NC} Install junest + Arch dependencies inside it"
 echo -e "    ${GRN}[2]${NC} Backup your existing configs"
 echo -e "    ${GRN}[3]${NC} Deploy all dotfiles to their locations"
 echo -e "    ${GRN}[4]${NC} Install fonts and desktop entries"
-echo -e "    ${GRN}[5]${NC} Configure OpenWeatherMap API key and city"
-echo -e "    ${GRN}[6]${NC} Configure 42 API credentials"
-echo -e "    ${GRN}[7]${NC} Register GNOME Super+B shortcut"
-echo -e "    ${GRN}[8]${NC} Set zsh as your default shell"
+echo -e "    ${GRN}[5]${NC} Register GNOME Super+B shortcut"
+echo -e "    ${GRN}[6]${NC} Set up zshrc swap for bspwm/GNOME"
 echo ""
 warn "Your existing configs will be backed up, not deleted."
 echo ""
@@ -79,13 +98,13 @@ case "$yn" in [Yy]) ;; *) echo "Cancelled."; exit 0 ;; esac
 
 # ── Step 1: junest setup + package install ───────────────────────────────────
 clear
-info "Step 1/8 — Installing junest and packages..."
+info "Step 1/6 — Installing junest and packages..."
 echo ""
 bash "$REPO_DIR/.bspwminstaller/install_junest.sh"
 
 # ── Step 2: Backup existing configs ──────────────────────────────────────────
 clear
-info "Step 2/8 — Backing up existing configs..."
+info "Step 2/6 — Backing up existing configs..."
 BACKUP_DIR="$HOME/.config-backup-$TIMESTAMP"
 mkdir -p "$BACKUP_DIR"
 
@@ -108,7 +127,7 @@ done
 
 # ── Step 3: Deploy dotfiles ───────────────────────────────────────────────────
 clear
-info "Step 3/8 — Deploying dotfiles..."
+info "Step 3/6 — Deploying dotfiles..."
 echo ""
 
 mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.local/share"
@@ -116,7 +135,7 @@ mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.local/share"
 # ~/.config/* entries
 for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime; do
     if [ -d "$REPO_DIR/.config/$cfg" ]; then
-        cp_safe "$REPO_DIR/.config/$cfg" "$HOME/.config/$cfg" dir
+        cp_smart "$REPO_DIR/.config/$cfg" "$HOME/.config/$cfg" dir
         info "Deployed: ~/.config/$cfg"
     fi
 done
@@ -124,14 +143,14 @@ done
 # Home files (.zshrc.bak = bspwm zshrc, swapped in by bspwm.sh; user's .zshrc untouched)
 for f in .zshrc.bak .gtkrc-2.0; do
     if [ -f "$REPO_DIR/$f" ]; then
-        cp_safe "$REPO_DIR/$f" "$HOME/$f" file
+        cp_smart "$REPO_DIR/$f" "$HOME/$f" file
         info "Deployed: ~/$f"
     fi
 done
 
 # Installer scripts
 if [ -d "$REPO_DIR/.bspwminstaller" ]; then
-    cp_safe "$REPO_DIR/.bspwminstaller" "$HOME/.bspwminstaller" dir
+    cp_smart "$REPO_DIR/.bspwminstaller" "$HOME/.bspwminstaller" dir
     info "Deployed: ~/.bspwminstaller"
 fi
 
@@ -141,7 +160,7 @@ grep -rl "/home/zsonie" "$HOME/.config/bspwm" "$HOME/.bspwminstaller" 2>/dev/nul
     sed -i "s|/home/zsonie|$HOME|g" "$f"
 done
 
-# Animated wallpapers (split 1080p + 4K archives)
+# Animated wallpapers (4K archive)
 mkdir -p "$HOME/Pictures"
 for tar in "$REPO_DIR/Pictures"/AnimatedWallpaper-*.tar; do
     [ -f "$tar" ] || continue
@@ -151,7 +170,7 @@ done
 
 # ── Step 4: Fonts + desktop entries + bin ────────────────────────────────────
 clear
-info "Step 4/8 — Installing fonts, desktop entries, and bin scripts..."
+info "Step 4/6 — Installing fonts, desktop entries, and bin scripts..."
 echo ""
 
 # Fonts (always overwrite — bundled fonts are versioned in the repo)
@@ -166,14 +185,14 @@ fi
 if [ -d "$REPO_DIR/.local/share/applications" ]; then
     mkdir -p "$HOME/.local/share/applications"
     for f in "$REPO_DIR/.local/share/applications/"*; do
-        cp_safe "$f" "$HOME/.local/share/applications/$(basename "$f")" file
+        cp_smart "$f" "$HOME/.local/share/applications/$(basename "$f")" file
     done
     info "Desktop entries installed."
 fi
 
 # Asciiart
 if [ -d "$REPO_DIR/.local/share/asciiart" ]; then
-    cp_safe "$REPO_DIR/.local/share/asciiart" "$HOME/.local/share/asciiart" dir
+    cp_smart "$REPO_DIR/.local/share/asciiart" "$HOME/.local/share/asciiart" dir
     info "Asciiart installed."
 fi
 
@@ -181,7 +200,7 @@ fi
 if [ -d "$REPO_DIR/.local/bin" ]; then
     mkdir -p "$HOME/.local/bin"
     for f in "$REPO_DIR/.local/bin/"*; do
-        cp_safe "$f" "$HOME/.local/bin/$(basename "$f")" file
+        cp_smart "$f" "$HOME/.local/bin/$(basename "$f")" file
     done
     chmod +x "$HOME/.local/bin/"*
     info "Local bin scripts installed."
@@ -190,36 +209,9 @@ fi
 # Generate XDG user dirs
 command -v xdg-user-dirs-update >/dev/null && xdg-user-dirs-update
 
-# ── Step 5: Weather API key ───────────────────────────────────────────────────
+# ── Step 5: GNOME Super+B shortcut ───────────────────────────────────────────
 clear
-info "Step 5/8 — OpenWeatherMap setup..."
-echo ""
-info "API key and city are already configured in the Weather script."
-
-# ── Step 6: 42 API credentials ───────────────────────────────────────────────
-clear
-info "Step 6/8 — 42 API credentials setup..."
-echo ""
-LOGTIME_CREDS="$HOME/.config/logtime/credentials.json"
-mkdir -p "$(dirname "$LOGTIME_CREDS")"
-if [ ! -f "$LOGTIME_CREDS" ]; then
-    ask "Enter your 42 API client ID (leave blank to skip): "
-    read -r FT_ID
-    ask "Enter your 42 API client secret (leave blank to skip): "
-    read -r FT_SECRET
-    if [ -n "$FT_ID" ] && [ -n "$FT_SECRET" ]; then
-        printf '{"clientId": "%s", "clientSecret": "%s"}\n' "$FT_ID" "$FT_SECRET" > "$LOGTIME_CREDS"
-        info "Credentials saved to $LOGTIME_CREDS"
-    else
-        warn "Skipped. Fill in ~/.config/logtime/credentials.json manually."
-    fi
-else
-    info "Credentials file already exists, skipping."
-fi
-
-# ── Step 7: GNOME Super+B shortcut ───────────────────────────────────────────
-clear
-info "Step 7/8 — Registering GNOME keyboard shortcut (Super+B → bspwm)..."
+info "Step 5/6 — Registering GNOME keyboard shortcut (Super+B → bspwm)..."
 echo ""
 if command -v dconf >/dev/null 2>&1; then
     bash "$HOME/.bspwminstaller/add-gnome-shortcut.sh"
@@ -227,22 +219,32 @@ else
     warn "dconf not found — skipping GNOME shortcut registration."
 fi
 
-# ── Step 8: Set zsh as default shell ─────────────────────────────────────────
+# ── Step 6: zshrc setup ───────────────────────────────────────────────────────
 clear
-info "Step 8/8 — Setting default shell to zsh..."
+info "Step 6/6 — Setting up zshrc swap..."
 echo ""
 
-ZSH_PATH=$(command -v zsh 2>/dev/null)
-if [ -z "$ZSH_PATH" ]; then
-    warn "zsh not found, skipping shell change."
-elif [ "$SHELL" = "$ZSH_PATH" ]; then
-    info "zsh is already your default shell."
-else
-    if chsh -s "$ZSH_PATH"; then
-        info "Shell changed to zsh."
-    else
-        warn "Could not change shell automatically. Run: chsh -s $ZSH_PATH"
+# Patch ~/.zshrc (GNOME/user config) with JUNEST_ENV self-check if not already present
+if [ -f "$HOME/.zshrc" ] && ! grep -q 'JUNEST_ENV' "$HOME/.zshrc"; then
+    cat >> "$HOME/.zshrc" << 'EOF'
+
+# Self-check: if loaded inside junest (bspwm), swap to bspwm config and reload
+_swap_zshrc() {
+    if [ -f "$HOME/.zshrc" ] && [ -f "$HOME/.zshrc.bak" ]; then
+        mv "$HOME/.zshrc" "$HOME/.zshrc.tmp"
+        mv "$HOME/.zshrc.bak" "$HOME/.zshrc"
+        mv "$HOME/.zshrc.tmp" "$HOME/.zshrc.bak"
     fi
+}
+if [[ -n "$JUNEST_ENV" ]]; then
+    _swap_zshrc
+    exec zsh
+fi
+unset -f _swap_zshrc
+EOF
+    info "JUNEST_ENV self-check added to ~/.zshrc"
+else
+    info "~/.zshrc already patched or not found — skipping."
 fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────

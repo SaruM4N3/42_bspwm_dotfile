@@ -1,8 +1,13 @@
 #!/bin/bash
 
+# Init LOGDIR
+BSPLOGDIR=$HOME/.BspwmLogs
+mkdir -p "$BSPLOGDIR"
+
 # Fermer chaque fenêtre sauf le terminal actuel
 CURRENT_WIN=$(xdotool getactivewindow)
-LOG=~/bspwm_launch.log
+
+LOG=$BSPLOGDIR/bspwm_launch.log
 echo "--- $(date) ---" > $LOG
 echo "CURRENT_WIN: $CURRENT_WIN ($(printf "0x%08x" $CURRENT_WIN))" >> $LOG
 echo "Windows found:" >> $LOG
