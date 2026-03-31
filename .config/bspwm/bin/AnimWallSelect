@@ -10,10 +10,9 @@ mkdir -p "$CACHE_DIR"
 
 rofi_command="rofi -dmenu -theme $HOME/.config/bspwm/config/rofi-themes/WallSelect.rasi"
 
-# Build sorted list of 1080p videos (exclude 3840x2160 like CycleAnimWall does)
 TMPLIST=$(mktemp)
 find "$ASSETS" -type f \( -name "*.mp4" -o -name "*.mkv" -o -name "*.gif" \) | \
-    grep -v "3840x2160" | sort > "$TMPLIST"
+    sort > "$TMPLIST"
 
 # Generate thumbnails in parallel — only for missing/stale entries
 # 300px matches the rofi element-icon size (25% of 1080p = 270px)
