@@ -24,8 +24,22 @@ if [ ! -x "$JUNEST_BIN" ]; then
 else
     info "junest already installed."
 fi
+# ── Add junest to zshrc ──────────────────────────────────────────────────────
+ZSHRC="$HOME/.zshrc"
+LINE='export PATH="$HOME/.local/share/junest/bin:$PATH"'
+LINEBWRAP='export PATH="$HOME/.local/share/junest/bin:$HOME/.junest/usr/bin_wrappers:$PATH"'
 
+if ! grep -qxF "$LINE" "$ZSHRC"; then
+    info "Adding junest to PATH in .zshrc..."
+    echo "$LINE" >> "$ZSHRC"
+    echo "$LINEBWRAP" >> "$ZSHRC"
+else
+    info "PATH already configured in .zshrc."
+fi
+
+# Apply immediately for current script
 export PATH="$HOME/.local/share/junest/bin:$PATH"
+export PATH="$HOME/.local/share/junest/bin:$HOME/.junest/usr/bin_wrappers:$PATH"
 
 # ── 2. Bootstrap Arch base image ─────────────────────────────────────────────
 if [ ! -f "$HOME/.junest/usr/bin/pacman" ]; then
