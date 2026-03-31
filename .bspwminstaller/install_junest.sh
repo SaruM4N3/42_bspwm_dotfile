@@ -29,12 +29,11 @@ ZSHRC="$HOME/.zshrc"
 LINE='export PATH="$HOME/.local/share/junest/bin:$PATH"'
 LINEBWRAP='export PATH="$HOME/.local/share/junest/bin:$HOME/.junest/usr/bin_wrappers:$PATH"'
 
-if ! grep -qxF "$LINE" "$ZSHRC"; then
+if ! grep -q 'junest/bin' "$ZSHRC"; then
     info "Adding junest to PATH in .zshrc..."
-    echo "$LINE" >> "$ZSHRC"
-    echo "$LINEBWRAP" >> "$ZSHRC"
+    echo 'export PATH="$HOME/.local/share/junest/bin:$HOME/.junest/usr/bin_wrappers:$PATH"' >> "$ZSHRC"
 else
-    info "PATH already configured in .zshrc."
+    info "junest PATH already present in .zshrc."
 fi
 
 # Apply immediately for current script
