@@ -94,7 +94,6 @@ sl_verify="${green}"
 gtk_theme="RosePineMoon-zk"
 gtk_icons="Catppuccin-Mocha"
 gtk_cursor="Qogirr-Dark"
-geany_theme="z0mbi3-RosePineMoon"
 
 # Wallpaper engine
 # Available engines:

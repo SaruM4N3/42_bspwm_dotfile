@@ -94,7 +94,6 @@ sl_verify="${green}"
 gtk_theme="Dracula-zk"
 gtk_icons="Dracula"
 gtk_cursor="Qogirr-Dark"
-geany_theme="z0mbi3-Dracula"
 
 # Wallpaper engine
 # Available engines:

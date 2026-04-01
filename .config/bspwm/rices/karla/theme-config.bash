@@ -94,7 +94,6 @@ sl_verify="${green}"
 gtk_theme="z0mbi3Night-zk"
 gtk_icons="Sweet-Rainbow"
 gtk_cursor="Qogirr-Dark"
-geany_theme="z0mbi3-z0mbi3Night"
 
 # Wallpaper engine
 # Available engines:

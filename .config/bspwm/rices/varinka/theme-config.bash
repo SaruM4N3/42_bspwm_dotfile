@@ -94,7 +94,6 @@ sl_verify="${green}"
 gtk_theme="MonochromeBlue-zk"
 gtk_icons="Vimix-White"
 gtk_cursor="Qogirr-Dark"
-geany_theme="z0mbi3-Monochromatic"
 
 # Wallpaper engine
 # Available engines:

@@ -94,7 +94,6 @@ sl_verify="${magenta}"
 gtk_theme="Andrea-zk"
 gtk_icons="Luv-Folders"
 gtk_cursor="Qogirr"
-geany_theme="z0mbi3-Andrea"
 
 # Wallpaper engine
 # Available engines:

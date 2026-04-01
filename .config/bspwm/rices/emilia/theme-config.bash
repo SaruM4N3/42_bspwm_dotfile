@@ -94,7 +94,6 @@ sl_verify="${green}"
 gtk_theme="TokyoNight-zk"
 gtk_icons="TokyoNight-SE"
 gtk_cursor="Qogirr-Dark"
-geany_theme="z0mbi3-TokyoNight"
 
 # Wallpaper engine
 # Available engines:

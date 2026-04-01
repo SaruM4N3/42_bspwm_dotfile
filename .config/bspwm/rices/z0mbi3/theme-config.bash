@@ -94,7 +94,6 @@ sl_verify="${green}"
 gtk_theme="Decayce-zk"
 gtk_icons="Luv-Folders"
 gtk_cursor="Qogirr-Dark"
-geany_theme="z0mbi3-Decay"
 
 # Wallpaper engine
 # Available engines:

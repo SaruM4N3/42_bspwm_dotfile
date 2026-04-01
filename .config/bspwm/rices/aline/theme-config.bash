@@ -94,7 +94,6 @@ sl_verify="${green}"
 gtk_theme="RosePineDawn-zk"
 gtk_icons="Luv-Folders"
 gtk_cursor="Qogirr"
-geany_theme="z0mbi3-RosePineDawn"
 
 # Wallpaper engine
 # Available engines:

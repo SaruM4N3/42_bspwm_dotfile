@@ -94,7 +94,6 @@ sl_verify="${green}"
 gtk_theme="Nord-zk"
 gtk_icons="Vimix-White"
 gtk_cursor="Qogirr"
-geany_theme="z0mbi3-Nord"
 
 # Wallpaper engine
 # Available engines:

@@ -94,7 +94,6 @@ sl_verify="${green}"
 gtk_theme="Gruvbox-zk"
 gtk_icons="Gruvbox-Plus-Dark"
 gtk_cursor="Qogirr-Dark"
-geany_theme="z0mbi3-Gruvbox"
 
 # Wallpaper engine
 # Available engines:

@@ -133,7 +133,7 @@ remove_packages mpd mpc ncmpcpp mpv playerctl pamixer ffmpeg
 
 # ── Editors ───────────────────────────────────────────────────────────────────
 info "Removing editors..."
-remove_packages geany neovim
+remove_packages neovim
 
 # ── File manager ──────────────────────────────────────────────────────────────
 info "Removing file manager..."

@@ -131,7 +131,6 @@ sudo pacman -S --needed --noconfirm \
 # ── Editors ──────────────────────────────────────────────────────────────────
 info "Installing editors..."
 sudo pacman -S --needed --noconfirm \
-    geany \
     neovim
 
 # ── Media & audio ────────────────────────────────────────────────────────────

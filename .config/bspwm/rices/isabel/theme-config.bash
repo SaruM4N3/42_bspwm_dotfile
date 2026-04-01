@@ -94,7 +94,6 @@ sl_verify="${green}"
 gtk_theme="OneDark-zk"
 gtk_icons="Zafiro-Purple"
 gtk_cursor="Qogirr-Dark"
-geany_theme="z0mbi3-OneDark"
 
 # Wallpaper engine
 # Available engines:

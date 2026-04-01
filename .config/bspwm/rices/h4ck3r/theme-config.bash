@@ -94,7 +94,6 @@ sl_verify="${yellow}"
 gtk_theme="h4ck3r-zk"
 gtk_icons="Hack"
 gtk_cursor="Qogirr-Dark"
-geany_theme="z0mbi3-HackTheBox"
 
 # Wallpaper engine
 # Available engines:
