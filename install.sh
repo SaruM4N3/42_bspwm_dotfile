@@ -24,7 +24,12 @@ ask()     { echo -e "${BLD}${BLU}[?]${NC} $*"; }
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 
-# ── Diff-aware copy ───────────────────────────────────────────────────────────
+# ── Copy helpers (behaviour controlled by INSTALL_MODE) ───────────────────────
+#   overwrite  — backup existing, overwrite everything, ask on diff
+#   merge      — only copy files/dirs that don't exist yet at destination
+#   skip       — never reached (installer exits before deploy steps)
+
+# Diff-aware copy used in overwrite mode.
 # For files: shows a diff if the destination exists and differs, then asks.
 # For dirs:  lists changed/added/removed files, then asks.
 # If destination doesn't exist, copies silently.
@@ -65,6 +70,36 @@ cp_smart() {
     esac
 }
 
+# Merge-mode copy: only act if destination is absent.
+# For dirs: recurse into src and copy each file individually if missing.
+cp_missing() {
+    local src="$1" dst="$2" is_dir="$3"
+    if [ "$is_dir" = "dir" ]; then
+        find "$src" -type f | while IFS= read -r srcfile; do
+            local rel="${srcfile#$src/}"
+            local dstfile="$dst/$rel"
+            if [ ! -e "$dstfile" ]; then
+                mkdir -p "$(dirname "$dstfile")"
+                cp "$srcfile" "$dstfile"
+                info "Added: $dstfile"
+            fi
+        done
+    else
+        if [ ! -e "$dst" ]; then
+            cp "$src" "$dst"
+            info "Added: $dst"
+        fi
+    fi
+}
+
+# Unified dispatcher — routes to the right helper based on INSTALL_MODE
+cp_deploy() {
+    case "${INSTALL_MODE:-overwrite}" in
+        merge)     cp_missing "$@" ;;
+        overwrite) cp_smart   "$@" ;;
+    esac
+}
+
 # ── Checks ────────────────────────────────────────────────────────────────────
 [ "$(id -u)" = 0 ] && error "Do not run as root."
 
@@ -96,6 +131,28 @@ ask "Continue? [y/N]: "
 read -r yn
 case "$yn" in [Yy]) ;; *) echo "Cancelled."; exit 0 ;; esac
 
+# ── Existing install detection ────────────────────────────────────────────────
+INSTALL_MODE="overwrite"
+if [ -d "$HOME/.config/bspwm" ] || [ -d "$HOME/.bspwminstaller" ]; then
+    echo ""
+    warn "Existing bspwm install detected!"
+    echo ""
+    echo -e "  ${BLD}How do you want to proceed?${NC}"
+    echo -e "  ${GRN}[1]${NC} Overwrite  — backup existing configs, redeploy everything (asks on each diff)"
+    echo -e "  ${YEL}[2]${NC} Merge      — only add files that are missing, never touch existing ones"
+    echo -e "  ${RED}[3]${NC} Skip       — abort, don't change anything"
+    echo ""
+    printf "%b" "${BLD}${BLU}[?]${NC} Choice [1/2/3]: "
+    read -r choice
+    case "$choice" in
+        1) INSTALL_MODE="overwrite"; info "Mode: overwrite" ;;
+        2) INSTALL_MODE="merge";     info "Mode: merge (add missing only)" ;;
+        3) echo "Aborted."; exit 0 ;;
+        *) warn "Invalid choice — defaulting to merge (safe)."; INSTALL_MODE="merge" ;;
+    esac
+    echo ""
+fi
+
 # ── Step 1: junest setup + package install ───────────────────────────────────
 clear
 info "Step 1/6 — Installing junest and packages..."
@@ -104,26 +161,30 @@ bash "$REPO_DIR/.bspwminstaller/install_junest.sh"
 
 # ── Step 2: Backup existing configs ──────────────────────────────────────────
 clear
-info "Step 2/6 — Backing up existing configs..."
-BACKUP_DIR="$HOME/.config-backup-$TIMESTAMP"
-mkdir -p "$BACKUP_DIR"
+if [ "$INSTALL_MODE" = "overwrite" ]; then
+    info "Step 2/6 — Backing up existing configs..."
+    BACKUP_DIR="$HOME/.config-backup-$TIMESTAMP"
+    mkdir -p "$BACKUP_DIR"
 
-for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime; do
-    if [ -d "$HOME/.config/$cfg" ]; then
-        mv "$HOME/.config/$cfg" "$BACKUP_DIR/"
-        info "Backed up: ~/.config/$cfg"
-    fi
-done
+    for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime; do
+        if [ -d "$HOME/.config/$cfg" ]; then
+            mv "$HOME/.config/$cfg" "$BACKUP_DIR/"
+            info "Backed up: ~/.config/$cfg"
+        fi
+    done
 
-for f in .gtkrc-2.0; do
-    if [ -f "$HOME/$f" ]; then
-        cp "$HOME/$f" "$HOME/${f}.bak"
-        mv "$HOME/$f" "$BACKUP_DIR/"
-        info "Backed up: ~/$f → ~/${f}.bak + $BACKUP_DIR/"
-    fi
-done
+    for f in .gtkrc-2.0; do
+        if [ -f "$HOME/$f" ]; then
+            cp "$HOME/$f" "$HOME/${f}.bak"
+            mv "$HOME/$f" "$BACKUP_DIR/"
+            info "Backed up: ~/$f → ~/${f}.bak + $BACKUP_DIR/"
+        fi
+    done
 
-[ -d "$BACKUP_DIR" ] && info "Backups saved to: $BACKUP_DIR"
+    [ -d "$BACKUP_DIR" ] && info "Backups saved to: $BACKUP_DIR"
+else
+    info "Step 2/6 — Skipping backup (merge mode — existing files untouched)."
+fi
 
 # ── Step 3: Deploy dotfiles ───────────────────────────────────────────────────
 clear
@@ -135,7 +196,7 @@ mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.local/share"
 # ~/.config/* entries
 for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime; do
     if [ -d "$REPO_DIR/.config/$cfg" ]; then
-        cp_smart "$REPO_DIR/.config/$cfg" "$HOME/.config/$cfg" dir
+        cp_deploy "$REPO_DIR/.config/$cfg" "$HOME/.config/$cfg" dir
         info "Deployed: ~/.config/$cfg"
     fi
 done
@@ -143,14 +204,14 @@ done
 # Home files (.zshrc.bak = bspwm zshrc, swapped in by bspwm.sh; user's .zshrc untouched)
 for f in .zshrc.bak .gtkrc-2.0; do
     if [ -f "$REPO_DIR/$f" ]; then
-        cp_smart "$REPO_DIR/$f" "$HOME/$f" file
+        cp_deploy "$REPO_DIR/$f" "$HOME/$f" file
         info "Deployed: ~/$f"
     fi
 done
 
 # Installer scripts
 if [ -d "$REPO_DIR/.bspwminstaller" ]; then
-    cp_smart "$REPO_DIR/.bspwminstaller" "$HOME/.bspwminstaller" dir
+    cp_deploy "$REPO_DIR/.bspwminstaller" "$HOME/.bspwminstaller" dir
     info "Deployed: ~/.bspwminstaller"
 fi
 
@@ -185,14 +246,14 @@ fi
 if [ -d "$REPO_DIR/.local/share/applications" ]; then
     mkdir -p "$HOME/.local/share/applications"
     for f in "$REPO_DIR/.local/share/applications/"*; do
-        cp_smart "$f" "$HOME/.local/share/applications/$(basename "$f")" file
+        cp_deploy "$f" "$HOME/.local/share/applications/$(basename "$f")" file
     done
     info "Desktop entries installed."
 fi
 
 # Asciiart
 if [ -d "$REPO_DIR/.local/share/asciiart" ]; then
-    cp_smart "$REPO_DIR/.local/share/asciiart" "$HOME/.local/share/asciiart" dir
+    cp_deploy "$REPO_DIR/.local/share/asciiart" "$HOME/.local/share/asciiart" dir
     info "Asciiart installed."
 fi
 
@@ -200,7 +261,7 @@ fi
 if [ -d "$REPO_DIR/.local/bin" ]; then
     mkdir -p "$HOME/.local/bin"
     for f in "$REPO_DIR/.local/bin/"*; do
-        cp_smart "$f" "$HOME/.local/bin/$(basename "$f")" file
+        cp_deploy "$f" "$HOME/.local/bin/$(basename "$f")" file
     done
     chmod +x "$HOME/.local/bin/"*
     info "Local bin scripts installed."
