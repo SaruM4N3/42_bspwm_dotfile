@@ -2,8 +2,8 @@
 
 save-config.sh
 
-# Close only bspwm-managed windows (not GNOME's own processes)
-# GNOME will restore its windows when gnome-session resumes
+# Close only bspwm-managed windows (not Hyprland's own processes)
+# Hyprland will restart after bspwm exits (see bspwm.sh)
 bspc query -N -n '.window' | xargs -I id bspc node id -c 2>/dev/null
 sleep 0.5
 
