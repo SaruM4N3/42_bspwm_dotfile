@@ -3,20 +3,8 @@
 # Init LOGDIR
 BSPLOGDIR=$HOME/.BspwmLogs
 mkdir -p "$BSPLOGDIR"
-
-# Fermer chaque fenêtre sauf le terminal actuel
-CURRENT_WIN=$(xdotool getactivewindow)
-
 LOG=$BSPLOGDIR/bspwm_launch.log
-echo "--- $(date) ---" > $LOG
-echo "CURRENT_WIN: $CURRENT_WIN ($(printf "0x%08x" $CURRENT_WIN))" >> $LOG
-echo "Windows found:" >> $LOG
-wmctrl -l -p >> $LOG
-for win in $(wmctrl -l | awk '{print $1}' | grep -v $(printf "0x%08x" $CURRENT_WIN)); do
-    echo "Closing: $win" >> $LOG
-    wmctrl -ic $win
-done
-sleep 1
+echo "--- $(date) ---" > "$LOG"
 
 # Export only the vars needed from the GNOME session (whitelist to avoid polluting junest)
 _GNOME_PID=$(pgrep gnome-software | head -1)
@@ -37,7 +25,6 @@ unset GNOME_DESKTOP_SESSION_ID GNOME_SHELL_SESSION_MODE \
       GDMSESSION SESSION_MANAGER \
       XDG_DATA_DIRS XDG_CONFIG_DIRS
 
-
 # Remove outer junest wrapper paths from PATH — inside junest they shadow real sudo/pacman
 PATH=$(echo "$PATH" | tr ':' '\n' | grep -vF "$HOME/.junest/usr/bin_wrappers" | tr '\n' ':' | sed 's/:$//')
 export PATH
@@ -51,7 +38,17 @@ for pid in $BINARY_PIDS; do kill -STOP $pid; done
 
 killall -9 gnome-shell 2>/dev/null
 
-ft_lock -d
+# Wait for gnome-shell to fully release the X WM selection before bspwm grabs it.
+# Without this, bspwm races with Mutter and prints "Another window manager is already running."
+_deadline=$(( $(date +%s) + 10 ))
+while pgrep -x gnome-shell > /dev/null 2>&1; do
+    [ "$(date +%s)" -ge "$_deadline" ] && break
+    sleep 0.2
+done
+sleep 0.3
+unset _deadline
+
+ft_lock -d 2>/dev/null || true  # daemon may already be running; that's fine
 
 # Swap ~/.zshrc <-> ~/.zshrc.bak before entering bspwm
 swap_zshrc() {
@@ -65,11 +62,13 @@ swap_zshrc
 
 # Generate GNOME bin wrappers — check /usr/bin/ (the host path, which becomes /host/usr/
 # inside the inner bspwm junest via --bind /usr /host/usr).
-# Use the host's own ld-linux + lib path to avoid Arch/Ubuntu ABI mismatch.
-# /usr/lib64/ld-linux-x86-64.so.2 is a broken symlink inside bwrap (resolves through
-# /lib/ → Arch); use /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 directly.
+# Wrappers use the host's own ld-linux + lib path to avoid Arch/Ubuntu ABI mismatch.
 GNOME_WRAPPERS="$HOME/.cache/bspwm/gnome-wrappers"
 mkdir -p "$GNOME_WRAPPERS"
+
+# Host ld-linux is at /usr/lib/x86_64-linux-gnu/ (not /usr/lib64/ — that's a broken symlink
+# inside bwrap because it resolves via /lib/ which maps to Arch's lib).
+# Inside the inner bspwm junest the host /usr is mounted at /host/usr.
 _LDLINUX_INNER="/host/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
 _LIBPATH=$(find /usr/lib/x86_64-linux-gnu /usr/lib -maxdepth 2 -type d 2>/dev/null \
     | sed 's|^/usr/|/host/usr/|' | tr '\n' ':' | sed 's/:$//')
@@ -88,7 +87,9 @@ echo "GNOME wrappers generated: $(ls "$GNOME_WRAPPERS" | wc -l) scripts" >> "$LO
 unset _bin _name _LDLINUX_INNER _LIBPATH
 
 # launch bspwm via junest (proot with fakeroot for sudo/pacman support)
-"$HOME/.local/share/junest/bin/junest" -b "--bind /sgoinfre /sgoinfre --bind /goinfre /goinfre --bind /dev/shm /dev/shm --bind /run /run --bind /usr /host/usr" -- DRI_PRIME=1 bspwm
+echo "launching bspwm at $(date '+%T.%3N'), gnome-shell: $(pgrep -x gnome-shell || echo none)" >> "$LOG"
+"$HOME/.local/share/junest/bin/junest" -b "--bind /sgoinfre /sgoinfre --bind /goinfre /goinfre --bind /dev/shm /dev/shm --bind /run /run --bind /usr /host/usr" -- DRI_PRIME=1 bspwm 2>>"$LOG"
+echo "bspwm exited: $? at $(date '+%T.%3N')" >> "$LOG"
 
 # Swap ~/.zshrc <-> ~/.zshrc.bak back on bspwm exit
 swap_zshrc
