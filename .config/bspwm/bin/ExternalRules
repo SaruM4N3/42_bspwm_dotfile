@@ -56,7 +56,7 @@ case "$instance" in
 	result "state=floating center=on rectangle=696x399+0+0"
 	;;
     YaziTerm)
-	result "state=floating center=on rectangle=900x342+0+0"
+	result "state=tiled"
 	;;
     MusicTerm)
 	result "state=floating center=on rectangle=656x343+0+0"
