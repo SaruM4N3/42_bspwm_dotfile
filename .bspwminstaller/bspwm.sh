@@ -1,10 +1,5 @@
 #!/bin/bash
 
-# Ensure junest bin_wrappers are in PATH — GNOME keyboard shortcut runs in a
-# non-interactive shell that never sources ~/.zshrc, so tools like xdotool/wmctrl
-# (installed in junest, not on host Ubuntu) would not be found otherwise.
-# export PATH="$HOME/.junest/usr/bin_wrappers:$HOME/.local/share/junest/bin:$PATH"
-
 # Init LOGDIR
 BSPLOGDIR=$HOME/.BspwmLogs
 mkdir -p "$BSPLOGDIR"
@@ -93,7 +88,7 @@ echo "GNOME wrappers generated: $(ls "$GNOME_WRAPPERS" | wc -l) scripts" >> "$LO
 unset _bin _name _LDLINUX_INNER _LIBPATH
 
 # launch bspwm via junest (proot with fakeroot for sudo/pacman support)
-"$HOME/.local/share/junest/bin/junest" -b "--bind /sgoinfre /sgoinfre --bind /goinfre /goinfre --bind /dev/shm /dev/shm --bind /run /run --bind /usr /host/usr" -- DRI_PRIME=1 PATH="$GNOME_WRAPPERS:$PATH" bspwm
+"$HOME/.local/share/junest/bin/junest" -b "--bind /sgoinfre /sgoinfre --bind /goinfre /goinfre --bind /dev/shm /dev/shm --bind /run /run --bind /usr /host/usr" -- DRI_PRIME=1 bspwm
 
 # Swap ~/.zshrc <-> ~/.zshrc.bak back on bspwm exit
 swap_zshrc

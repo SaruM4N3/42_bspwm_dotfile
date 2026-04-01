@@ -41,7 +41,7 @@ case "$class" in
         result "state=floating center=on"
         ;;
     Thunar)
-        result "desktop=^2 follow=on"
+        result "state=tiled"
         ;;
     firefox|Navigator)
         result "desktop=^3 follow=on"
