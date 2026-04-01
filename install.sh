@@ -87,8 +87,8 @@ echo -e "    ${GRN}[1]${NC} Install junest + Arch dependencies inside it"
 echo -e "    ${GRN}[2]${NC} Backup your existing configs"
 echo -e "    ${GRN}[3]${NC} Deploy all dotfiles to their locations"
 echo -e "    ${GRN}[4]${NC} Install fonts and desktop entries"
-echo -e "    ${GRN}[5]${NC} Register GNOME Super+B shortcut"
-echo -e "    ${GRN}[6]${NC} Set up zshrc swap for bspwm/GNOME"
+echo -e "    ${GRN}[5]${NC} Register Hyprland Super+B keybind"
+echo -e "    ${GRN}[6]${NC} Set up zshrc swap for bspwm/Hyprland"
 echo ""
 warn "Your existing configs will be backed up, not deleted."
 echo ""
@@ -209,14 +209,14 @@ fi
 # Generate XDG user dirs
 command -v xdg-user-dirs-update >/dev/null && xdg-user-dirs-update
 
-# ── Step 5: GNOME Super+B shortcut ───────────────────────────────────────────
+# ── Step 5: Hyprland Super+B keybind ─────────────────────────────────────────
 clear
-info "Step 5/6 — Registering GNOME keyboard shortcut (Super+B → bspwm)..."
+info "Step 5/6 — Registering Hyprland keybind (Super+B → bspwm)..."
 echo ""
-if command -v dconf >/dev/null 2>&1; then
+if [ -f "$HOME/.config/hypr/hyprland.conf" ]; then
     bash "$HOME/.bspwminstaller/add-gnome-shortcut.sh"
 else
-    warn "dconf not found — skipping GNOME shortcut registration."
+    warn "hyprland.conf not found — skipping keybind registration."
 fi
 
 # ── Step 6: zshrc setup ───────────────────────────────────────────────────────
@@ -224,7 +224,7 @@ clear
 info "Step 6/6 — Setting up zshrc swap..."
 echo ""
 
-# Patch ~/.zshrc (GNOME/user config) with JUNEST_ENV self-check if not already present
+# Patch ~/.zshrc (Hyprland/user config) with JUNEST_ENV self-check if not already present
 if [ -f "$HOME/.zshrc" ] && ! grep -q 'JUNEST_ENV' "$HOME/.zshrc"; then
     cat >> "$HOME/.zshrc" << 'EOF'
 

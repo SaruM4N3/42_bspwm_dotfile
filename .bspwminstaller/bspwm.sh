@@ -4,37 +4,30 @@
 BSPLOGDIR=$HOME/.BspwmLogs
 mkdir -p "$BSPLOGDIR"
 
-# Fermer chaque fenêtre sauf le terminal actuel
-CURRENT_WIN=$(xdotool getactivewindow)
-
 LOG=$BSPLOGDIR/bspwm_launch.log
 echo "--- $(date) ---" > $LOG
-echo "CURRENT_WIN: $CURRENT_WIN ($(printf "0x%08x" $CURRENT_WIN))" >> $LOG
+
+# Close all Hyprland windows except the current one
+CURRENT_ADDR=$(hyprctl activewindow -j 2>/dev/null | grep -oP '"address":\s*"\K[^"]+')
+echo "CURRENT_WIN: $CURRENT_ADDR" >> $LOG
 echo "Windows found:" >> $LOG
-wmctrl -l -p >> $LOG
-for win in $(wmctrl -l | awk '{print $1}' | grep -v $(printf "0x%08x" $CURRENT_WIN)); do
-    echo "Closing: $win" >> $LOG
-    wmctrl -ic $win
+hyprctl -j clients 2>/dev/null | grep -oP '"address":\s*"\K[^"]+' | while read addr; do
+    echo "Closing: $addr" >> $LOG
+    [ "$addr" = "$CURRENT_ADDR" ] && continue
+    hyprctl dispatch closewindow "address:$addr" 2>/dev/null
 done
 sleep 1
 
-# Export only the vars needed from the GNOME session (whitelist to avoid polluting junest)
-_GNOME_PID=$(pgrep gnome-software | head -1)
-if [ -n "$_GNOME_PID" ]; then
-    _GNOME_ENV=$(cat /proc/$_GNOME_PID/environ 2>/dev/null | tr '\0' '\n')
-    for _var in DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR; do
-        _val=$(echo "$_GNOME_ENV" | grep "^${_var}=")
-        [ -n "$_val" ] && export "$_val"
-    done
-    unset _GNOME_ENV _val _var
-fi
-unset _GNOME_PID
+# Ensure Wayland/Hyprland session vars are exported
+for _var in WAYLAND_DISPLAY DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR HYPRLAND_INSTANCE_SIGNATURE; do
+    [ -n "${!_var}" ] && export "$_var"
+done
+unset _var
 
-# Strip GNOME-specific vars that pollute junest (sudo, pacman, etc.)
-unset GNOME_DESKTOP_SESSION_ID GNOME_SHELL_SESSION_MODE \
-      GTK_MODULES GIO_LAUNCHED_DESKTOP_FILE GIO_LAUNCHED_DESKTOP_FILE_PID \
+# Strip Hyprland-specific vars that pollute junest (sudo, pacman, etc.)
+unset HYPRLAND_INSTANCE_SIGNATURE HYPRLAND_CMD \
       XDG_SESSION_DESKTOP XDG_MENU_PREFIX DESKTOP_SESSION \
-      GDMSESSION SESSION_MANAGER \
+      XDG_SESSION_TYPE \
       XDG_DATA_DIRS XDG_CONFIG_DIRS
 
 
@@ -42,14 +35,8 @@ unset GNOME_DESKTOP_SESSION_ID GNOME_SHELL_SESSION_MODE \
 PATH=$(echo "$PATH" | tr ':' '\n' | grep -vF "$HOME/.junest/usr/bin_wrappers" | tr '\n' ':' | sed 's/:$//')
 export PATH
 
-# Kill gnome
-MONITOR_PID=$(pgrep -f "gnome-session-ctl --monitor")
-BINARY_PIDS=$(pgrep -f "gnome-session-binary")
-
-kill -STOP $MONITOR_PID
-for pid in $BINARY_PIDS; do kill -STOP $pid; done
-
-killall -9 gnome-shell 2>/dev/null
+# Kill Hyprland
+hyprctl dispatch exit 2>/dev/null || killall -9 Hyprland 2>/dev/null
 
 ft_lock -d
 
@@ -93,21 +80,8 @@ unset _bin _name _LDLINUX_INNER _LIBPATH
 # Swap ~/.zshrc <-> ~/.zshrc.bak back on bspwm exit
 swap_zshrc
 
-# Re-query PIDs in case processes were respawned during the session
-MONITOR_PID_NOW=$(pgrep -f "gnome-session-ctl --monitor")
-BINARY_PIDS_NOW=$(pgrep -f "gnome-session-binary")
-for pid in $BINARY_PIDS_NOW; do kill -CONT $pid 2>/dev/null; done
-[ -n "$MONITOR_PID_NOW" ] && kill -CONT $MONITOR_PID_NOW 2>/dev/null
-
-# Also resume original PIDs in case they're still valid
-for pid in $BINARY_PIDS; do kill -CONT $pid 2>/dev/null; done
-[ -n "$MONITOR_PID" ] && kill -CONT $MONITOR_PID 2>/dev/null
-
-# gnome-shell was hard-killed at launch — wait for gnome-session to restart it,
-# then force-start it if it doesn't come back within 3 seconds
-sleep 3
-if ! pgrep -x gnome-shell > /dev/null; then
-    DBUS=$(grep -z DBUS_SESSION_BUS_ADDRESS /proc/${BINARY_PIDS_NOW%% *}/environ 2>/dev/null | tr '\0' '\n' | head -1)
-    [ -n "$DBUS" ] && export $DBUS
-    gnome-shell --replace &
+# Restart Hyprland after bspwm exits
+sleep 1
+if ! pgrep -x Hyprland > /dev/null; then
+    Hyprland &
 fi
