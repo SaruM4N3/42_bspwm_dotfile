@@ -1,8 +1,21 @@
 #!/bin/sh
 
-sed -i "$HOME"/.config/alacritty/fonts.toml \
-    -e "s/size = .*/size = $term_font_size/" \
-    -e "s/family = .*/family = \"$term_font_name\"/"
+cat >"$HOME"/.config/alacritty/fonts.toml <<-EOF
+[font]
+size = ${term_font_size}
+
+[font.normal]
+family = "${term_font_name}"
+style = "Regular"
+
+[font.bold]
+family = "${term_font_name}"
+style = "Bold"
+
+[font.italic]
+family = "${term_font_name}"
+style = "Italic"
+EOF
 
 cat >"$HOME"/.config/alacritty/rice-colors.toml <<-EOF
 # Default colors

@@ -13,7 +13,7 @@
 # =============================================================
 
 # Set environment variables
-export PATH="$HOME/.config/bspwm/bin:$PATH"
+export PATH="$HOME/.config/bspwm/bin:$HOME/.cache/bspwm/gnome-wrappers:$PATH"
 export XDG_CURRENT_DESKTOP='bspwm'
 ## Fix java applications
 export _JAVA_AWT_WM_NONREPARENTING=1

@@ -70,6 +70,13 @@ Kitty"
 # Refresh main var (in case it changed)
 read -r MY_TERM < "$CFG_TERM"
 
+# Yazi always uses kitty — it requires Kitty Image Protocol for previews,
+# which alacritty and st do not support.
+if [ "$1" = "--yazi" ]; then
+    kitty --name=YaziTerm --class=FloaTerm -e yazi
+    exit
+fi
+
 # Launch the terminal with appropriate options
 case $MY_TERM in
     "alacritty")
