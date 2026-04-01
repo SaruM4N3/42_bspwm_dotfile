@@ -17,12 +17,12 @@ echo "XAUTHORITY=$XAUTHORITY" >> $LOG
 echo "USER=$USER" >> $LOG
 echo "KRB5CCNAME=$KRB5CCNAME" >> $LOG
 
-# Save animated wallpaper path and kill mpv + xwinwrap before locking
+# Save animated wallpaper path and kill it before locking
 WALL_RESUME="$BSPLOGDIR/wall_resume"
 MPV_PID=$(pgrep -x mpv | head -1)
 if [ -n "$MPV_PID" ]; then
     tr '\0' '\n' < "/proc/$MPV_PID/cmdline" | tail -1 > "$WALL_RESUME"
-    echo "stopping animated wall (mpv pid: $MPV_PID)..." >> $LOG
+    echo "animated wall found (mpv pid: $MPV_PID), killing before lock" >> $LOG
     kill -9 "$MPV_PID" 2>/dev/null
     pkill -9 -x xwinwrap 2>/dev/null
 else
@@ -30,15 +30,20 @@ else
     echo "animated wall not running" >> $LOG
 fi
 
+# Launch ft_lock
 echo "ft_lock launch: $(date '+%T.%3N')" >> $LOG
-/host/usr/share/42/ft_lock >> $LOG 2>&1
+/host/usr/share/42/ft_lock &
+FTLOCK_PID=$!
+
+# Wait for ft_lock to exit (user authenticated / lock screen dismissed)
+wait $FTLOCK_PID
 echo "ft_lock exit: $? at $(date '+%T.%3N')" >> $LOG
 
-# Wait for bspwm node focus (user is back after unlock), then restart wallpaper
+# Restart animated wallpaper after unlock
 if [ -f "$WALL_RESUME" ]; then
     WALL_PATH=$(cat "$WALL_RESUME")
-    echo "waiting for bspwm node focus to restore wall..." >> $LOG
-    bspc subscribe node_focus | head -1 > /dev/null 2>&1
+    echo "waiting for 10 key inputs before restoring wall..." >> $LOG
+    xinput test-xi2 --root 2>/dev/null | awk '/KeyPress/{if(++n>=10)exit}'
     echo "restarting animated wall: $WALL_PATH" >> $LOG
     "$HOME/.config/bspwm/bin/AnimatedWall" --start "$WALL_PATH"
     rm -f "$WALL_RESUME"

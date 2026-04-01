@@ -17,8 +17,27 @@
 
 # Current Rice
 read -r RICE < "$HOME"/.config/bspwm/.rice
+
+# Guard: refuse to source an empty theme-config.bash — it means RiceEditor
+# crashed mid-write. Restore from git if possible, otherwise abort.
+THEME_CFG="$HOME/.config/bspwm/rices/$RICE/theme-config.bash"
+if [ ! -s "$THEME_CFG" ]; then
+    # Try to restore from git index
+    GIT_RESTORE=$(cd "$HOME/bspwm-dotfiles" 2>/dev/null && \
+        git show HEAD:".config/bspwm/rices/$RICE/theme-config.bash" 2>/dev/null)
+    if [ -n "$GIT_RESTORE" ]; then
+        echo "$GIT_RESTORE" > "$THEME_CFG"
+        dunstify -u critical -t 6000 "Theme.sh" \
+            "theme-config.bash was empty — restored from git. Rice: $RICE"
+    else
+        dunstify -u critical -t 6000 "Theme.sh" \
+            "theme-config.bash is empty and could not be restored. Aborting."
+        exit 1
+    fi
+fi
+
 # Load theme configuration
-. "$HOME"/.config/bspwm/rices/"$RICE"/theme-config.bash
+. "$THEME_CFG"
 # Path to modules dir
 MODULE_DIR="$HOME/.config/bspwm/config/modules"
 
