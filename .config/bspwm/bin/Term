@@ -82,13 +82,13 @@ case $MY_TERM in
     "alacritty")
 	case $1 in
 	    "--terminal") alacritty ;;
-	    "--floating") alacritty --class FloatTerm ;;
-	    "--update") alacritty --hold --class UpdateTerm -e paru -Syu --nocombinedupgrade ;;
-	    "--checkupdates") alacritty --hold --class Updating,Updating -e Updates --print-updates ;;
-	    "--yazi") alacritty --class YaziTerm -e yazi ;;
+	    "--floating") kitty --name=FloatTerm ;;
+	    "--update") kitty --hold --name=UpdateTerm -e paru -Syu --nocombinedupgrade ;;
+	    "--checkupdates") kitty --hold --class=Updating -e Updates --print-updates ;;
+	    "--yazi") kitty --name=YaziTerm -e yazi ;;
 	    "--nvim") alacritty -e nvim ;;
-	    "--music") alacritty --class MusicTerm -e ncmpcpp ;;
-	    "--fetch") alacritty --class FetchTerm -e ~/.local/bin/sysfetch ;;
+	    "--music") kitty --name=MusicTerm -e ncmpcpp ;;
+	    "--fetch") kitty --name=FetchTerm -e ~/.local/bin/sysfetch ;;
 	esac
 	;;
     "st")
