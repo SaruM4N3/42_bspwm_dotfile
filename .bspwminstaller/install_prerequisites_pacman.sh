@@ -12,6 +12,22 @@ info()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
 error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 
+ask_editor() {
+    printf "\nWhich editor do you want to install?\n"
+    printf "  1) neovim  (terminal, via kitty)\n"
+    printf "  2) vscode  (visual-studio-code-bin)\n"
+    printf "  3) zed     (GUI, zed-preview-bin)\n"
+    printf "Enter number [1]: "
+    read -r editor_choice
+    case "$editor_choice" in
+        1|""|neovim) EDITOR_PKG="neovim";                    EDITOR_BIN="nvim";  EDITOR_GUI=0 ;;
+        2|vscode)    EDITOR_PKG="visual-studio-code-bin";    EDITOR_BIN="code";  EDITOR_GUI=1 ;;
+        3|zed)       EDITOR_PKG="zed-preview-bin";           EDITOR_BIN="zed";   EDITOR_GUI=1 ;;
+        *)           EDITOR_PKG="neovim";                    EDITOR_BIN="nvim";  EDITOR_GUI=0 ;;
+    esac
+    info "Editor selected: $EDITOR_BIN (package: $EDITOR_PKG)"
+}
+
 ask_browser() {
     printf "\nWhich browser do you want to install? (default: brave)\n"
     printf "  1) brave\n  2) firefox\n  3) chromium\n  4) google-chrome\n"
@@ -72,6 +88,7 @@ add_gh0stzk_repo() {
 }
 
 # ── Interactive setup (ask before any installs) ───────────────────────────────
+ask_editor
 ask_browser
 
 # ── Update keyring + full system sync ────────────────────────────────────────
@@ -128,10 +145,9 @@ sudo pacman -S --needed --noconfirm \
     gvfs-mtp \
     yazi
 
-# ── Editors ──────────────────────────────────────────────────────────────────
-info "Installing editors..."
-sudo pacman -S --needed --noconfirm \
-    neovim
+# ── Editor ───────────────────────────────────────────────────────────────────
+info "Installing editor: $EDITOR_PKG..."
+sudo pacman -S --needed --noconfirm "$EDITOR_PKG"
 
 # ── Media & audio ────────────────────────────────────────────────────────────
 info "Installing media packages..."
@@ -272,6 +288,31 @@ done
 OPENAPPS="$DOTFILES_DIR/.config/bspwm/bin/OpenApps"
 [ -f "$OPENAPPS" ] && sed -i "/--browser)/,/;;/{s|^\t\t[a-z].*$|\t\t$BROWSER_BIN|}" "$OPENAPPS"
 info "sxhkdrc (super+w) and OpenApps --browser patched to use $BROWSER_BIN."
+
+# Patch editor references in sxhkdrc and OpenApps --editor
+OPENAPPS="$DOTFILES_DIR/.config/bspwm/bin/OpenApps"
+for sxhkd in \
+    "$DOTFILES_DIR/.config/bspwm/config/sxhkdrc" \
+    "$DOTFILES_DIR/.config/bspwm/config/.session/sxhkdrc"; do
+    [ -f "$sxhkd" ] || continue
+    if [ "$EDITOR_GUI" = "1" ]; then
+        # GUI editor: bind super+e to `editor .`
+        sed -i "s|^\tcode \.$|\t$EDITOR_BIN .|" "$sxhkd"
+    else
+        # nvim: bind super+e to `Term --nvim` (already the default)
+        sed -i "s|^\tcode \.$|\tTerm --nvim|" "$sxhkd"
+    fi
+done
+if [ -f "$OPENAPPS" ]; then
+    if [ "$EDITOR_GUI" = "1" ]; then
+        # Replace --editor) body with the GUI binary
+        sed -i "/--editor)/,/;;/{s|^\t\t[a-zA-Z].*$|\t\t$EDITOR_BIN|}" "$OPENAPPS"
+    else
+        # Replace --editor) body with Term --nvim
+        sed -i "/--editor)/,/;;/{s|^\t\t[a-zA-Z].*$|\t\tTerm --nvim|}" "$OPENAPPS"
+    fi
+fi
+info "sxhkdrc and OpenApps --editor patched to use $EDITOR_BIN."
 
 # ── Default cursor theme (required by 05-gtk.sh on first boot) ───────────────
 info "Creating ~/.icons/default/index.theme..."
