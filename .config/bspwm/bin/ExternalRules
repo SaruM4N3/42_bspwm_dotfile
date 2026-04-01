@@ -16,9 +16,6 @@ result() {
 }
 
 case "$class" in
-    FloaTerm)
-	result "state=floating center=on rectangle=696x399+0+0"
-        ;;
     Updating)
 	result "state=floating sticky=on center=on rectangle=390x405+0+0"
         ;;
@@ -52,6 +49,12 @@ case "$instance" in
     Toolkit)
         result "state=floating sticky=on rectangle=500x290+1054+593"
         ;;
+    FloatTerm)
+	result "state=floating center=on rectangle=696x399+0+0"
+	;;
+    UpdateTerm)
+	result "state=floating center=on rectangle=696x399+0+0"
+	;;
     YaziTerm)
 	result "state=floating center=on rectangle=900x342+0+0"
 	;;
