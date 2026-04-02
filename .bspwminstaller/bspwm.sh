@@ -106,6 +106,14 @@ echo "bspwm exited: $? at $(date '+%T.%3N')" >> "$LOG"
 # Swap ~/.zshrc <-> ~/.zshrc.bak back on bspwm exit
 swap_zshrc
 
+# Kill bspwm-owned X daemons — must die before GNOME resumes so gsd-xsettings wins
+# (quit.sh handles clean exits; this covers crashes and unclean exits)
+pkill -x xsettingsd 2>/dev/null || true
+pkill -x picom      2>/dev/null || true
+pkill -x sxhkd      2>/dev/null || true
+pkill -x xwinwrap   2>/dev/null || true
+pkill -x mpv        2>/dev/null || true
+
 # Re-query PIDs in case processes were respawned during the session
 MONITOR_PID_NOW=$(pgrep -f "gnome-session-ctl --monitor")
 BINARY_PIDS_NOW=$(pgrep -f "gnome-session-binary")
