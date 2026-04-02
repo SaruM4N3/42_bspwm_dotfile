@@ -162,13 +162,23 @@ def sum_seconds(locations, year, month, day=None):
         try:
             begin_utc = datetime.fromisoformat(raw.replace("Z", "+00:00"))
             begin_local = begin_utc.astimezone(local_tz)
-            if begin_local.year != year or begin_local.month != month:
-                continue
-            if day is not None and begin_local.day != day:
-                continue
             end_raw = s.get("end_at")
-            end = datetime.fromisoformat(end_raw.replace("Z", "+00:00")) if end_raw else now
-            total += (end - begin_utc).total_seconds()
+            end_utc = datetime.fromisoformat(end_raw.replace("Z", "+00:00")) if end_raw else now
+
+            if day is not None:
+                # Check if session overlaps the target day (handles sessions crossing midnight)
+                day_start = datetime(year, month, day, 0, 0, 0, tzinfo=local_tz).astimezone(timezone.utc)
+                day_end   = datetime(year, month, day, 23, 59, 59, 999999, tzinfo=local_tz).astimezone(timezone.utc)
+                if end_utc <= day_start or begin_utc >= day_end:
+                    continue
+                # Clamp to the target day boundaries
+                effective_begin = max(begin_utc, day_start)
+                effective_end   = min(end_utc, day_end)
+                total += (effective_end - effective_begin).total_seconds()
+            else:
+                if begin_local.year != year or begin_local.month != month:
+                    continue
+                total += (end_utc - begin_utc).total_seconds()
         except Exception:
             continue
     return total
@@ -261,7 +271,7 @@ def build_display(locations, cfg, today):
         text += f" | Today: {format_hm(day_s, show_min)}"
 
     if show_money:
-        earned = calculate_money(birth_date, total_h, req_h)
+        earned = calculate_money(birth_date, (total_s // 60) / 60, req_h)
         if earned is not None:
             text += f" | {earned:.2f}€"
 
@@ -295,8 +305,6 @@ def main():
 
     cfg    = load_json(SETTINGS_FILE, DEFAULTS)
     output = build_display(locations, cfg, date.today())
-    if stale:
-        output += " ~"
     print(output)
 
 

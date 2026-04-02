@@ -25,8 +25,12 @@ unset GNOME_DESKTOP_SESSION_ID GNOME_SHELL_SESSION_MODE \
       GDMSESSION SESSION_MANAGER \
       XDG_DATA_DIRS XDG_CONFIG_DIRS
 
-# Remove outer junest wrapper paths from PATH — inside junest they shadow real sudo/pacman
-PATH=$(echo "$PATH" | tr ':' '\n' | grep -vF "$HOME/.junest/usr/bin_wrappers" | tr '\n' ':' | sed 's/:$//')
+# Remove outer junest wrapper paths from PATH — inside junest they shadow real sudo/pacman.
+# Guard with || echo "$PATH": if the wrapper path isn't in PATH (fresh install), grep exits 1
+# and the subshell would return empty string, wiping PATH entirely.
+_CLEAN_PATH=$(echo "$PATH" | tr ':' '\n' | grep -vF "$HOME/.junest/usr/bin_wrappers" | tr '\n' ':' | sed 's/:$//') \
+    && PATH="$_CLEAN_PATH" || true
+unset _CLEAN_PATH
 export PATH
 
 # Kill gnome
