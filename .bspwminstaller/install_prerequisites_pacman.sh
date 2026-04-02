@@ -90,8 +90,25 @@ ask_rice() {
     [[ ${need[vimix]}        ]] && ICON_PKGS+=(gh0stzk-icons-vimix-white)
     [[ ${need[zafiro]}       ]] && ICON_PKGS+=(gh0stzk-icons-zafiro)
     [[ ${need[zafiro_purple]}]] && ICON_PKGS+=(gh0stzk-icons-zafiro-purple)
-
     info "Icon packages needed: ${ICON_PKGS[*]}"
+
+    # Font packages per rice
+    # Note: MapleMono, Phosphor, scientifica, BebasNeue, MaterialDesignIcons,
+    #       MesloLGS are all bundled in .local/share/fonts — no pacman package needed.
+    local -A fneed=()
+    for rice in "${SELECTED_RICES[@]}"; do
+        case "$rice" in
+            aline|isabel|jan|karla) fneed[inconsolata]=1 ;;
+        esac
+        case "$rice" in
+            cynthia|isabel|jan|melissa|varinka) fneed[terminus]=1 ;;
+        esac
+    done
+
+    FONT_PKGS=()
+    [[ ${fneed[inconsolata]} ]] && FONT_PKGS+=(ttf-inconsolata)
+    [[ ${fneed[terminus]}    ]] && FONT_PKGS+=(ttf-terminus-nerd)
+    info "Font packages needed: ${FONT_PKGS[*]:-none beyond base}"
 }
 
 ask_browser() {
@@ -283,14 +300,9 @@ sudo pacman -S --needed --noconfirm \
 
 # ── Fonts ────────────────────────────────────────────────────────────────────
 info "Installing fonts..."
-sudo pacman -S --needed --noconfirm \
-    fontconfig \
-    ttf-inconsolata \
-    ttf-jetbrains-mono \
-    ttf-jetbrains-mono-nerd \
-    ttf-terminus-nerd \
-    ttf-ubuntu-mono-nerd \
-    ttf-font-awesome
+_base_fonts=(fontconfig ttf-jetbrains-mono ttf-jetbrains-mono-nerd ttf-font-awesome)
+sudo pacman -S --needed --noconfirm "${_base_fonts[@]}" "${FONT_PKGS[@]}"
+unset _base_fonts
 
 # ── Clipboard ────────────────────────────────────────────────────────────────
 info "Installing clipcat..."
