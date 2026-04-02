@@ -1,8 +1,7 @@
 filetype: picom
 
 detect:
-  filename: "\\.conf$"
-  header: "(^#.*picom|^backend|^shadow|^fading|^rules:)"
+  filename: "picom.*\\.conf$"
 
 rules:
   # Section dividers ## ----- Foo ----- ##
