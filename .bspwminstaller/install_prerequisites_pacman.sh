@@ -28,6 +28,72 @@ ask_editor() {
     info "Editor selected: $EDITOR_BIN (package: $EDITOR_PKG)"
 }
 
+ask_rice() {
+    local rices=(aline andrea brenda cristina cynthia daniela emilia h4ck3r isabel jan karla marisol melissa SaruM4N3 silvia varinka yael z0mbi3)
+
+    printf "\nWhich rice theme(s) do you want to install?\n"
+    printf "Enter numbers separated by spaces, or 'all' for everything.\n\n"
+    local i=1
+    for r in "${rices[@]}"; do
+        printf "  %2d) %s\n" "$i" "$r"
+        (( i++ ))
+    done
+    printf "\nEnter selection [all]: "
+    read -r rice_choice
+
+    if [[ -z "$rice_choice" || "$rice_choice" == "all" ]]; then
+        SELECTED_RICES=("${rices[@]}")
+    else
+        SELECTED_RICES=()
+        for n in $rice_choice; do
+            if [[ "$n" =~ ^[0-9]+$ ]] && (( n >= 1 && n <= ${#rices[@]} )); then
+                SELECTED_RICES+=("${rices[$((n-1))]}")
+            fi
+        done
+        if [[ ${#SELECTED_RICES[@]} -eq 0 ]]; then
+            warn "No valid selection — installing all rices."
+            SELECTED_RICES=("${rices[@]}")
+        fi
+    fi
+    info "Selected rices: ${SELECTED_RICES[*]}"
+
+    # Map each rice to its required icon packages
+    local -A need=()
+    for rice in "${SELECTED_RICES[@]}"; do
+        case "$rice" in
+            aline|andrea|SaruM4N3) need[luv]=1;          need[gruvbox]=1 ;;
+            brenda|cynthia|silvia)  need[gruvbox]=1 ;;
+            cristina|daniela)       need[catppuccin]=1 ;;
+            z0mbi3)                 need[luv]=1;          need[catppuccin]=1 ;;
+            emilia)                 need[tokyo]=1 ;;
+            h4ck3r)                 need[hack]=1;         need[beautyline]=1 ;;
+            isabel)                 need[zafiro]=1;       need[zafiro_purple]=1 ;;
+            jan)                    need[beautyline]=1 ;;
+            karla)                  need[sweet]=1 ;;
+            marisol)                need[dracula]=1 ;;
+            melissa|varinka)        need[vimix]=1 ;;
+            yael)                   need[glassy]=1;       need[candy]=1 ;;
+        esac
+    done
+
+    ICON_PKGS=()
+    [[ ${need[beautyline]}   ]] && ICON_PKGS+=(gh0stzk-icons-beautyline)
+    [[ ${need[candy]}        ]] && ICON_PKGS+=(gh0stzk-icons-candy)
+    [[ ${need[catppuccin]}   ]] && ICON_PKGS+=(gh0stzk-icons-catppuccin-mocha)
+    [[ ${need[dracula]}      ]] && ICON_PKGS+=(gh0stzk-icons-dracula)
+    [[ ${need[glassy]}       ]] && ICON_PKGS+=(gh0stzk-icons-glassy)
+    [[ ${need[gruvbox]}      ]] && ICON_PKGS+=(gh0stzk-icons-gruvbox-plus-dark)
+    [[ ${need[hack]}         ]] && ICON_PKGS+=(gh0stzk-icons-hack)
+    [[ ${need[luv]}          ]] && ICON_PKGS+=(gh0stzk-icons-luv)
+    [[ ${need[sweet]}        ]] && ICON_PKGS+=(gh0stzk-icons-sweet-rainbow)
+    [[ ${need[tokyo]}        ]] && ICON_PKGS+=(gh0stzk-icons-tokyo-night)
+    [[ ${need[vimix]}        ]] && ICON_PKGS+=(gh0stzk-icons-vimix-white)
+    [[ ${need[zafiro]}       ]] && ICON_PKGS+=(gh0stzk-icons-zafiro)
+    [[ ${need[zafiro_purple]}]] && ICON_PKGS+=(gh0stzk-icons-zafiro-purple)
+
+    info "Icon packages needed: ${ICON_PKGS[*]}"
+}
+
 ask_browser() {
     printf "\nWhich browser do you want to install? (default: brave)\n"
     printf "  1) brave\n  2) firefox\n  3) chromium\n  4) google-chrome\n"
@@ -90,6 +156,7 @@ add_gh0stzk_repo() {
 # ── Interactive setup (ask before any installs) ───────────────────────────────
 ask_editor
 ask_browser
+ask_rice
 
 # ── Update keyring + full system sync ────────────────────────────────────────
 info "Syncing package databases..."
@@ -204,19 +271,7 @@ info "Installing gh0stzk GTK themes, cursors and icon sets..."
 sudo pacman -S --needed --noconfirm \
     gh0stzk-gtk-themes \
     gh0stzk-cursor-qogirr \
-    gh0stzk-icons-beautyline \
-    gh0stzk-icons-candy \
-    gh0stzk-icons-catppuccin-mocha \
-    gh0stzk-icons-dracula \
-    gh0stzk-icons-glassy \
-    gh0stzk-icons-gruvbox-plus-dark \
-    gh0stzk-icons-hack \
-    gh0stzk-icons-luv \
-    gh0stzk-icons-sweet-rainbow \
-    gh0stzk-icons-tokyo-night \
-    gh0stzk-icons-vimix-white \
-    gh0stzk-icons-zafiro \
-    gh0stzk-icons-zafiro-purple
+    "${ICON_PKGS[@]}"
 
 # ── Shell ────────────────────────────────────────────────────────────────────
 info "Installing zsh and plugins..."
