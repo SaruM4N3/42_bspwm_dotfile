@@ -24,20 +24,9 @@ if [ ! -x "$JUNEST_BIN" ]; then
 else
     info "junest already installed."
 fi
-# ── Add junest to zshrc ──────────────────────────────────────────────────────
-ZSHRC="$HOME/.zshrc"
-[ -f "$ZSHRC" ] || touch "$ZSHRC"
-
-LINE='export PATH="$HOME/.local/share/junest/bin:$HOME/.junest/usr/bin_wrappers:$PATH"'
-
-if ! grep -qxF "$LINE" "$ZSHRC"; then
-    info "Adding junest to PATH in .zshrc..."
-    echo "$LINE" >> "$ZSHRC"
-else
-    info "junest PATH already present in .zshrc."
-fi
-
-# Apply immediately for current script
+# Apply junest bin to PATH for the remainder of this script only.
+# The persistent .zshrc patch is handled by install.sh step 6 alongside
+# the JUNEST_ENV self-check, so PATH exports always come AFTER that check.
 export PATH="$HOME/.local/share/junest/bin:$PATH"
 
 # ── 2. Bootstrap Arch base image ─────────────────────────────────────────────

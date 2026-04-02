@@ -171,8 +171,6 @@ alias conf_micro="micro $HOME/.config/micro/settings.json"
 #  ┴ ┴└─┘ ┴ └─┘  └─┘ ┴ ┴ ┴┴└─ ┴
 #$HOME/.local/bin/colorscript -r
 #disable-fzf-tab
-export PATH=~/.local/share/junest/bin:$PATH
-export PATH=$PATH:~/.junest/usr/bin_wrappers
 typeset -U path  # deduplicate PATH entries
 
 #  ┌─┐┬┌┬┐  ┌─┐┬  ┬┌─┐┌─┐┌─┐┌─┐

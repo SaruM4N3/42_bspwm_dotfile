@@ -285,11 +285,15 @@ clear
 info "Step 6/6 — Setting up zshrc swap..."
 echo ""
 
-# Patch ~/.zshrc (GNOME/user config) with JUNEST_ENV self-check if not already present
+# Patch ~/.zshrc (GNOME/user config) with JUNEST_ENV self-check + junest PATH.
+# IMPORTANT: PATH exports must come AFTER the JUNEST_ENV check.
+# If PATH came first, the exports would run even when inside bspwm/junest
+# (before exec zsh fires), re-adding wrapper paths that bspwm.sh already stripped.
 if [ -f "$HOME/.zshrc" ] && ! grep -q 'JUNEST_ENV' "$HOME/.zshrc"; then
     cat >> "$HOME/.zshrc" << 'EOF'
 
-# Self-check: if loaded inside junest (bspwm), swap to bspwm config and reload
+# If loaded inside junest (bspwm session), swap to bspwm zshrc and reload.
+# Must come before PATH exports so exec zsh fires before they are evaluated.
 _swap_zshrc() {
     if [ -f "$HOME/.zshrc" ] && [ -f "$HOME/.zshrc.bak" ]; then
         mv "$HOME/.zshrc" "$HOME/.zshrc.tmp"
@@ -302,8 +306,12 @@ if [[ -n "$JUNEST_ENV" ]]; then
     exec zsh
 fi
 unset -f _swap_zshrc
+
+# Junest bin + wrapper scripts — only reached in GNOME (not inside bspwm)
+export PATH="$HOME/.local/share/junest/bin:$PATH"
+export PATH="$PATH:$HOME/.junest/usr/bin_wrappers"
 EOF
-    info "JUNEST_ENV self-check added to ~/.zshrc"
+    info "JUNEST_ENV self-check and junest PATH added to ~/.zshrc"
 else
     info "~/.zshrc already patched or not found — skipping."
 fi
