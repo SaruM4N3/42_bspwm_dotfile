@@ -33,6 +33,14 @@ _CLEAN_PATH=$(echo "$PATH" | tr ':' '\n' | grep -vF "$HOME/.junest/usr/bin_wrapp
 unset _CLEAN_PATH
 export PATH
 
+# Snapshot GNOME theme settings before killing gnome-shell.
+# When gnome-shell restarts after bspwm exits it resets these to its defaults
+# (prefer-light / Yaru), so we restore them on the way out.
+GNOME_COLOR_SCHEME=$(dconf read /org/gnome/desktop/interface/color-scheme 2>/dev/null)
+GNOME_GTK_THEME=$(dconf read /org/gnome/desktop/interface/gtk-theme 2>/dev/null)
+GNOME_ICON_THEME=$(dconf read /org/gnome/desktop/interface/icon-theme 2>/dev/null)
+GNOME_CURSOR_THEME=$(dconf read /org/gnome/desktop/interface/cursor-theme 2>/dev/null)
+
 # Kill gnome
 MONITOR_PID=$(pgrep -f "gnome-session-ctl --monitor")
 BINARY_PIDS=$(pgrep -f "gnome-session-binary")
@@ -116,3 +124,10 @@ if ! pgrep -x gnome-shell > /dev/null; then
     [ -n "$DBUS" ] && export $DBUS
     gnome-shell --replace &
 fi
+
+# Restore GNOME dark theme — gnome-shell resets these to defaults on restart
+sleep 1
+[ -n "$GNOME_COLOR_SCHEME" ] && dconf write /org/gnome/desktop/interface/color-scheme "$GNOME_COLOR_SCHEME"
+[ -n "$GNOME_GTK_THEME" ]    && dconf write /org/gnome/desktop/interface/gtk-theme    "$GNOME_GTK_THEME"
+[ -n "$GNOME_ICON_THEME" ]   && dconf write /org/gnome/desktop/interface/icon-theme   "$GNOME_ICON_THEME"
+[ -n "$GNOME_CURSOR_THEME" ] && dconf write /org/gnome/desktop/interface/cursor-theme "$GNOME_CURSOR_THEME"
