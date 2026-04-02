@@ -17,6 +17,11 @@ export SUDO_PROMPT="Deploying root access for %u. Password pls: "
 export BAT_THEME="base16"
 # Place at top of ~/.zshrc
 
+# Pin standard paths first — needed for tools like fzf-tab that use `command cat`
+# (the cat alias points to bat, but fzf-tab bypasses aliases with `command cat`)
+path=(/usr/local/bin /usr/bin /bin /usr/sbin /sbin $path)
+typeset -U path
+
 if [ -d "$HOME/.local/bin" ] ;
   then PATH="$HOME/.local/bin:$PATH"
 fi
