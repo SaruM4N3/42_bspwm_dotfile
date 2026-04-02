@@ -126,25 +126,26 @@ source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
 source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 source /usr/share/zsh/plugins/zsh-history-substring-search/zsh-history-substring-search.zsh
 
-# fzf-tab go-back: left key inside fzf exits and navigates up one directory
+# fzf-tab go-back: alt+left inside fzf strips last path component (or adds ../ if nothing typed)
 _fzf_tab_with_back() {
     local _back_sig="/tmp/.fzftab_back_$$"
     rm -f "$_back_sig"
     zle fzf-tab-complete
     if [[ -f "$_back_sig" ]]; then
         rm -f "$_back_sig"
-        local path="${LBUFFER##* }"
+        local path="${LBUFFER##* }"   # last word on the line
         local prefix="${LBUFFER:0:$((${#LBUFFER} - ${#path}))}"
-        path="${path%/}"  # strip trailing slash
+        path="${path%/}"              # strip trailing slash
         if [[ $path == */* ]]; then
+            # has a slash — strip last component
             local parent="${path%/*}"
-            if [[ -n $parent ]]; then
-                LBUFFER="${prefix}${parent}/"
-            else
-                LBUFFER="${prefix}/"  # was at /something, go to /
-            fi
+            LBUFFER="${prefix}${parent:+${parent}/}"   # empty parent = absolute root /
+        elif [[ -n $path ]]; then
+            # single component (no slash) — clear it, back to bare command
+            LBUFFER="$prefix"
         else
-            LBUFFER="$prefix"  # no slashes, clear the word
+            # nothing typed yet — go to parent of CWD
+            LBUFFER="${prefix}../"
         fi
         zle fzf-tab-complete
     fi
