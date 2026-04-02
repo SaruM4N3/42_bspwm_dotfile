@@ -18,7 +18,7 @@ ask_editor() {
     printf "  2) vscode  (visual-studio-code-bin)\n"
     printf "  3) zed     (GUI, zed-preview-bin)\n"
     printf "Enter number [1]: "
-    read -r editor_choice
+    read -r editor_choice </dev/tty || true
     case "$editor_choice" in
         1|""|neovim) EDITOR_PKG="neovim";                    EDITOR_BIN="nvim";  EDITOR_GUI=0 ;;
         2|vscode)    EDITOR_PKG="visual-studio-code-bin";    EDITOR_BIN="code";  EDITOR_GUI=1 ;;
@@ -39,7 +39,7 @@ ask_rice() {
         (( i++ ))
     done
     printf "\nEnter selection [all]: "
-    read -r rice_choice
+    read -r rice_choice </dev/tty || true
 
     if [[ -z "$rice_choice" || "$rice_choice" == "all" ]]; then
         SELECTED_RICES=("${rices[@]}")
@@ -115,7 +115,7 @@ ask_browser() {
     printf "\nWhich browser do you want to install? (default: brave)\n"
     printf "  1) brave\n  2) firefox\n  3) chromium\n  4) google-chrome\n"
     printf "Enter number [1]: "
-    read -r browser_choice
+    read -r browser_choice </dev/tty || true
     case "$browser_choice" in
         1|""|brave)      BROWSER_PKG="brave-bin";      BROWSER_BIN="brave" ;;
         2|firefox)       BROWSER_PKG="firefox";        BROWSER_BIN="firefox" ;;
