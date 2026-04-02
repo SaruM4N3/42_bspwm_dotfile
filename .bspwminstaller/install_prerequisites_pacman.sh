@@ -89,7 +89,7 @@ ask_rice() {
     [[ ${need[tokyo]}        ]] && ICON_PKGS+=(gh0stzk-icons-tokyo-night)
     [[ ${need[vimix]}        ]] && ICON_PKGS+=(gh0stzk-icons-vimix-white)
     [[ ${need[zafiro]}       ]] && ICON_PKGS+=(gh0stzk-icons-zafiro)
-    [[ ${need[zafiro_purple]}]] && ICON_PKGS+=(gh0stzk-icons-zafiro-purple)
+    [[ ${need[zafiro_purple]} ]] && ICON_PKGS+=(gh0stzk-icons-zafiro-purple)
     info "Icon packages needed: ${ICON_PKGS[*]}"
 
     # Font packages per rice
