@@ -39,7 +39,18 @@ ask_rice() {
         (( i++ ))
     done
     printf "\nEnter selection [all]: "
-    read -r rice_choice </dev/tty || true
+    
+    # Try reading from /dev/tty first, then stdin
+    if [ -t 0 ]; then
+        read -r rice_choice
+    elif [ -c /dev/tty ]; then
+        read -r rice_choice </dev/tty || true
+    else
+        read -r rice_choice || true
+    fi
+    
+    # Debug: show what we got
+    warn "DEBUG: rice_choice='$rice_choice' (length: ${#rice_choice})"
 
     if [[ -z "$rice_choice" || "$rice_choice" == "all" ]]; then
         SELECTED_RICES=("${rices[@]}")
@@ -276,7 +287,8 @@ sudo pacman -S --needed --noconfirm \
     bat \
     eza \
     btop \
-    micro
+    micro \
+    ncdu
 
 # ── Icons & themes ───────────────────────────────────────────────────────────
 info "Installing icons and themes..."
