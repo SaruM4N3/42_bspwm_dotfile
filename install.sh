@@ -196,10 +196,16 @@ mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.local/share"
 # Deploy installer scripts FIRST (before any filtering)
 info "Deploying .bspwminstaller scripts..."
 if [ -d "$REPO_DIR/.bspwminstaller" ]; then
-    cp_deploy "$REPO_DIR/.bspwminstaller" "$HOME/.bspwminstaller" dir
+    info "Source: $REPO_DIR/.bspwminstaller"
+    info "Target: $HOME/.bspwminstaller"
+    
+    # Simply copy all scripts, overwriting any existing ones
+    mkdir -p "$HOME/.bspwminstaller"
+    cp -r "$REPO_DIR/.bspwminstaller"/* "$HOME/.bspwminstaller/" 2>&1 | head -20 || error "Failed to copy .bspwminstaller scripts"
+    chmod +x "$HOME/.bspwminstaller"/*.sh
     info "Deployed: ~/.bspwminstaller"
 else
-    error ".bspwminstaller directory not found in repo!"
+    error ".bspwminstaller directory not found at $REPO_DIR/.bspwminstaller"
 fi
 
 info "Deploying .config directories..."
