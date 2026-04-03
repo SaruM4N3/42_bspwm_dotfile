@@ -413,7 +413,12 @@ if [ -f "$OPENAPPS" ]; then
         sed -i "/--editor)/,/;;/{s|^\t\t[a-zA-Z].*$|\t\tTerm --nvim|}" "$OPENAPPS"
     fi
 fi
-info "sxhkdrc and OpenApps --editor patched to use $EDITOR_BIN."
+ZSHRC_BAK="$DOTFILES_DIR/.zshrc.bak"
+if [ -f "$ZSHRC_BAK" ]; then
+    sed -i "s|^export EDITOR=.*|export EDITOR='$EDITOR_BIN'|" "$ZSHRC_BAK"
+    info ".zshrc.bak EDITOR patched to $EDITOR_BIN."
+fi
+info "sxhkdrc, OpenApps and .zshrc.bak patched to use $EDITOR_BIN."
 
 # ── Default cursor theme (required by 05-gtk.sh on first boot) ───────────────
 info "Creating ~/.icons/default/index.theme..."
