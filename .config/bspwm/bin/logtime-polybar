@@ -232,6 +232,8 @@ def calculate_money(birth_date, total_hours, working_hours):
         return None
     if working_hours <= 0:
         return rate
+    # Calculate money per second: total earned money divided by seconds in month
+    # This makes it update smoothly every second when polybar refreshes
     return min(total_hours / working_hours, 1.0) * rate
 
 
@@ -273,7 +275,12 @@ def build_display(locations, cfg, today):
     if show_money:
         earned = calculate_money(birth_date, (total_s // 60) / 60, req_h)
         if earned is not None:
-            text += f" | {earned:.2f}€"
+            rate = get_monthly_rate(birth_date)
+            working_secs = working_days_in_month(today.year, today.month) * 7 * 3600
+            rate_per_second = rate / working_secs if (rate and working_secs > 0) else 0
+            # Sub-second smoothing: tick within the current second using fractional time
+            sub_second = time.time() % 1
+            text += f" | {earned + rate_per_second * sub_second:.3f}€"
 
     pct   = (total_s / (req_h * 3600)) if req_h > 0 else 0.0
     color = interpolate_color(pct,
