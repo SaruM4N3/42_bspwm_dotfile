@@ -203,9 +203,15 @@ else
 fi
 
 info "Deploying .config directories..."
+# ~/.config/* entries
+for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime; do
+    info "Processing: $cfg"
     if [ -d "$REPO_DIR/.config/$cfg" ]; then
+        info "Deploying $cfg..."
         cp_deploy "$REPO_DIR/.config/$cfg" "$HOME/.config/$cfg" dir
         info "Deployed: ~/.config/$cfg"
+    else
+        warn "$cfg directory not found in repo, skipping"
     fi
 done
 
