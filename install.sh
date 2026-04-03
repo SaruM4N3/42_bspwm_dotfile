@@ -201,6 +201,32 @@ for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi bto
     fi
 done
 
+# ── Filter rices if selected_rices.txt exists (only deploy selected rices) ────
+if [ -f "$HOME/.bspwminstaller/selected_rices.txt" ]; then
+    info "Filtering rices based on selection..."
+    SELECTED_RICES_ARRAY=()
+    while IFS= read -r rice; do
+        SELECTED_RICES_ARRAY+=("$rice")
+    done < "$HOME/.bspwminstaller/selected_rices.txt"
+    info "Selected rices to keep: ${SELECTED_RICES_ARRAY[*]}"
+    
+    # Remove unselected rices from ~/.config/bspwm/rices
+    if [ -d "$HOME/.config/bspwm/rices" ]; then
+        for rice_dir in "$HOME/.config/bspwm/rices"/*; do
+            if [ -d "$rice_dir" ]; then
+                rice_name=$(basename "$rice_dir")
+                # Check if this rice is in the selected list
+                if ! printf '%s\n' "${SELECTED_RICES_ARRAY[@]}" | grep -q "^$rice_name$"; then
+                    rm -rf "$rice_dir"
+                    warn "Removed unselected rice: $rice_name"
+                fi
+            fi
+        done
+    fi
+else
+    warn "selected_rices.txt not found — keeping all rices"
+fi
+
 # Home files (.zshrc.bak = bspwm zshrc, swapped in by bspwm.sh; user's .zshrc untouched)
 for f in .zshrc.bak .gtkrc-2.0; do
     if [ -f "$REPO_DIR/$f" ]; then

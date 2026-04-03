@@ -67,6 +67,11 @@ ask_rice() {
         fi
     fi
     info "Selected rices: ${SELECTED_RICES[*]}"
+    
+    # Save selected rices to a file so install.sh can read it
+    mkdir -p "$HOME/.bspwminstaller"
+    printf '%s\n' "${SELECTED_RICES[@]}" > "$HOME/.bspwminstaller/selected_rices.txt"
+    warn "DEBUG: Saved selected rices to ~/.bspwminstaller/selected_rices.txt"
 
     # Map each rice to its required icon packages
     local -A need=()
@@ -102,6 +107,7 @@ ask_rice() {
     [[ ${need[zafiro]}       ]] && ICON_PKGS+=(gh0stzk-icons-zafiro)
     [[ ${need[zafiro_purple]} ]] && ICON_PKGS+=(gh0stzk-icons-zafiro-purple)
     info "Icon packages needed: ${ICON_PKGS[*]}"
+    warn "DEBUG: End of ask_rice - ICON_PKGS count=${#ICON_PKGS[@]}"
 
     # Font packages per rice
     # Note: MapleMono, Phosphor, scientifica, BebasNeue, MaterialDesignIcons,
@@ -296,6 +302,8 @@ sudo pacman -S --needed --noconfirm \
     papirus-icon-theme
 
 # ── gh0stzk GTK themes, cursors and icon packs ───────────────────────────────
+warn "DEBUG: Before icon install - SELECTED_RICES=${SELECTED_RICES[*]}"
+warn "DEBUG: ICON_PKGS count=${#ICON_PKGS[@]}, content=${ICON_PKGS[*]}"
 info "Installing gh0stzk GTK themes, cursors and icon sets..."
 sudo pacman -S --needed --noconfirm \
     gh0stzk-gtk-themes \
