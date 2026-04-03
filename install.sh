@@ -25,78 +25,109 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
 
 # ── Copy helpers (behaviour controlled by INSTALL_MODE) ───────────────────────
-#   overwrite  — backup existing, overwrite everything, ask on diff
-#   merge      — only copy files/dirs that don't exist yet at destination
+#   overwrite  — backup existing, replace everything (no prompts; backup is safety net)
+#   merge      — add new files; for conflicts ask: o/s/d/O/S
+#   add        — only copy files that don't exist at destination (zero prompts)
 #   skip       — never reached (installer exits before deploy steps)
 
-# Diff-aware copy used in overwrite mode.
-# For files: shows a diff if the destination exists and differs, then asks.
-# For dirs:  lists changed/added/removed files, then asks.
-# If destination doesn't exist, copies silently.
-cp_smart() {
+_DEPLOY_ALL=""   # set to "overwrite" or "skip" by O/S choices in merge mode
+
+# Used in merge mode when a conflict is detected.
+# Respects _DEPLOY_ALL for bulk decisions, otherwise prompts interactively.
+cp_conflict() {
     local src="$1" dst="$2" is_dir="$3"
 
-    if [ ! -e "$dst" ]; then
+    if [ "$_DEPLOY_ALL" = "overwrite" ]; then
         [ "$is_dir" = "dir" ] && cp -r "$src" "$dst" || cp "$src" "$dst"
-        return 0
+        info "Overwritten: $dst"; return
+    fi
+    if [ "$_DEPLOY_ALL" = "skip" ]; then
+        warn "Skipped: $dst"; return
     fi
 
+    # Show a short diff preview before the prompt
     if [ "$is_dir" = "dir" ]; then
-        local changes
-        changes=$(diff -rq "$src" "$dst" 2>/dev/null)
-        if [ -z "$changes" ]; then
-            info "Unchanged: $dst"
-            return 0
-        fi
-        echo -e "\n${BLD}${YEL}  Changes detected in $dst:${NC}"
-        echo "$changes" | head -30
+        echo -e "\n${BLD}${YEL}  Changes in $dst:${NC}"
+        diff -rq "$src" "$dst" 2>/dev/null | head -20
     else
-        if diff -q "$src" "$dst" >/dev/null 2>&1; then
-            info "Unchanged: $dst"
-            return 0
-        fi
-        echo -e "\n${BLD}${YEL}  Diff for $dst:${NC}"
-        diff --color=always "$dst" "$src" 2>/dev/null | head -50 || true
+        echo -e "\n${BLD}${YEL}  Diff for $(basename "$dst"):${NC}"
+        diff --color=always "$dst" "$src" 2>/dev/null | head -40 || true
     fi
 
-    echo ""
-    printf "%b" "${BLD}${BLU}[?]${NC} Overwrite '$(basename "$dst")'? [y/N]: "
-    read -r ow
-    case "$ow" in
-        y|Y)
-            [ "$is_dir" = "dir" ] && cp -r "$src" "$dst" || cp "$src" "$dst"
-            ;;
-        *) warn "Skipped: $dst" ;;
-    esac
+    while true; do
+        echo ""
+        printf "%b" "${BLD}${BLU}[?]${NC} $(basename "$dst") — [o]verwrite  [s]kip  [d]iff  [O]verwrite all  [S]kip all: "
+        read -r ans
+        case "$ans" in
+            o)
+                [ "$is_dir" = "dir" ] && cp -r "$src" "$dst" || cp "$src" "$dst"
+                info "Overwritten: $dst"; return ;;
+            s)
+                warn "Skipped: $dst"; return ;;
+            d)
+                if [ "$is_dir" = "dir" ]; then
+                    diff -rq "$src" "$dst" 2>/dev/null || true
+                else
+                    diff --color=always "$dst" "$src" 2>/dev/null || true
+                fi ;;
+            O)
+                _DEPLOY_ALL="overwrite"
+                [ "$is_dir" = "dir" ] && cp -r "$src" "$dst" || cp "$src" "$dst"
+                info "Overwritten: $dst (overwrite-all active)"; return ;;
+            S)
+                _DEPLOY_ALL="skip"
+                warn "Skipped: $dst (skip-all active)"; return ;;
+            *) warn "Invalid — use o / s / d / O / S" ;;
+        esac
+    done
 }
 
-# Merge-mode copy: only act if destination is absent.
-# For dirs: recurse into src and copy each file individually if missing.
-cp_missing() {
-    local src="$1" dst="$2" is_dir="$3"
-    if [ "$is_dir" = "dir" ]; then
-        find "$src" -type f | while IFS= read -r srcfile; do
-            local rel="${srcfile#$src/}"
-            local dstfile="$dst/$rel"
-            if [ ! -e "$dstfile" ]; then
-                mkdir -p "$(dirname "$dstfile")"
-                cp "$srcfile" "$dstfile"
-                info "Added: $dstfile"
-            fi
-        done
-    else
-        if [ ! -e "$dst" ]; then
-            cp "$src" "$dst"
-            info "Added: $dst"
-        fi
-    fi
-}
-
-# Unified dispatcher — routes to the right helper based on INSTALL_MODE
+# Unified dispatcher — routes based on INSTALL_MODE
 cp_deploy() {
-    case "${INSTALL_MODE:-overwrite}" in
-        merge)     cp_missing "$@" ;;
-        overwrite) cp_smart   "$@" ;;
+    local src="$1" dst="$2" is_dir="$3"
+    local changed=false
+
+    case "${INSTALL_MODE:-add}" in
+        overwrite)
+            # Backup already done — just overwrite unconditionally
+            [ "$is_dir" = "dir" ] && cp -r "$src" "$dst" || cp "$src" "$dst"
+            info "Deployed: $dst" ;;
+
+        merge)
+            if [ ! -e "$dst" ]; then
+                [ "$is_dir" = "dir" ] && cp -r "$src" "$dst" || cp "$src" "$dst"
+                info "Added: $dst"
+            else
+                if [ "$is_dir" = "dir" ]; then
+                    diff -rq "$src" "$dst" >/dev/null 2>&1 || changed=true
+                else
+                    diff -q  "$src" "$dst" >/dev/null 2>&1 || changed=true
+                fi
+                if $changed; then
+                    cp_conflict "$src" "$dst" "$is_dir"
+                else
+                    info "Unchanged: $dst"
+                fi
+            fi ;;
+
+        add)
+            # Only touch files that don't exist yet — never overwrite
+            if [ "$is_dir" = "dir" ]; then
+                find "$src" -type f | while IFS= read -r srcfile; do
+                    local rel="${srcfile#$src/}"
+                    local dstfile="$dst/$rel"
+                    if [ ! -e "$dstfile" ]; then
+                        mkdir -p "$(dirname "$dstfile")"
+                        cp "$srcfile" "$dstfile"
+                        info "Added: $dstfile"
+                    fi
+                done
+            else
+                if [ ! -e "$dst" ]; then
+                    cp "$src" "$dst"
+                    info "Added: $dst"
+                fi
+            fi ;;
     esac
 }
 
@@ -132,23 +163,25 @@ read -r yn
 case "$yn" in [Yy]) ;; *) echo "Cancelled."; exit 0 ;; esac
 
 # ── Existing install detection ────────────────────────────────────────────────
-INSTALL_MODE="overwrite"
+INSTALL_MODE="add"
 if [ -d "$HOME/.config/bspwm" ] || [ -d "$HOME/.bspwminstaller" ]; then
     echo ""
     warn "Existing bspwm install detected!"
     echo ""
     echo -e "  ${BLD}How do you want to proceed?${NC}"
-    echo -e "  ${GRN}[1]${NC} Overwrite  — backup existing configs, redeploy everything (asks on each diff)"
-    echo -e "  ${YEL}[2]${NC} Merge      — only add files that are missing, never touch existing ones"
-    echo -e "  ${RED}[3]${NC} Skip       — abort, don't change anything"
+    echo -e "  ${GRN}[1]${NC} Overwrite  — backup existing configs, replace everything (no prompts)"
+    echo -e "  ${YEL}[2]${NC} Merge      — add new files; ask what to do on each conflict (o/s/d/O/S)"
+    echo -e "  ${BLU}[3]${NC} Add        — only copy files that don't exist yet, never touch existing"
+    echo -e "  ${RED}[4]${NC} Skip       — abort, don't change anything"
     echo ""
-    printf "%b" "${BLD}${BLU}[?]${NC} Choice [1/2/3]: "
+    printf "%b" "${BLD}${BLU}[?]${NC} Choice [1/2/3/4]: "
     read -r choice
     case "$choice" in
-        1) INSTALL_MODE="overwrite"; info "Mode: overwrite" ;;
-        2) INSTALL_MODE="merge";     info "Mode: merge (add missing only)" ;;
-        3) echo "Aborted."; exit 0 ;;
-        *) warn "Invalid choice — defaulting to merge (safe)."; INSTALL_MODE="merge" ;;
+        1) INSTALL_MODE="overwrite"; info "Mode: overwrite (backup → replace all)" ;;
+        2) INSTALL_MODE="merge";     info "Mode: merge (add new, ask on conflicts)" ;;
+        3) INSTALL_MODE="add";       info "Mode: add (missing files only)" ;;
+        4) echo "Aborted."; exit 0 ;;
+        *) warn "Invalid choice — defaulting to add (safest)."; INSTALL_MODE="add" ;;
     esac
     echo ""
 fi
