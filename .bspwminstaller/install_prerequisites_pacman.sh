@@ -439,9 +439,8 @@ warn "Bluetooth: enable the service on your host system with:"
 warn "  sudo systemctl enable --now bluetooth.service"
 
 # ── Cleanup cache ──────────────────────────────────────────────────────────────
-info "Cleaning up cache..."
+info "Cleaning up pacman cache..."
 sudo pacman -Sc --noconfirm >/dev/null 2>&1 || true
-rm -rf /tmp/*
 info "Cache cleaned."
 
 # ── Done ──────────────────────────────────────────────────────────────────────
