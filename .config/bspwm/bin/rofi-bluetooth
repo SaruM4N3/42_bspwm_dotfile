@@ -175,7 +175,7 @@ process() {
                 dunstify -i bluetooth -t 4000 "Bluetooth" "⏳ Disconnecting $name..."
                 ( bluetoothctl disconnect "$mac" >/dev/null 2>&1
                   dunstify -i bluetooth -t 2000 "Bluetooth" "✓ Disconnected $name" ) &
-                rm -f "$STATE_FILE"; exit 0 ;;
+                show_device_menu "$mac" "$name" ;;
             "Connected: no")
                 dunstify -i bluetooth -t 4000 "Bluetooth" "⏳ Connecting to $name..."
                 ( timeout 15 bluetoothctl connect "$mac" >/dev/null 2>&1
@@ -184,7 +184,7 @@ process() {
                   else
                       dunstify -i bluetooth -t 3000 "Bluetooth" "✗ Failed to connect to $name"
                   fi ) &
-                rm -f "$STATE_FILE"; exit 0 ;;
+                show_device_menu "$mac" "$name" ;;
             "Paired: yes")
                 dunstify -i bluetooth -t 3000 "Bluetooth" "⏳ Removing $name..."
                 ( timeout 15 bluetoothctl remove "$mac" >/dev/null 2>&1
@@ -193,7 +193,7 @@ process() {
                   else
                       dunstify -i bluetooth -t 3000 "Bluetooth" "✗ Failed to remove $name"
                   fi ) &
-                rm -f "$STATE_FILE"; exit 0 ;;
+                set_state "main"; show_main_menu ;;
             "Paired: no")
                 dunstify -i bluetooth -t 4000 "Bluetooth" "⏳ Pairing with $name..."
                 ( timeout 15 bluetoothctl pair "$mac" >/dev/null 2>&1
@@ -202,7 +202,7 @@ process() {
                   else
                       dunstify -i bluetooth -t 3000 "Bluetooth" "✗ Failed to pair with $name"
                   fi ) &
-                rm -f "$STATE_FILE"; exit 0 ;;
+                show_device_menu "$mac" "$name" ;;
             "Trusted: yes")   bluetoothctl untrust "$mac" >/dev/null 2>&1;    show_device_menu "$mac" "$name" ;;
             "Trusted: no")    bluetoothctl trust   "$mac" >/dev/null 2>&1;    show_device_menu "$mac" "$name" ;;
             "Favorite: yes"|"Favorite: no")
