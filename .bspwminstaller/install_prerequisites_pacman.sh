@@ -14,18 +14,20 @@ error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 
 ask_editor() {
     printf "\nWhich editor do you want to install?\n"
-    printf "  1) neovim  (terminal, via kitty)\n"
-    printf "  2) vscode  (visual-studio-code-bin)\n"
-    printf "  3) zed     (GUI, zed-preview-bin)\n"
+    printf "  1) micro   (terminal, already included — default)\n"
+    printf "  2) neovim  (terminal, via kitty)\n"
+    printf "  3) vscode  (visual-studio-code-bin)\n"
+    printf "  4) zed     (GUI, zed-preview-bin)\n"
     printf "Enter number [1]: "
     read -r editor_choice </dev/tty || true
     case "$editor_choice" in
-        1|""|neovim) EDITOR_PKG="neovim";                    EDITOR_BIN="nvim";  EDITOR_GUI=0 ;;
-        2|vscode)    EDITOR_PKG="visual-studio-code-bin";    EDITOR_BIN="code";  EDITOR_GUI=1 ;;
-        3|zed)       EDITOR_PKG="zed-preview-bin";           EDITOR_BIN="zed";   EDITOR_GUI=1 ;;
-        *)           EDITOR_PKG="neovim";                    EDITOR_BIN="nvim";  EDITOR_GUI=0 ;;
+        1|""|micro)  EDITOR_PKG="";                          EDITOR_BIN="micro"; EDITOR_GUI=0 ;;
+        2|neovim)    EDITOR_PKG="neovim";                    EDITOR_BIN="nvim";  EDITOR_GUI=0 ;;
+        3|vscode)    EDITOR_PKG="visual-studio-code-bin";    EDITOR_BIN="code";  EDITOR_GUI=1 ;;
+        4|zed)       EDITOR_PKG="zed-preview-bin";           EDITOR_BIN="zed";   EDITOR_GUI=1 ;;
+        *)           EDITOR_PKG="";                          EDITOR_BIN="micro"; EDITOR_GUI=0 ;;
     esac
-    info "Editor selected: $EDITOR_BIN (package: $EDITOR_PKG)"
+    info "Editor selected: $EDITOR_BIN${EDITOR_PKG:+ (package: $EDITOR_PKG)}"
 }
 
 ask_rice() {
@@ -247,8 +249,12 @@ sudo pacman -S --needed --noconfirm \
     yazi
 
 # ── Editor ───────────────────────────────────────────────────────────────────
-info "Installing editor: $EDITOR_PKG..."
-sudo pacman -S --needed --noconfirm "$EDITOR_PKG"
+if [ -n "$EDITOR_PKG" ]; then
+    info "Installing editor: $EDITOR_PKG..."
+    sudo pacman -S --needed --noconfirm "$EDITOR_PKG"
+else
+    info "Editor: micro (already included in base packages — skipping extra install)"
+fi
 
 # ── Media & audio ────────────────────────────────────────────────────────────
 info "Installing media packages..."
