@@ -193,6 +193,12 @@ echo ""
 
 mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.local/share"
 
+# Deploy installer scripts FIRST (before any filtering)
+if [ -d "$REPO_DIR/.bspwminstaller" ]; then
+    cp_deploy "$REPO_DIR/.bspwminstaller" "$HOME/.bspwminstaller" dir
+    info "Deployed: ~/.bspwminstaller"
+fi
+
 # ~/.config/* entries
 for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime; do
     if [ -d "$REPO_DIR/.config/$cfg" ]; then
@@ -234,12 +240,6 @@ for f in .zshrc.bak .gtkrc-2.0; do
         info "Deployed: ~/$f"
     fi
 done
-
-# Installer scripts
-if [ -d "$REPO_DIR/.bspwminstaller" ]; then
-    cp_deploy "$REPO_DIR/.bspwminstaller" "$HOME/.bspwminstaller" dir
-    info "Deployed: ~/.bspwminstaller"
-fi
 
 # Fix hardcoded paths (replace repo author's username with the installing user)
 info "Rewriting hardcoded user paths to: $HOME"
