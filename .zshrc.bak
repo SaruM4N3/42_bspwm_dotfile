@@ -55,7 +55,9 @@ zstyle ':fzf-tab:*' fzf-flags --style=full --height=90% --pointer '>' \
 zstyle ':fzf-tab:complete:cd:*' fzf-preview 'eza -1 --icons=always --color=always -a $realpath'
 zstyle ':fzf-tab:complete:eza:*' fzf-preview 'eza -1 --icons=always --color=always -a $realpath'
 zstyle ':fzf-tab:complete:bat:*' fzf-preview 'bat --color=always --theme=base16 $realpath'
-zstyle ':fzf-tab:*' fzf-bindings 'space:accept'
+typeset -g _FZFTAB_BACK="$HOME/.fzftab_back"
+zstyle ':fzf-tab:*' continuous-trigger 'alt-right'
+zstyle ':fzf-tab:*' fzf-bindings "alt-left:execute-silent(printf x > $_FZFTAB_BACK)+abort"
 zstyle ':fzf-tab:*' accept-line enter
 
 #  ┬ ┬┌─┐┬┌┬┐┬┌┐┌┌─┐  ┌┬┐┌─┐┌┬┐┌─┐
@@ -114,6 +116,33 @@ source /usr/share/zsh/plugins/fzf-tab-git/fzf-tab.zsh
 source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
 source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 source /usr/share/zsh/plugins/zsh-history-substring-search/zsh-history-substring-search.zsh
+
+# fzf-tab navigation: Tab opens fzf-tab, alt-right enters dir, alt-left goes up.
+# Loop so alt-left works at any depth, not just once.
+# Uses zf_rm (zsh/files builtin) and `: >` to avoid relying on PATH in junest.
+zmodload zsh/files
+_fzf_tab_with_back() {
+    local _back_sig="/tmp/.fzftab_back_$$"
+    while true; do
+        zf_rm -f "$_back_sig"
+        zle fzf-tab-complete
+        [[ -f "$_back_sig" ]] || break
+        zf_rm -f "$_back_sig"
+        local path="${LBUFFER##* }"
+        local prefix="${LBUFFER:0:$((${#LBUFFER} - ${#path}))}"
+        path="${path%/}"
+        if [[ $path == */* ]]; then
+            local parent="${path%/*}"
+            LBUFFER="${prefix}${parent:+${parent}/}"
+        elif [[ -n $path ]]; then
+            LBUFFER="$prefix"
+        else
+            LBUFFER="${prefix}../"
+        fi
+    done
+}
+zle -N _fzf_tab_with_back
+bindkey '^I' _fzf_tab_with_back
 
 bindkey '^[[A' history-substring-search-up
 bindkey '^[[B' history-substring-search-down

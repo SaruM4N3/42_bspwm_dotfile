@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# bt-reconnect — background daemon that reconnects favorite BT devices when in range
+# Launched at bspwm startup; one instance only (enforced by pkill in bspwmrc).
+
+FAVORITES_FILE="$HOME/.config/bspwm/config/.bt_favorites"
+INTERVAL=30          # seconds between full scan passes
+COOLDOWN=300         # seconds before retrying the same device after a failed attempt
+
+declare -A _last_attempt   # mac → unix timestamp of last connect attempt
+
+power_on() { bluetoothctl show | grep -q "Powered: yes"; }
+
+try_connect() {
+    local mac="$1" name="$2"
+    local now; now=$(date +%s)
+    local last="${_last_attempt[$mac]:-0}"
+
+    # Respect per-device cooldown so we don't spam connection attempts
+    (( now - last < COOLDOWN )) && return
+
+    _last_attempt[$mac]=$now
+
+    # Already connected — nothing to do
+    bluetoothctl info "$mac" | grep -q "Connected: yes" && return
+
+    # Not paired — skip (can't auto-connect without prior pairing)
+    bluetoothctl info "$mac" | grep -q "Paired: yes" || return
+
+    # Attempt connection in background; notify only on success
+    ( if timeout 12 bluetoothctl connect "$mac" >/dev/null 2>&1; then
+          dunstify -i bluetooth -t 3000 "Bluetooth" "✓ Reconnected to $name"
+      fi ) &
+}
+
+while true; do
+    sleep "$INTERVAL"
+
+    power_on || continue
+    [ -f "$FAVORITES_FILE" ] || continue
+
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        local_mac=$(echo "$line" | awk '{print $1}')
+        local_name=$(echo "$line" | cut -d' ' -f2-)
+        try_connect "$local_mac" "$local_name"
+    done < "$FAVORITES_FILE"
+done
