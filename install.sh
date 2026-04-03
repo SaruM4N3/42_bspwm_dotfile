@@ -194,44 +194,58 @@ echo ""
 mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.local/share"
 
 # Deploy installer scripts FIRST (before any filtering)
+info "Deploying .bspwminstaller scripts..."
 if [ -d "$REPO_DIR/.bspwminstaller" ]; then
     cp_deploy "$REPO_DIR/.bspwminstaller" "$HOME/.bspwminstaller" dir
     info "Deployed: ~/.bspwminstaller"
+else
+    error ".bspwminstaller directory not found in repo!"
 fi
 
-# ~/.config/* entries
-for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime; do
+info "Deploying .config directories..."
     if [ -d "$REPO_DIR/.config/$cfg" ]; then
         cp_deploy "$REPO_DIR/.config/$cfg" "$HOME/.config/$cfg" dir
         info "Deployed: ~/.config/$cfg"
     fi
 done
 
+info "Config directories deployed, starting rice filtering..."
+
 # ── Filter rices if selected_rices.txt exists (only deploy selected rices) ────
 if [ -f "$HOME/.bspwminstaller/selected_rices.txt" ]; then
     info "Filtering rices based on selection..."
     SELECTED_RICES_ARRAY=()
     while IFS= read -r rice; do
-        SELECTED_RICES_ARRAY+=("$rice")
+        [ -n "$rice" ] && SELECTED_RICES_ARRAY+=("$rice")
     done < "$HOME/.bspwminstaller/selected_rices.txt"
     info "Selected rices to keep: ${SELECTED_RICES_ARRAY[*]}"
     
     # Remove unselected rices from ~/.config/bspwm/rices
     if [ -d "$HOME/.config/bspwm/rices" ]; then
         for rice_dir in "$HOME/.config/bspwm/rices"/*; do
-            if [ -d "$rice_dir" ]; then
-                rice_name=$(basename "$rice_dir")
-                # Check if this rice is in the selected list
-                if ! printf '%s\n' "${SELECTED_RICES_ARRAY[@]}" | grep -q "^$rice_name$"; then
-                    rm -rf "$rice_dir"
-                    warn "Removed unselected rice: $rice_name"
+            [ ! -d "$rice_dir" ] && continue
+            rice_name=$(basename "$rice_dir")
+            # Check if this rice is in the selected list
+            found=0
+            for selected_rice in "${SELECTED_RICES_ARRAY[@]}"; do
+                if [ "$rice_name" = "$selected_rice" ]; then
+                    found=1
+                    break
                 fi
+            done
+            if [ $found -eq 0 ]; then
+                rm -rf "$rice_dir"
+                warn "Removed unselected rice: $rice_name"
             fi
         done
+    else
+        warn "Rice directory not found at $HOME/.config/bspwm/rices — skipping filtering"
     fi
 else
     warn "selected_rices.txt not found — keeping all rices"
 fi
+
+info "Rice filtering complete, deploying remaining files..."
 
 # Home files (.zshrc.bak = bspwm zshrc, swapped in by bspwm.sh; user's .zshrc untouched)
 for f in .zshrc.bak .gtkrc-2.0; do
