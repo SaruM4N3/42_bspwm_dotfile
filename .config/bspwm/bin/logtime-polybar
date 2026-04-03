@@ -6,7 +6,7 @@ Settings:    ~/.config/logtime/settings.json
 Token cache: ~/.cache/logtime_token.json
 """
 
-import json, math, os, sys, time, urllib.request, urllib.parse
+import json, math, os, subprocess, sys, time, urllib.request, urllib.parse
 from datetime import date, datetime, timedelta, timezone
 
 CREDS_FILE      = os.path.expanduser("~/.config/logtime/credentials.json")
@@ -117,11 +117,19 @@ def get_locations(token, username):
     cached, is_stale = load_locations_cache()
     if cached is not None and not is_stale:
         return cached, False
+    if cached is not None and is_stale:
+        # Return stale data immediately, refresh in background to avoid blocking polybar
+        subprocess.Popen(
+            [sys.executable, __file__, "--refresh-cache"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            env={**os.environ, "_LOGTIME_TOKEN": token, "_LOGTIME_USER": username},
+        )
+        return cached, True
     fresh = fetch_locations(token, username)
     if fresh is not None:
         save_locations_cache(fresh)
         return fresh, False
-    return cached, True  # None or stale — caller decides
+    return None, True
 
 
 def calculate_easter(year):
@@ -273,14 +281,9 @@ def build_display(locations, cfg, today):
         text += f" | Today: {format_hm(day_s, show_min)}"
 
     if show_money:
-        earned = calculate_money(birth_date, (total_s // 60) / 60, req_h)
+        earned = calculate_money(birth_date, total_s / 3600, req_h)
         if earned is not None:
-            rate = get_monthly_rate(birth_date)
-            working_secs = working_days_in_month(today.year, today.month) * 7 * 3600
-            rate_per_second = rate / working_secs if (rate and working_secs > 0) else 0
-            # Sub-second smoothing: tick within the current second using fractional time
-            sub_second = time.time() % 1
-            text += f" | {earned + rate_per_second * sub_second:.3f}€"
+            text += f" | {earned:.3f}€"
 
     pct   = (total_s / (req_h * 3600)) if req_h > 0 else 0.0
     color = interpolate_color(pct,
@@ -294,6 +297,16 @@ def build_display(locations, cfg, today):
 
 
 def main():
+    # Background cache refresh mode — called by get_locations via Popen
+    if "--refresh-cache" in sys.argv:
+        token    = os.environ.get("_LOGTIME_TOKEN")
+        username = os.environ.get("_LOGTIME_USER")
+        if token and username:
+            fresh = fetch_locations(token, username)
+            if fresh is not None:
+                save_locations_cache(fresh)
+        sys.exit(0)
+
     creds = load_credentials()
     if not creds:
         print("No credentials — click to configure")
