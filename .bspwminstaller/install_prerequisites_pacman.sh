@@ -298,17 +298,25 @@ sudo pacman -S --needed --noconfirm \
 
 # ── Icons & themes ───────────────────────────────────────────────────────────
 info "Installing icons and themes..."
-sudo pacman -S --needed --noconfirm \
-    papirus-icon-theme
+# papirus-icon-theme is used by rofi and jgmenu configs
+sudo pacman -S --needed --noconfirm papirus-icon-theme
 
 # ── gh0stzk GTK themes, cursors and icon packs ───────────────────────────────
 warn "DEBUG: Before icon install - SELECTED_RICES=${SELECTED_RICES[*]}"
 warn "DEBUG: ICON_PKGS count=${#ICON_PKGS[@]}, content=${ICON_PKGS[*]}"
 info "Installing gh0stzk GTK themes, cursors and icon sets..."
-sudo pacman -S --needed --noconfirm \
-    gh0stzk-gtk-themes \
-    gh0stzk-cursor-qogirr \
-    "${ICON_PKGS[@]}"
+if [ ${#ICON_PKGS[@]} -gt 0 ]; then
+    info "Installing icon packages: ${ICON_PKGS[*]}"
+    sudo pacman -S --needed --noconfirm \
+        gh0stzk-gtk-themes \
+        gh0stzk-cursor-qogirr \
+        "${ICON_PKGS[@]}"
+else
+    warn "No icon packages needed for selected rices (minimal install)"
+    sudo pacman -S --needed --noconfirm \
+        gh0stzk-gtk-themes \
+        gh0stzk-cursor-qogirr
+fi
 
 # ── Shell ────────────────────────────────────────────────────────────────────
 info "Installing zsh and plugins..."
@@ -321,7 +329,13 @@ sudo pacman -S --needed --noconfirm \
 # ── Fonts ────────────────────────────────────────────────────────────────────
 info "Installing fonts..."
 _base_fonts=(fontconfig ttf-jetbrains-mono ttf-jetbrains-mono-nerd ttf-font-awesome)
-sudo pacman -S --needed --noconfirm "${_base_fonts[@]}" "${FONT_PKGS[@]}"
+if [ ${#FONT_PKGS[@]} -gt 0 ]; then
+    info "Installing base fonts + rice-specific fonts: ${FONT_PKGS[*]}"
+    sudo pacman -S --needed --noconfirm "${_base_fonts[@]}" "${FONT_PKGS[@]}"
+else
+    info "Installing base fonts only (no rice-specific fonts needed)"
+    sudo pacman -S --needed --noconfirm "${_base_fonts[@]}"
+fi
 unset _base_fonts
 
 # ── Clipboard ────────────────────────────────────────────────────────────────
@@ -423,6 +437,12 @@ info "Backup config files copied."
 # ── Bluetooth service ─────────────────────────────────────────────────────────
 warn "Bluetooth: enable the service on your host system with:"
 warn "  sudo systemctl enable --now bluetooth.service"
+
+# ── Cleanup cache ──────────────────────────────────────────────────────────────
+info "Cleaning up cache..."
+sudo pacman -Sc --noconfirm >/dev/null 2>&1 || true
+rm -rf /tmp/*
+info "Cache cleaned."
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
