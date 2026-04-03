@@ -154,7 +154,8 @@ echo -e "    ${GRN}[2]${NC} Backup your existing configs"
 echo -e "    ${GRN}[3]${NC} Deploy all dotfiles to their locations"
 echo -e "    ${GRN}[4]${NC} Install fonts and desktop entries"
 echo -e "    ${GRN}[5]${NC} Register GNOME Super+B shortcut"
-echo -e "    ${GRN}[6]${NC} Set up zshrc swap for bspwm/GNOME"
+echo -e "    ${GRN}[6]${NC} Install oh-my-zsh + deploy custom directory"
+echo -e "    ${GRN}[7]${NC} Set up zshrc swap for bspwm/GNOME"
 echo ""
 warn "Your existing configs will be backed up, not deleted."
 echo ""
@@ -188,14 +189,14 @@ fi
 
 # ── Step 1: junest setup + package install ───────────────────────────────────
 clear
-info "Step 1/6 — Installing junest and packages..."
+info "Step 1/7 — Installing junest and packages..."
 echo ""
 bash "$REPO_DIR/.bspwminstaller/install_junest.sh"
 
 # ── Step 2: Backup existing configs ──────────────────────────────────────────
 clear
 if [ "$INSTALL_MODE" = "overwrite" ]; then
-    info "Step 2/6 — Backing up existing configs..."
+    info "Step 2/7 — Backing up existing configs..."
     BACKUP_DIR="$HOME/.config-backup-$TIMESTAMP"
     mkdir -p "$BACKUP_DIR"
 
@@ -216,12 +217,12 @@ if [ "$INSTALL_MODE" = "overwrite" ]; then
 
     [ -d "$BACKUP_DIR" ] && info "Backups saved to: $BACKUP_DIR"
 else
-    info "Step 2/6 — Skipping backup (merge mode — existing files untouched)."
+    info "Step 2/7 — Skipping backup (merge mode — existing files untouched)."
 fi
 
 # ── Step 3: Deploy dotfiles ───────────────────────────────────────────────────
 clear
-info "Step 3/6 — Deploying dotfiles..."
+info "Step 3/7 — Deploying dotfiles..."
 echo ""
 
 mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.local/share"
@@ -316,7 +317,7 @@ done
 
 # ── Step 4: Fonts + desktop entries + bin ────────────────────────────────────
 clear
-info "Step 4/6 — Installing fonts, desktop entries, and bin scripts..."
+info "Step 4/7 — Installing fonts, desktop entries, and bin scripts..."
 echo ""
 
 # Fonts (always overwrite — bundled fonts are versioned in the repo)
@@ -357,7 +358,7 @@ command -v xdg-user-dirs-update >/dev/null && xdg-user-dirs-update
 
 # ── Step 5: GNOME Super+B shortcut ───────────────────────────────────────────
 clear
-info "Step 5/6 — Registering GNOME keyboard shortcut (Super+B → bspwm)..."
+info "Step 5/7 — Registering GNOME keyboard shortcut (Super+B → bspwm)..."
 echo ""
 if command -v dconf >/dev/null 2>&1; then
     bash "$HOME/.bspwminstaller/add-gnome-shortcut.sh"
@@ -365,9 +366,33 @@ else
     warn "dconf not found — skipping GNOME shortcut registration."
 fi
 
-# ── Step 6: zshrc setup ───────────────────────────────────────────────────────
+# ── Step 6: oh-my-zsh ────────────────────────────────────────────────────────
 clear
-info "Step 6/6 — Setting up zshrc swap..."
+info "Step 6/7 — Installing oh-my-zsh..."
+echo ""
+
+if [ -d "$HOME/.oh-my-zsh" ]; then
+    info "oh-my-zsh already installed at ~/.oh-my-zsh — skipping base install."
+else
+    info "Downloading and installing oh-my-zsh (unattended)..."
+    if command -v curl >/dev/null 2>&1; then
+        RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://install.ohmyz.sh)" || warn "oh-my-zsh install failed — continuing anyway."
+    elif command -v wget >/dev/null 2>&1; then
+        RUNZSH=no CHSH=no sh -c "$(wget -qO- https://install.ohmyz.sh)" || warn "oh-my-zsh install failed — continuing anyway."
+    else
+        warn "Neither curl nor wget found — skipping oh-my-zsh install."
+    fi
+fi
+
+# Deploy custom directory (themes, plugins) from repo
+if [ -d "$REPO_DIR/.oh-my-zsh/custom" ] && [ -d "$HOME/.oh-my-zsh" ]; then
+    cp_deploy "$REPO_DIR/.oh-my-zsh/custom" "$HOME/.oh-my-zsh/custom" dir
+    info "oh-my-zsh custom directory deployed."
+fi
+
+# ── Step 7: zshrc setup ───────────────────────────────────────────────────────
+clear
+info "Step 7/7 — Setting up zshrc swap..."
 echo ""
 
 # Patch ~/.zshrc (GNOME/user config) with JUNEST_ENV self-check + junest PATH.
