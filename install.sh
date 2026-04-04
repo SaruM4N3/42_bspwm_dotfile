@@ -313,6 +313,7 @@ _force_files=(
     ".config/bspwm/bin/OpenApps"
     ".config/bspwm/bin/Term"
     ".config/bspwm/config/sxhkdrc"
+    ".config/bspwm/config/.session/sxhkdrc"
     ".config/bspwm/bspwmrc"
     ".config/Thunar/uca.xml"
 )

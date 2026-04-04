@@ -6,13 +6,34 @@
 #  ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝ ╚═════╝
 #	gh0stzk		https://github.com/gh0stzk/dotfiles
 
+#####################
+# ----- Bspwm ----- #
+#####################
+
+
 # Show help
 alt + F1
     OpenApps --KeyHelp
 
-############################
-# ----- Applications ----- #
-############################
+# Close cheatsheet overlay (~ replays Escape to other apps so nothing breaks)
+~Escape
+    eww -c "${HOME}/.config/bspwm/eww" close csheet 2>/dev/null; true
+
+# Quit bspwm
+super + b
+    quit.sh
+
+# Reload BSPWM
+super + shift + r
+    bspc wm -r
+
+# Close/Kill node
+super + q
+    bspc node -c
+
+# Reload sxhkd Keybinds
+super + Escape
+    pkill -USR1 -x sxhkd; dunstify -u low -i ~/.config/bspwm/config/assets/reload.svg 'sxhkd' 'The configuration file has been reloaded successfully!'
 
 # ----- Main Apps ----- #
 
@@ -50,9 +71,9 @@ super + c
 super + {y,v,m}
     OpenApps --{yazi,nvim,music}
 
-# Media apps (Pavucontrol, Telegram, Whatsapp)
-super + {p,t,w}
-    OpenApps --{soundcontrol,telegram,whats}
+# Media apps (Pavucontrol, Telegram)
+super + {p,t}
+    OpenApps --{soundcontrol,telegram}
 
 # Rice Editor App
 super + r
@@ -131,8 +152,8 @@ super + alt + {h,u}
     HideBar {-h,-u}
 
 # Change transparency on focused window
-super + {minus,equal,t}
-    picom-trans {-c -3,-c +3,-c -d}
+super + {minus,equal}
+    picom-trans {-c -3,-c +3}
 
 # Manage brightness
 XF86MonBrightness{Up,Down}
@@ -146,21 +167,9 @@ XF86Audio{RaiseVolume,LowerVolume,Mute}
 XF86Audio{Next,Prev,Play,Stop}
     MediaControl {--next,--previous,--toggle,--stop}
 
-#####################
-# ----- Bspwm ----- #
-#####################
-
-# Reload BSPWM
-super + shift + r
-    bspc wm -r
-
-# Close/Kill node
-super + q
-    bspc node -c
-
-# Reload sxhkd Keybinds
-super + Escape
-    pkill -USR1 -x sxhkd; dunstify -u low -i ~/.config/bspwm/config/assets/reload.svg 'sxhkd' 'The configuration file has been reloaded successfully!'
+# Bluetooth mic toggle (A2DP hi-fi ↔ HFP mic enabled)
+super + shift + F9
+    BtMicToggle
 
 # ----- Node states and flags ----- #
 
@@ -188,11 +197,11 @@ super + Tab
 
 # Switch workspace
 ctrl + super + {Left,Right}
-    bspc desktop -f {prev,next}
+    SwitchDesktop {prev,next}
 
 # Focus or send to the given desktop
 super + {_,ctrl + }{1-9,0}
-    bspc {desktop -f,node -d} '^{1-9,10}'
+    {SwitchDesktop,bspc node -d} '^{1-9,10}'
 
 # Send focused Node to workspace directionally
 super + ctrl + shift + {Left,Right}
@@ -231,7 +240,7 @@ super + ctrl + b
   bspc node @/ -B
 
 # increase/decrease Node
-super + alt + {+,-}
+super + alt + {plus,minus}
     { \
        bspc node -z top_right 20 -20 ; bspc node -z bottom_left -20 20; \
     ,  bspc node -z top_right -20 20 ; bspc node -z bottom_left 20 -20; \
@@ -267,11 +276,6 @@ super + n ; m
 super + n ; {1-9}
     bspc query -N -d {1-9} -n '.window' | xargs -I id -n 1 bspc node id -d focused
 
-
-# Quit bspwm
-super + b
-    quit.sh
-
 # Wallpaper selector (AnimWallSelect if ENGINE=Animated, else WallSelect)
 super + shift + w
     SmartWallSelect
@@ -279,3 +283,7 @@ super + shift + w
 # Cycle animated wallpaper
 super + ctrl + w
     CycleAnimWall
+
+# Cycle wallpaper engine (Random → Animated → Slideshow)
+super + shift + e
+    CycleWallEngine
