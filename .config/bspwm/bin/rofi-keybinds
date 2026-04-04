@@ -1,0 +1,72 @@
+#!/bin/bash
+# =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
+#  rofi-keybinds — dynamic keybinding cheatsheet from sxhkdrc
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
+# =============================================================
+
+SXHKDRC="$HOME/.config/bspwm/config/sxhkdrc"
+THEME="$HOME/.config/bspwm/config/rofi-themes/Keybinds.rasi"
+
+entries=$(awk '
+function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
+
+# Blank line: reset pending description
+/^[[:space:]]*$/ { desc = ""; next }
+
+# #### dividers
+/^#{2,}/ { next }
+
+# Section headers: "# ----- Section Name ----- #"
+/^#[[:space:]]*-{3,}/ {
+    name = $0
+    gsub(/^#[[:space:]]*-+[[:space:]]*|-+[[:space:]]*#[[:space:]]*$/, "", name)
+    name = trim(name)
+    if (name != "" && name !~ /^[[:space:]]*$/)
+        printf "\n  ── %s\n", name
+    desc = ""
+    next
+}
+
+# Skip ASCII art lines (box-drawing characters)
+/[║╔╗╚╝╠╣╦╩╬█▀▄│┤├┼┬┴]/ { desc = ""; next }
+
+# Skip attribution / URL lines
+/^#[[:space:]]*(gh0stzk|z0mbi3|Author|Dotfiles|Repo|https?:)/ { desc = ""; next }
+
+# Skip commented-out keybinds (# super / # alt / # ctrl / # XF86 / # ~)
+/^#[[:space:]]*(super|alt|ctrl|XF86|~)/ { desc = ""; next }
+
+# Description comment
+/^#/ {
+    sub(/^#[[:space:]]*/, "")
+    desc = $0
+    next
+}
+
+# Key binding line (non-indented, non-comment)
+/^[^[:space:]#]/ {
+    if (desc != "")
+        printf "  %-42s %s\n", desc, $0
+    desc = ""
+    next
+}
+
+# Indented command line: ignore
+{ desc = "" }
+' "$SXHKDRC")
+
+echo "$entries" | rofi \
+    -dmenu \
+    -i \
+    -p " Keybindings" \
+    -theme "$THEME" \
+    -no-custom \
+    -kb-cancel "Escape" \
+    2>/dev/null

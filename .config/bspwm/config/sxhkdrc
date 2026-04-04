@@ -6,13 +6,34 @@
 #  ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝ ╚═╝  ╚═╝ ╚═════╝
 #	gh0stzk		https://github.com/gh0stzk/dotfiles
 
+#####################
+# ----- Bspwm ----- #
+#####################
+
+
 # Show help
 alt + F1
     OpenApps --KeyHelp
 
-############################
-# ----- Applications ----- #
-############################
+# Close cheatsheet overlay (~ replays Escape to other apps so nothing breaks)
+~Escape
+    eww -c "${HOME}/.config/bspwm/eww" close csheet 2>/dev/null; true
+
+# Quit bspwm
+super + b
+    quit.sh
+
+# Reload BSPWM
+super + shift + r
+    bspc wm -r
+
+# Close/Kill node
+super + q
+    bspc node -c
+
+# Reload sxhkd Keybinds
+super + Escape
+    pkill -USR1 -x sxhkd; dunstify -u low -i ~/.config/bspwm/config/assets/reload.svg 'sxhkd' 'The configuration file has been reloaded successfully!'
 
 # ----- Main Apps ----- #
 
@@ -150,22 +171,6 @@ XF86Audio{Next,Prev,Play,Stop}
 super + shift + F9
     BtMicToggle
 
-#####################
-# ----- Bspwm ----- #
-#####################
-
-# Reload BSPWM
-super + shift + r
-    bspc wm -r
-
-# Close/Kill node
-super + q
-    bspc node -c
-
-# Reload sxhkd Keybinds
-super + Escape
-    pkill -USR1 -x sxhkd; dunstify -u low -i ~/.config/bspwm/config/assets/reload.svg 'sxhkd' 'The configuration file has been reloaded successfully!'
-
 # ----- Node states and flags ----- #
 
 # Set the node state
@@ -270,11 +275,6 @@ super + n ; m
 # Example usage: super + n followed by 5 (brings everything from desktop 5)
 super + n ; {1-9}
     bspc query -N -d {1-9} -n '.window' | xargs -I id -n 1 bspc node id -d focused
-
-
-# Quit bspwm
-super + b
-    quit.sh
 
 # Wallpaper selector (AnimWallSelect if ENGINE=Animated, else WallSelect)
 super + shift + w

@@ -12,16 +12,12 @@
   margin: 1.6rem 1.6rem 0 1.6rem;
 }
 
-.title-info {
-  font-family: JetBrainsMono NF;
-  font-style: Italic;
-  font-size: 0.8rem;
-  margin-top: 3px;
-  color: $fg;
-}
-
 .content {
   margin: 1rem 1rem;
+}
+
+.column {
+  min-width: 300px;
 }
 
 .category-bspwm {

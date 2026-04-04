@@ -87,8 +87,8 @@ case "$1" in
 	--soundcontrol)
 		pavucontrol
 		;;
-		# Eww Widgets
 	--KeyHelp)
+		eww -c "$WIDGET_DIR" update cheatsheet_data="$(gen-cheatsheet-data)"
 		eww -c "$WIDGET_DIR" open --toggle csheet
 		;;
 	--usercard)

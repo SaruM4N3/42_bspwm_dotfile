@@ -1,0 +1,118 @@
+#!/bin/bash
+# =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
+#  gen-cheatsheet-data — generate eww yuck content from sxhkdrc
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
+# =============================================================
+
+SXHKDRC="$HOME/.config/bspwm/config/sxhkdrc"
+
+awk '
+function esc(s)  { gsub(/"/, "\\\"", s); return s }
+function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
+
+function section_class(name,    n) {
+    n = tolower(name)
+    if (n ~ /bspwm|main app/)                                   return "category-bspwm"
+    if (n ~ /node|focus|swap|multi/)                            return "category-nodes"
+    if (n ~ /move|resize/)                                      return "category-move"
+    if (n ~ /preselect/)                                        return "category-preselection"
+    if (n ~ /your app|^apps/)                                   return "category-apps"
+    if (n ~ /workspace/)                                        return "category-workspaces"
+    if (n ~ /power/)                                            return "category-power"
+    if (n ~ /applet|rofi|main app|application|environment/)     return "category-system"
+    return "category-others"
+}
+
+function flush_section(    i) {
+    if (sec_len > 0) {
+        sec_sizes[num_secs] = sec_len
+        for (i = 0; i < sec_len; i++)
+            sec_lines[num_secs, i] = cur_sec[i]
+        num_secs++
+        sec_len = 0
+    }
+}
+
+function emit_section_header(name,    cls) {
+    cls = section_class(name)
+    cur_sec[sec_len++] = sprintf("      (box :orientation \"h\" :space-evenly \"false\" (label :class \"%s\" :hexpand true :xalign 0.5 :text \"%s\"))", cls, esc(name))
+}
+
+function emit_entry(d, k) {
+    cur_sec[sec_len++] = sprintf("      (box :orientation \"h\" :space-evenly \"false\" (label :class \"keys\" :hexpand true :xalign 0 :text \"%s\") (label :class \"keys-alt\" :xalign 1 :text \"%s\"))", esc(d), esc(k))
+}
+
+BEGIN { num_secs = 0; sec_len = 0 }
+
+/^[[:space:]]*$/                                                { desc = ""; next }
+/^#{2,}/                                                        { next }
+
+/^#[[:space:]]*-{3,}/ {
+    flush_section()
+    name = $0
+    gsub(/^#[[:space:]]*-+[[:space:]]*|-+[[:space:]]*#[[:space:]]*$/, "", name)
+    name = trim(name)
+    if (name != "" && name !~ /^[[:space:]]*$/) emit_section_header(name)
+    desc = ""
+    next
+}
+
+/[║╔╗╚╝╠╣╦╩╬█▀▄│┤├┼┬┴]/                                       { desc = ""; next }
+/^#[[:space:]]*(gh0stzk|z0mbi3|Author|Dotfiles|Repo|https?:)/  { desc = ""; next }
+/^#[[:space:]]*(super|alt|ctrl|XF86|~)/                         { desc = ""; next }
+
+/^#/ {
+    sub(/^#[[:space:]]*/, "")
+    desc = $0
+    next
+}
+
+/^[^[:space:]#]/ {
+    if (desc != "") emit_entry(desc, $0)
+    desc = ""
+    next
+}
+
+{ desc = "" }
+
+END {
+    flush_section()
+
+    # Calculate total height and target per column
+    total = 0
+    for (s = 0; s < num_secs; s++) total += sec_sizes[s]
+    target = int((total + 2) / 3)
+
+    # Assign sections to columns consecutively, balancing by height
+    col = 0; col_h = 0
+    for (s = 0; s < num_secs; s++) {
+        if (col < 2 && col_h + sec_sizes[s] > target) {
+            col++
+            col_h = 0
+        }
+        sec_col[s] = col
+        col_h += sec_sizes[s]
+    }
+
+    # Output
+    print "(box :class \"content\" :orientation \"h\" :spacing 10 :space-evenly \"false\""
+    for (col = 0; col < 3; col++) {
+        print "  (box :class \"column\" :orientation \"v\" :hexpand true :space-evenly \"false\" :spacing 1"
+        for (s = 0; s < num_secs; s++) {
+            if (sec_col[s] == col) {
+                for (i = 0; i < sec_sizes[s]; i++)
+                    print sec_lines[s, i]
+            }
+        }
+        print "  )"
+    }
+    print ")"
+}
+' "$SXHKDRC"
