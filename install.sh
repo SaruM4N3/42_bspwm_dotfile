@@ -301,6 +301,32 @@ for f in .zshrc.bak .gtkrc-2.0; do
     fi
 done
 
+# ── Always-overwrite critical files (regardless of install mode) ─────────────
+# These files have logic/content that must be current — old versions break things.
+info "Force-deploying critical files..."
+_force_files=(
+    ".config/bspwm/eww/cheatsheet/cheatsheet.yuck"
+    ".config/bspwm/eww/cheatsheet/cheatsheet.scss"
+    ".config/bspwm/eww/cheatsheet/_cs_scale.scss"
+    ".config/bspwm/eww/eww.scss"
+    ".config/bspwm/bin/gen-cheatsheet-data"
+    ".config/bspwm/bin/OpenApps"
+    ".config/bspwm/bin/Term"
+    ".config/bspwm/config/sxhkdrc"
+    ".config/bspwm/bspwmrc"
+    ".config/Thunar/uca.xml"
+)
+for _f in "${_force_files[@]}"; do
+    _src="$REPO_DIR/$_f"
+    _dst="$HOME/$_f"
+    if [ -f "$_src" ]; then
+        mkdir -p "$(dirname "$_dst")"
+        cp "$_src" "$_dst"
+        info "Force-deployed: $_f"
+    fi
+done
+unset _force_files _src _dst _f
+
 # Fix hardcoded paths (replace repo author's username with the installing user)
 info "Rewriting hardcoded user paths to: $HOME"
 grep -rl "/home/zsonie" "$HOME/.config/bspwm" "$HOME/.bspwminstaller" 2>/dev/null | while read -r f; do
