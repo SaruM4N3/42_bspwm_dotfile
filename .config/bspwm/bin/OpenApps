@@ -73,7 +73,10 @@ case "$1" in
 		thunar --new-window
 		;;
 	--browser)
-		firefox
+		brave
+		;;
+	--micro)
+		Term --micro
 		;;
 	--editor)
 		code
@@ -88,8 +91,14 @@ case "$1" in
 		pavucontrol
 		;;
 	--KeyHelp)
+		eval "$(xrandr --current | awk '/\*/{match($0,/([0-9]+)x([0-9]+)/,a); if(a[2]+0>mh){mw=a[1]+0; mh=a[2]+0}} END{
+			if(mh>=2160)      {wp=0.82; hp=0.78}
+			else if(mh>=1440) {wp=0.80; hp=0.72}
+			else              {wp=0.76; hp=0.66}
+			printf "cs_w=%d cs_h=%d\n", mw*wp, mh*hp
+		}')"
 		eww -c "$WIDGET_DIR" update cheatsheet_data="$(gen-cheatsheet-data)"
-		eww -c "$WIDGET_DIR" open --toggle csheet
+		eww -c "$WIDGET_DIR" open --toggle csheet --size "${cs_w}x${cs_h}"
 		;;
 	--usercard)
 		if eww -c "$WIDGET_DIR" active-windows 2>/dev/null | grep -q "launchermenu"; then

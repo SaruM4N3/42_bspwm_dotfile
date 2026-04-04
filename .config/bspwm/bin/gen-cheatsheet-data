@@ -46,7 +46,7 @@ function emit_section_header(name,    cls) {
 }
 
 function emit_entry(d, k) {
-    cur_sec[sec_len++] = sprintf("      (box :orientation \"h\" :space-evenly \"false\" (label :class \"keys\" :hexpand true :xalign 0 :text \"%s\") (label :class \"keys-alt\" :xalign 1 :text \"%s\"))", esc(d), esc(k))
+    cur_sec[sec_len++] = sprintf("      (box :class \"row\" :orientation \"h\" :space-evenly \"false\" (label :class \"keys\" :hexpand true :xalign 0 :text \"%s\") (label :class \"keys-alt\" :xalign 1 :text \"%s\"))", esc(d), esc(k))
 }
 
 BEGIN { num_secs = 0; sec_len = 0 }

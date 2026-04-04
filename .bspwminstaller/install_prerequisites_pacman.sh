@@ -145,6 +145,20 @@ ask_browser() {
     info "Browser selected: $BROWSER_BIN (package: $BROWSER_PKG)"
 }
 
+ask_terminal() {
+    printf "\nWhich terminal do you want as default? (default: alacritty)\n"
+    printf "  1) alacritty  (default)\n  2) kitty\n  3) st\n"
+    printf "Enter number [1]: "
+    read -r term_choice </dev/tty || true
+    case "$term_choice" in
+        1|""|alacritty) TERM_BIN="alacritty" ;;
+        2|kitty)        TERM_BIN="kitty" ;;
+        3|st)           TERM_BIN="st" ;;
+        *)              TERM_BIN="alacritty" ;;
+    esac
+    info "Terminal selected: $TERM_BIN"
+}
+
 patch_makepkg() {
     # makepkg refuses to run as root — patch the check out (junest proot workaround)
     if grep -q 'EUID == 0' /usr/bin/makepkg 2>/dev/null; then
@@ -192,6 +206,7 @@ add_gh0stzk_repo() {
 # ── Interactive setup (ask before any installs) ───────────────────────────────
 ask_editor
 ask_browser
+ask_terminal
 ask_rice
 
 # ── Update keyring + full system sync ────────────────────────────────────────
@@ -239,6 +254,10 @@ sudo pacman -S --needed --noconfirm \
     alacritty \
     kitty \
     jgmenu
+
+# Write chosen terminal to .term config
+echo "$TERM_BIN" > "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.config/bspwm/config/.term"
+info "Default terminal set to $TERM_BIN in .term"
 
 # ── File manager ─────────────────────────────────────────────────────────────
 info "Installing file manager..."
@@ -396,35 +415,35 @@ OPENAPPS="$DOTFILES_DIR/.config/bspwm/bin/OpenApps"
 [ -f "$OPENAPPS" ] && sed -i "/--browser)/,/;;/{s|^\t\t[a-z].*$|\t\t$BROWSER_BIN|}" "$OPENAPPS"
 info "sxhkdrc (super+w) and OpenApps --browser patched to use $BROWSER_BIN."
 
-# Patch editor references in sxhkdrc and OpenApps --editor
+# Patch editor references in sxhkdrc, OpenApps and .zshrc.bak
 OPENAPPS="$DOTFILES_DIR/.config/bspwm/bin/OpenApps"
 for sxhkd in \
     "$DOTFILES_DIR/.config/bspwm/config/sxhkdrc" \
     "$DOTFILES_DIR/.config/bspwm/config/.session/sxhkdrc"; do
     [ -f "$sxhkd" ] || continue
     if [ "$EDITOR_GUI" = "1" ]; then
-        # GUI editor: bind super+e to `editor .`
         sed -i "s|^\tcode \.$|\t$EDITOR_BIN .|" "$sxhkd"
     else
-        # nvim: bind super+e to `Term --nvim` (already the default)
-        sed -i "s|^\tcode \.$|\tTerm --nvim|" "$sxhkd"
+        sed -i "s|^\tcode \.$|\tTerm --$EDITOR_BIN|" "$sxhkd"
     fi
 done
 if [ -f "$OPENAPPS" ]; then
     if [ "$EDITOR_GUI" = "1" ]; then
-        # Replace --editor) body with the GUI binary
         sed -i "/--editor)/,/;;/{s|^\t\t[a-zA-Z].*$|\t\t$EDITOR_BIN|}" "$OPENAPPS"
     else
-        # Replace --editor) body with Term --nvim
-        sed -i "/--editor)/,/;;/{s|^\t\t[a-zA-Z].*$|\t\tTerm --nvim|}" "$OPENAPPS"
+        sed -i "/--editor)/,/;;/{s|^\t\t[a-zA-Z].*$|\t\tTerm --$EDITOR_BIN|}" "$OPENAPPS"
     fi
 fi
 ZSHRC_BAK="$DOTFILES_DIR/.zshrc.bak"
 if [ -f "$ZSHRC_BAK" ]; then
     sed -i "s|^export EDITOR=.*|export EDITOR='$EDITOR_BIN'|" "$ZSHRC_BAK"
-    info ".zshrc.bak EDITOR patched to $EDITOR_BIN."
+    sed -i "s|^export BROWSER=.*|export BROWSER='$BROWSER_BIN'|" "$ZSHRC_BAK"
+    info ".zshrc.bak EDITOR=$EDITOR_BIN and BROWSER=$BROWSER_BIN patched."
 fi
-info "sxhkdrc, OpenApps and .zshrc.bak patched to use $EDITOR_BIN."
+# Patch yazi fallback editor
+YAZI_CFG="$DOTFILES_DIR/.config/yazi/yazi.toml"
+[ -f "$YAZI_CFG" ] && sed -i "s|\${EDITOR:-[a-z]*}|\${EDITOR:-$EDITOR_BIN}|" "$YAZI_CFG"
+info "sxhkdrc, OpenApps, .zshrc.bak and yazi.toml patched for editor=$EDITOR_BIN browser=$BROWSER_BIN."
 
 # ── Default cursor theme (required by 05-gtk.sh on first boot) ───────────────
 info "Creating ~/.icons/default/index.theme..."

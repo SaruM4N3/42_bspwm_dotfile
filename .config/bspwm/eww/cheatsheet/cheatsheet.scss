@@ -1,6 +1,7 @@
 .cheatsheet {
   background-color: $bg;
   border-radius: 0.5rem;
+  opacity: 0.9;
 }
 
 .title {
@@ -18,6 +19,11 @@
 
 .column {
   min-width: 300px;
+}
+
+.row {
+  padding: 2px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .category-bspwm {

@@ -200,7 +200,7 @@ if [ "$INSTALL_MODE" = "overwrite" ]; then
     BACKUP_DIR="$HOME/.config-backup-$TIMESTAMP"
     mkdir -p "$BACKUP_DIR"
 
-    for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime; do
+    for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime Thunar; do
         if [ -d "$HOME/.config/$cfg" ]; then
             mv "$HOME/.config/$cfg" "$BACKUP_DIR/"
             info "Backed up: ~/.config/$cfg"
@@ -244,7 +244,7 @@ fi
 
 info "Deploying .config directories..."
 # ~/.config/* entries
-for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime; do
+for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime Thunar; do
     info "Processing: $cfg"
     if [ -d "$REPO_DIR/.config/$cfg" ]; then
         info "Deploying $cfg..."

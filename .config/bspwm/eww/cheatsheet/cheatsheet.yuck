@@ -15,6 +15,7 @@
     `gen-cheatsheet-data`)
 
 
+
 (defwidget cheatsheet []
     (scroll :hscroll true :vscroll true
         (box :class "cheatsheet" :orientation "v" :space-evenly "false"
