@@ -1,0 +1,5 @@
+#!/bin/sh
+# Outputs polybar-formatted media controls using playerctl (works with any MPRIS player)
+status=$(playerctl status 2>/dev/null)
+[ "$status" = "Playing" ] && toggle_icon="󰏤" || toggle_icon="󰐊"
+printf "%%{A1:playerctl previous:}%%{F#8897F4}󰒮%%{F-}%%{A}  %%{A1:playerctl play-pause:}%%{F#B9C244}%s%%{F-}%%{A}  %%{A1:playerctl next:}%%{F#8897F4}󰒭%%{F-}%%{A}\n" "$toggle_icon"

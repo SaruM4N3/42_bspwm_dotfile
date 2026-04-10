@@ -178,6 +178,7 @@
     :y "-7%"
     :anchor "bottom center"
   )
-	:wm-ignore false
+  :stacking "overlay"
+  :wm-ignore true
   (player)
 )

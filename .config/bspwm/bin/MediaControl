@@ -8,8 +8,17 @@
 #         spotify, ncmpcpp, clementine, strawberry and others.
 # =============================================================
 
-# Set the player
-[ -n "$(pgrep spotify)" ] && Control="spotify" || Control="MPD"
+# Set the player: prefer Spotify, then any active MPRIS player, then MPD
+if [ -n "$(pgrep spotify)" ]; then
+    Control="spotify"
+elif mpc status 2>/dev/null | grep -q '\['; then
+    Control="MPD"
+else
+    Control=$(playerctl -l 2>/dev/null | while read -r p; do
+        playerctl -p "$p" status 2>/dev/null | grep -q "Playing\|Paused" && echo "$p" && break
+    done)
+    [ -z "$Control" ] && Control="MPD"
+fi
 
 # Here the cover image will be saved.
 Cover=/tmp/cover.png

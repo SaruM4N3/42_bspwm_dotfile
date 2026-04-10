@@ -289,5 +289,6 @@
 
 (defwindow launchermenu
     :geometry (geometry :x "80px" :y "0px" :anchor "left center")
-    :wm-ignore false
+    :stacking "overlay"
+    :wm-ignore true
     (launchermenu))
