@@ -1,10 +1,15 @@
 #!/bin/bash
-# ============================================================
-# uninstall_all.sh
-# Full uninstall: packages (inside junest) + config files +
-# junest itself + GNOME shortcut + leftovers.
-# Run this on the HOST (not inside junest).
-# ============================================================
+# =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
+#  uninstall_all.sh — full uninstall (packages + configs + junest)
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
+# =============================================================
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 info()  { echo -e "${GREEN}[+]${NC} $*"; }
@@ -36,7 +41,11 @@ else
     warn "Uninstaller script not found at $UNINSTALLER — skipping package removal."
 fi
 
-# ── Step 2: Remove junest environment ────────────────────────────────────────
+# ── Step 2: Stop background daemons ──────────────────────────────────────────
+info "Stopping bt-reconnect daemon..."
+pkill -f bt-reconnect 2>/dev/null || true
+
+# ── Step 3: Remove junest environment ────────────────────────────────────────
 info "Removing junest Arch environment (~/.junest)..."
 rm -rf "$HOME/.junest"
 
@@ -46,7 +55,7 @@ rm -rf "$HOME/.local/share/junest"
 # Remove junest wrapper bin if present
 [ -d "$HOME/.junest/usr/bin_wrappers" ] && rm -rf "$HOME/.junest/usr/bin_wrappers"
 
-# ── Step 3: Remove GNOME keyboard shortcut ───────────────────────────────────
+# ── Step 4: Remove GNOME keyboard shortcut ───────────────────────────────────
 if command -v dconf >/dev/null 2>&1; then
     info "Removing GNOME bspwm keyboard shortcut..."
     BASE="/org/gnome/settings-daemon/plugins/media-keys"
@@ -66,7 +75,7 @@ if command -v dconf >/dev/null 2>&1; then
     fi
 fi
 
-# ── Step 4: Leftover files ────────────────────────────────────────────────────
+# ── Step 5: Leftover files ────────────────────────────────────────────────────
 info "Removing leftover files..."
 rm -f "$HOME/bspwm_launch.log"
 rm -f "$HOME/.config/bspwm/config/.first_run_done"

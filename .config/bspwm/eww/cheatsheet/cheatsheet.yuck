@@ -17,7 +17,7 @@
 
 
 (defwidget cheatsheet []
-    (scroll :hscroll true :vscroll true
+    (scroll :hscroll false :vscroll true
         (box :class "cheatsheet" :orientation "v" :space-evenly "false"
             (top)
             (literal :content cheatsheet_data)

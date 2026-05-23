@@ -1,0 +1,29 @@
+#!/bin/sh
+# =============================================================
+#  Logout — end the GNOME session (goes to GDM login screen).
+#  Different from Quit, which exits bspwm and returns to GNOME.
+#
+#  Strategy: kill gnome-session-binary with SIGKILL before
+#  calling bspc quit, so bspwm.sh has nothing to resume and
+#  GDM takes over.
+# =============================================================
+
+save-config
+
+# Clean up bspwm-owned processes
+bspc query -N -n '.window' | xargs -I id bspc node id -c 2>/dev/null
+sleep 0.1
+pkill -x polybar
+pkill -x sxhkd
+pkill -x picom
+pkill -x xsettingsd
+pkill -x clipcatd
+pkill -f "eww.*bar"
+pkill -x eww
+pkill -x xwinwrap
+
+# Kill gnome-session before bspwm.sh gets a chance to resume it
+pkill -KILL -f "gnome-session-binary"
+pkill -KILL -f "gnome-session-ctl"
+
+bspc quit

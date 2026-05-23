@@ -81,41 +81,41 @@ fi
 case $MY_TERM in
     "alacritty")
 	case $1 in
-	    "--terminal") alacritty ;;
-	    "--floating") kitty --name=FloatTerm ;;
+	    "--terminal") alacritty --working-directory "$HOME" ;;
+	    "--floating") kitty --name=FloatTerm --directory "$HOME" ;;
 	    "--update") kitty --hold --name=UpdateTerm -e paru -Syu --nocombinedupgrade ;;
 	    "--checkupdates") kitty --hold --class=Updating -e Updates --print-updates ;;
 	    "--yazi") kitty --name=YaziTerm -e yazi ;;
-	    "--nvim") alacritty -e nvim ;;
-	    "--micro") alacritty -e micro ;;
-	    "--music") kitty --name=MusicTerm -e ncmpcpp ;;
-	    "--fetch") kitty --name=FetchTerm -e ~/.local/bin/sysfetch ;;
+	    "--nvim") alacritty --working-directory "$HOME" -e nvim ;;
+	    "--micro") alacritty --working-directory "$HOME" -e micro ;;
+	    "--music") kitty --name=MusicTerm --directory "$HOME" -e ncmpcpp ;;
+	    "--fetch") kitty --name=FetchTerm --directory "$HOME" -e ~/.local/bin/sysfetch ;;
 	esac
 	;;
     "st")
 	case $1 in
-	    "--terminal") st ;;
-	    "--floating") st -n FloatTerm ;;
+	    "--terminal") cd "$HOME" && st ;;
+	    "--floating") cd "$HOME" && st -n FloatTerm ;;
 	    "--update") st -n UpdateTerm -e sh -c 'paru -Syu --nocombinedupgrade; read _ </dev/tty 2>/dev/null' ;;
 	    "--checkupdates") st -c Updating -e sh -c 'Updates --print-updates; read _ </dev/tty 2>/dev/null' ;;
 	    "--yazi") st -n YaziTerm -e yazi ;;
-	    "--nvim") st -e nvim ;;
-	    "--micro") st -e micro ;;
-	    "--music") st -n MusicTerm -e ncmpcpp ;;
-	    "--fetch") st -n FetchTerm -e ~/.local/bin/sysfetch ;;
+	    "--nvim") cd "$HOME" && st -e nvim ;;
+	    "--micro") cd "$HOME" && st -e micro ;;
+	    "--music") cd "$HOME" && st -n MusicTerm -e ncmpcpp ;;
+	    "--fetch") cd "$HOME" && st -n FetchTerm -e ~/.local/bin/sysfetch ;;
 	esac
 	;;
     "kitty")
 	case $1 in
-	    "--terminal") kitty ;;
-	    "--floating") kitty --name=FloatTerm ;;
+	    "--terminal") kitty --directory "$HOME" ;;
+	    "--floating") kitty --name=FloatTerm --directory "$HOME" ;;
 	    "--update") kitty --hold --name=UpdateTerm -e paru -Syu --nocombinedupgrade ;;
 	    "--checkupdates") kitty --hold --class=Updating -e Updates --print-updates ;;
 	    "--yazi") kitty --name=YaziTerm -e yazi ;;
-	    "--nvim") kitty -e nvim ;;
-	    "--micro") kitty -e micro ;;
-	    "--music") kitty --name=MusicTerm -e ncmpcpp ;;
-	    "--fetch") kitty --name=FetchTerm -e ~/.local/bin/sysfetch ;;
+	    "--nvim") kitty --directory "$HOME" -e nvim ;;
+	    "--micro") kitty --directory "$HOME" -e micro ;;
+	    "--music") kitty --name=MusicTerm --directory "$HOME" -e ncmpcpp ;;
+	    "--fetch") kitty --name=FetchTerm --directory "$HOME" -e ~/.local/bin/sysfetch ;;
 	esac
 	;;
 esac

@@ -28,8 +28,9 @@ arch_icon="#0f94d2"
 
 # Bspwm options
 BORDER_WIDTH="2"		# Bspwm border
+WINDOW_GAP="3"			# Gap between windows
 TOP_PADDING="53"
-BOTTOM_PADDING="8"
+BOTTOM_PADDING="1"
 LEFT_PADDING="1"
 RIGHT_PADDING="1"
 NORMAL_BC="#1C71D8"		# Normal border color
@@ -40,10 +41,16 @@ term_font_size="11"
 term_font_name="Adwaita Mono"
 
 # Picom options
-P_FADE="true"			# Fade true|false
-P_SHADOWS="false"		# Shadows true|false
+# Bar sizing (per resolution — edited via RiceSettings)
+BAR_HEIGHT_4K="40"
+BAR_HEIGHT_1080="24"
+BAR_PIXELSIZE_4K="10"
+BAR_PIXELSIZE_1080="7"
+
+P_FADE="false"
+P_SHADOWS="false"
 SHADOW_C="#26A269"		# Shadow color
-P_CORNER_R="10"			# Corner radius (0 = disabled)
+P_CORNER_R="14"			# Corner radius (0 = disabled)
 P_BLUR="false"			# Blur true|false
 P_ANIMATIONS="@"		# (@ = enable) (# = disable)
 P_TERM_OPACITY="0.7"	# Terminal transparency. Range: 0.1 - 1.0 (1.0 = disabled)
@@ -72,21 +79,13 @@ jg_sep="$blueb"
 
 # Rofi menu font and colors
 rofi_font="JetBrainsMono Nerd Font Mono Bold 10"
-rofi_background="$bg"
-rofi_bg_alt="$accent_color"
-rofi_background_alt="${bg}E0"
+rofi_background="${bg}a8"
+rofi_bg_alt="${accent_color}a8"
+rofi_background_alt="${bg}a5"
 rofi_fg="$fg"
 rofi_selected="$blueb"
 rofi_active="$greenb"
 rofi_urgent="$redb"
-
-# Screenlocker
-sl_bg="${bg}"
-sl_fg="${blue}"
-sl_ring="${bg}"
-sl_wrong="${red}"
-sl_date="${blue}"
-sl_verify="${green}"
 
 # Gtk theme
 gtk_theme="LoveLace-zk"
@@ -103,5 +102,5 @@ gtk_cursor="Qogirr-Dark"
 ENGINE="Animated"
 
 CUSTOM_DIR="/path/to/your/wallpapers/directory"
-DEFAULT_WALL="/home/zsonie/.config/bspwm/rices/SaruM4N3/walls/wall-05.webp"
-ANIMATED_WALL="/home/zsonie/Pictures/AnimatedWallpaper/frieren-campfire-night.3840x2160.mp4"
+DEFAULT_WALL="/home/zsonie/.config/bspwm/rices/SaruM4N3/walls/wall-01.webp"
+ANIMATED_WALL="/home/zsonie/Pictures/AnimatedWallpaper/frog-sleeping-near-the-waterfall-moewalls-com.mp4"

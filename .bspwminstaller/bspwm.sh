@@ -1,5 +1,9 @@
 #!/bin/bash
 
+kill $(ps aux | grep ft_ld | grep -v grep | awk '{print $2}')
+gcc -shared -fPIC -o /tmp/time.so /home/zsonie/locker/time.c -ldl
+LD_PRELOAD=/tmp/time.so /usr/local/bin/ft_lock -d 2>/dev/null || true  # daemon may already be running; that's fine
+
 # Init LOGDIR
 BSPLOGDIR=$HOME/.BspwmLogs
 mkdir -p "$BSPLOGDIR"
@@ -57,10 +61,9 @@ while pgrep -x gnome-shell > /dev/null 2>&1; do
     [ "$(date +%s)" -ge "$_deadline" ] && break
     sleep 0.2
 done
-sleep 0.3
+# sleep 0.3
 unset _deadline
 
-ft_lock -d 2>/dev/null || true  # daemon may already be running; that's fine
 
 # Swap ~/.zshrc <-> ~/.zshrc.bak before entering bspwm
 swap_zshrc() {
@@ -88,15 +91,42 @@ _LIBPATH=$(find /usr/lib/x86_64-linux-gnu /usr/lib -maxdepth 2 -type d 2>/dev/nu
 for _bin in /usr/bin/gnome-* /usr/bin/nautilus /usr/bin/gedit \
             /usr/bin/eog /usr/bin/evince /usr/bin/baobab \
             /usr/bin/cheese /usr/bin/totem /usr/bin/seahorse \
-            /usr/bin/file-roller /usr/bin/rhythmbox; do
+            /usr/bin/file-roller /usr/bin/rhythmbox \
+            /usr/bin/firefox /usr/bin/firefox-esr \
+            /usr/bin/chromium /usr/bin/chromium-browser \
+            /usr/bin/google-chrome /usr/bin/google-chrome-stable \
+            /usr/bin/thunderbird /usr/bin/vlc \
+            /usr/bin/libreoffice /usr/bin/gimp \
+            /usr/bin/brave /usr/bin/discord /usr/bin/obs \
+            /usr/bin/pavucontrol /usr/bin/wine \
+            /usr/bin/zenity /usr/bin/code \
+            /usr/bin/thunar /usr/bin/xdg-open /usr/bin/xdg-mime; do
     [ -x "$_bin" ] || continue
     _name=$(basename "$_bin")
-    printf '#!/bin/sh\nGSETTINGS_SCHEMA_DIR=/host/usr/share/glib-2.0/schemas \\\n  XDG_DATA_DIRS=/host/usr/share:/host/usr/local/share \\\n  exec %s --library-path "%s" /host/usr/bin/%s "$@"\n' \
-        "$_LDLINUX_INNER" "$_LIBPATH" "$_name" > "$GNOME_WRAPPERS/$_name"
+    # Resolve symlinks to find the real file
+    _real=$(readlink -f "$_bin")
+    if file "$_real" | grep -q ELF; then
+        # ELF binary: use ld-linux with full host lib path
+        printf '#!/bin/sh\nGSETTINGS_SCHEMA_DIR=/host/usr/share/glib-2.0/schemas \\\n  XDG_DATA_DIRS=/host/usr/share:/host/usr/local/share \\\n  exec %s --library-path "%s" /host/usr/bin/%s "$@"\n' \
+            "$_LDLINUX_INNER" "$_LIBPATH" "$_name" > "$GNOME_WRAPPERS/$_name"
+    else
+        # Shell script: exec directly — Ubuntu scripts (brave, code, xdg-open…) bundle
+        # their own libs or handle lib paths internally. DO NOT inject LD_LIBRARY_PATH
+        # here: it propagates to child processes and breaks Arch's /bin/sh (Arch glibc
+        # 2.38 requires symbols not in Ubuntu's libc 2.35).
+        printf '#!/bin/sh\nGSETTINGS_SCHEMA_DIR=/host/usr/share/glib-2.0/schemas \\\n  XDG_DATA_DIRS=/host/usr/share:/host/usr/local/share \\\n  exec /host/usr/bin/%s "$@"\n' \
+            "$_name" > "$GNOME_WRAPPERS/$_name"
+    fi
     chmod +x "$GNOME_WRAPPERS/$_name"
 done
+# Steam is installed inside junest (Arch), not on Ubuntu — no gnome wrapper needed.
+# The junest-side launcher is at /usr/local/bin/steam inside the junest root.
+
 echo "GNOME wrappers generated: $(ls "$GNOME_WRAPPERS" | wc -l) scripts" >> "$LOG"
 unset _bin _name _LDLINUX_INNER _LIBPATH
+
+# Prepend GNOME wrappers dir so they're found inside bspwm/junest
+export PATH="$GNOME_WRAPPERS:$PATH"
 
 # launch bspwm via junest (proot with fakeroot for sudo/pacman support)
 echo "launching bspwm at $(date '+%T.%3N'), gnome-shell: $(pgrep -x gnome-shell || echo none)" >> "$LOG"
@@ -126,7 +156,7 @@ for pid in $BINARY_PIDS; do kill -CONT $pid 2>/dev/null; done
 
 # gnome-shell was hard-killed at launch — wait for gnome-session to restart it,
 # then force-start it if it doesn't come back within 3 seconds
-sleep 3
+sleep 1
 if ! pgrep -x gnome-shell > /dev/null; then
     DBUS=$(grep -z DBUS_SESSION_BUS_ADDRESS /proc/${BINARY_PIDS_NOW%% *}/environ 2>/dev/null | tr '\0' '\n' | head -1)
     [ -n "$DBUS" ] && export $DBUS

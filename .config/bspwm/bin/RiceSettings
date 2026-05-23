@@ -1,0 +1,287 @@
+#!/bin/sh
+# =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
+#  RiceSettings — rofi-based config editor for SaruM4N3
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
+# =============================================================
+
+RICE="SaruM4N3"
+RICE_DIR="$HOME/.config/bspwm/rices/$RICE"
+THEME_CFG="$RICE_DIR/theme-config.bash"
+MOD_DIR="$HOME/.config/bspwm/config/modules"
+ROFI_THEME="$HOME/.config/bspwm/config/rofi-themes/RiceSettings.rasi"
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+# Read a variable from theme-config.bash (resolves $var references inside it)
+get() { (. "$THEME_CFG" 2>/dev/null && eval "printf '%s' \"\$$1\""); }
+
+# Write a variable back to theme-config.bash
+set_val() {
+    local key="$1" val="$2"
+    if grep -q "^${key}='" "$THEME_CFG"; then
+        sed -i "s|^${key}='.*'|${key}='${val}'|" "$THEME_CFG"
+    else
+        sed -i "s|^${key}=.*|${key}=\"${val}\"|" "$THEME_CFG"
+    fi
+}
+
+# Rofi menu — pipe entries via stdin, $1 = prompt
+menu() { rofi -dmenu -theme "$ROFI_THEME" -p "${1:-Settings}"; }
+
+# Rofi input prompt with pre-filled current value
+prompt() {
+    local label="$1" current="$2"
+    printf '' | rofi -dmenu -theme "$ROFI_THEME" -p "$label" -filter "$current"
+}
+
+# Toggle a bool variable between two values
+toggle() {
+    local key="$1" on="$2" off="$3"
+    [ "$(get "$key")" = "$on" ] && set_val "$key" "$off" || set_val "$key" "$on"
+}
+
+# Format boolean as icon + label
+onoff() { [ "$1" = "true" ] && printf "󰐒 ON" || printf "󰐓 OFF"; }
+
+# Source theme-config, then run a module script
+apply_module() { (. "$THEME_CFG" && sh "$MOD_DIR/$1"); }
+
+# ── Row formatter ─────────────────────────────────────────────────────────────
+# r "icon" "Label" "value"  →  "icon  Label ············  value"
+# Uses a fixed label column so values align regardless of label length.
+# Total usable chars in a 460px window with 14px side padding at 10pt mono ≈ 64
+
+COL=34   # label column width (icon + 2sp + text padded to this total)
+SEP="$(printf '  %s' '─────────────────────────────────────────────────')"
+
+r() {
+    local icon="$1" label="$2" val="$3"
+    printf "%-${COL}s  %s" "  ${icon}  ${label}" "${val}"
+}
+
+# ── Apply functions ───────────────────────────────────────────────────────────
+
+apply_borders() {
+    # Apply only border/gap settings — do NOT call 02-bspwm.sh in full
+    # because it includes top_padding which Bar.bash owns.
+    bspc config border_width    "$(get BORDER_WIDTH)"
+    bspc config window_gap      "$(get WINDOW_GAP)"
+    bspc config normal_border_color  "$(get NORMAL_BC)"
+    bspc config focused_border_color "$(get FOCUSED_BC)"
+    bspc config presel_feedback_color "$(. "$THEME_CFG" && printf '%s' "$blue")"
+    dunstify -u low -i preferences-system "RiceSettings" "Borders applied."
+}
+
+apply_picom() {
+    apply_module "01-picom.sh"
+    pkill -x picom 2>/dev/null; sleep 0.2
+    picom --config "$HOME/.config/bspwm/config/picom.conf" &
+    dunstify -u low -i preferences-system "RiceSettings" "Picom applied."
+}
+
+apply_dunst() {
+    apply_module "08-dunst.sh"
+    dunstify -u low -i preferences-system "RiceSettings" "Dunst applied."
+}
+
+apply_bar() {
+    pkill -x polybar 2>/dev/null; sleep 0.2
+    RICE="$RICE" bash "$RICE_DIR/Bar.bash" &
+    dunstify -u low -i preferences-system "RiceSettings" "Bar applied."
+}
+
+# ── Borders ───────────────────────────────────────────────────────────────────
+
+borders_menu() {
+    while true; do
+        bw=$(get BORDER_WIDTH)
+        gap=$(get WINDOW_GAP)
+        nbc=$(get NORMAL_BC)
+        fbc=$(get FOCUSED_BC)
+
+        choice=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s' \
+            "$(r 󰏃 'Border Width'    "$bw")" \
+            "$(r 󰙀 'Window Gap'      "$gap")" \
+            "$(r 󰝤 'Normal Color'    "$nbc")" \
+            "$(r 󰝤 'Focused Color'   "$fbc")" \
+            "$SEP" \
+            "  󰁙  Apply" \
+            "  󰁍  Back" \
+        | menu "  Borders")
+
+        case "$choice" in
+            *"Border Width"*)
+                val=$(prompt "Border Width (0-9)" "$bw")
+                [ -n "$val" ] && set_val "BORDER_WIDTH" "$val" ;;
+            *"Window Gap"*)
+                val=$(prompt "Window Gap (px)" "$gap")
+                [ -n "$val" ] && set_val "WINDOW_GAP" "$val" ;;
+            *"Normal Color"*)
+                val=$(prompt "Normal Color (#RRGGBB)" "$nbc")
+                [ -n "$val" ] && set_val "NORMAL_BC" "$val" ;;
+            *"Focused Color"*)
+                val=$(prompt "Focused Color (#RRGGBB)" "$fbc")
+                [ -n "$val" ] && set_val "FOCUSED_BC" "$val" ;;
+            *"Apply") apply_borders ;;
+            *"Back"|"") break ;;
+        esac
+    done
+}
+
+# ── Picom ─────────────────────────────────────────────────────────────────────
+
+picom_menu() {
+    while true; do
+        fade=$(get P_FADE)
+        shadows=$(get P_SHADOWS)
+        shadow_c=$(get SHADOW_C)
+        corner=$(get P_CORNER_R)
+        blur=$(get P_BLUR)
+        anim=$(get P_ANIMATIONS)
+        opacity=$(get P_TERM_OPACITY)
+        anim_label=$([ "$anim" = "@" ] && printf "󰐒 ON" || printf "󰐓 OFF")
+
+        choice=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' \
+            "$(r 󰒙 'Fade'              "$(onoff "$fade")")" \
+            "$(r 󰖚 'Shadows'           "$(onoff "$shadows")")" \
+            "$(r 󰖚 'Shadow Color'      "$shadow_c")" \
+            "$(r 󰏂 'Corner Radius'     "$corner")" \
+            "$(r 󱡓 'Blur'              "$(onoff "$blur")")" \
+            "$(r 󱊈 'Animations'        "$anim_label")" \
+            "$(r 󰆟 'Terminal Opacity'  "$opacity")" \
+            "$SEP" \
+            "  󰁙  Apply" \
+            "  󰁍  Back" \
+        | menu "  Picom")
+
+        case "$choice" in
+            *"Fade"*)            toggle P_FADE "true" "false" ;;
+            *"Shadows"*)         toggle P_SHADOWS "true" "false" ;;
+            *"Shadow Color"*)
+                val=$(prompt "Shadow Color (#RRGGBB)" "$shadow_c")
+                [ -n "$val" ] && set_val "SHADOW_C" "$val" ;;
+            *"Corner Radius"*)
+                val=$(prompt "Corner Radius (0 = disabled)" "$corner")
+                [ -n "$val" ] && set_val "P_CORNER_R" "$val" ;;
+            *"Blur"*)            toggle P_BLUR "true" "false" ;;
+            *"Animations"*)
+                [ "$anim" = "@" ] && set_val "P_ANIMATIONS" "#" \
+                                  || set_val "P_ANIMATIONS" "@" ;;
+            *"Terminal Opacity"*)
+                val=$(prompt "Opacity (0.1 – 1.0,  1.0 = opaque)" "$opacity")
+                [ -n "$val" ] && set_val "P_TERM_OPACITY" "$val" ;;
+            *"Apply") apply_picom ;;
+            *"Back"|"") break ;;
+        esac
+    done
+}
+
+# ── Bar ───────────────────────────────────────────────────────────────────────
+
+bar_menu() {
+    while true; do
+        h4k=$(get BAR_HEIGHT_4K);         [ -z "$h4k" ]    && h4k="40"
+        h1080=$(get BAR_HEIGHT_1080);     [ -z "$h1080" ]  && h1080="24"
+        px4k=$(get BAR_PIXELSIZE_4K);     [ -z "$px4k" ]   && px4k="10"
+        px1080=$(get BAR_PIXELSIZE_1080); [ -z "$px1080" ] && px1080="7"
+
+        choice=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s' \
+            "$(r 󰋋 '4K Height'         "$h4k")" \
+            "$(r 󰋋 '1080p Height'      "$h1080")" \
+            "$(r 󰊿 '4K Font Size'      "$px4k")" \
+            "$(r 󰊿 '1080p Font Size'   "$px1080")" \
+            "$SEP" \
+            "  󰁙  Apply" \
+            "  󰁍  Back" \
+        | menu "  Bar")
+
+        case "$choice" in
+            *"4K Height"*)
+                val=$(prompt "Bar height for 4K" "$h4k")
+                [ -n "$val" ] && set_val "BAR_HEIGHT_4K" "$val" ;;
+            *"1080p Height"*)
+                val=$(prompt "Bar height for 1080p" "$h1080")
+                [ -n "$val" ] && set_val "BAR_HEIGHT_1080" "$val" ;;
+            *"4K Font Size"*)
+                val=$(prompt "Font pixelsize for 4K" "$px4k")
+                [ -n "$val" ] && set_val "BAR_PIXELSIZE_4K" "$val" ;;
+            *"1080p Font Size"*)
+                val=$(prompt "Font pixelsize for 1080p" "$px1080")
+                [ -n "$val" ] && set_val "BAR_PIXELSIZE_1080" "$val" ;;
+            *"Apply") apply_bar ;;
+            *"Back"|"") break ;;
+        esac
+    done
+}
+
+# ── Dunst ─────────────────────────────────────────────────────────────────────
+
+dunst_menu() {
+    while true; do
+        font=$(get dunst_font)
+        transp=$(get dunst_transparency)
+        corner=$(get dunst_corner_radius)
+        offset=$(get dunst_offset)
+        origin=$(get dunst_origin)
+
+        choice=$(printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s' \
+            "$(r 󰊿 'Font'              "$font")" \
+            "$(r 󰱊 'Transparency'      "$transp")" \
+            "$(r 󰏂 'Corner Radius'     "$corner")" \
+            "$(r 󰩮 'Offset'            "$offset")" \
+            "$(r 󰩮 'Origin'            "$origin")" \
+            "$SEP" \
+            "  󰁙  Apply" \
+            "  󰁍  Back" \
+        | menu "  Dunst")
+
+        case "$choice" in
+            *"Font"*)
+                val=$(prompt "Font (e.g. JetBrainsMono Nerd Font Mono 9)" "$font")
+                [ -n "$val" ] && set_val "dunst_font" "$val" ;;
+            *"Transparency"*)
+                val=$(prompt "Transparency (0 = opaque, 100 = invisible)" "$transp")
+                [ -n "$val" ] && set_val "dunst_transparency" "$val" ;;
+            *"Corner Radius"*)
+                val=$(prompt "Corner Radius" "$corner")
+                [ -n "$val" ] && set_val "dunst_corner_radius" "$val" ;;
+            *"Offset"*)
+                val=$(prompt "Offset (e.g. 28x65)" "$offset")
+                [ -n "$val" ] && set_val "dunst_offset" "$val" ;;
+            *"Origin"*)
+                val=$(printf '%s\n' \
+                    top-left top-center top-right \
+                    bottom-left bottom-center bottom-right \
+                | menu "  Dunst › Origin")
+                [ -n "$val" ] && set_val "dunst_origin" "$val" ;;
+            *"Apply") apply_dunst ;;
+            *"Back"|"") break ;;
+        esac
+    done
+}
+
+# ── Main menu ─────────────────────────────────────────────────────────────────
+
+while true; do
+    choice=$(printf '%s\n%s\n%s\n%s' \
+        "  󰒱  Borders" \
+        "  󰌪  Picom" \
+        "  󰋋  Bar" \
+        "  󰂚  Dunst" \
+    | menu "  Rice Settings")
+
+    case "$choice" in
+        *"Borders") borders_menu ;;
+        *"Picom")   picom_menu ;;
+        *"Bar")     bar_menu ;;
+        *"Dunst")   dunst_menu ;;
+        ""|*)       break ;;
+    esac
+done

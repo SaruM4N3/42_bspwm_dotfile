@@ -7,10 +7,23 @@
 #  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
 #  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
 #
-# SwitchDesktop — workspace switch; picom animates hide/show via picom-animations.conf.
+#  Quit - the quit function to return in gnome 
 #  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
-TARGET="$1"
+save-config
 
-bspc desktop -f "$TARGET"
+# Close only bspwm-managed windows (not GNOME's own processes)
+# GNOME will restore its windows when gnome-session resumes
+bspc query -N -n '.window' | xargs -I id bspc node id -c 2>/dev/null
+sleep 0.1
+
+pkill -x polybar
+pkill -x sxhkd
+pkill -x picom
+pkill -x xsettingsd
+pkill -x clipcatd
+pkill -f "eww.*bar"
+pkill -x eww
+pkill -x xwinwrap
+bspc quit

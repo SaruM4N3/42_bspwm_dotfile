@@ -1,0 +1,158 @@
+
+configuration {
+    show-icons:      false;
+    disable-history: true;
+    font:            "JetBrainsMono Nerd Font Mono Bold 10";
+}
+
+@import "shared.rasi"
+
+/*  ── Window ─────────────────────────────────────────────────────── */
+window {
+    transparency:     "real";
+    location:         center;
+    anchor:           center;
+    fullscreen:       false;
+    width:            460px;
+    border:           1px solid;
+    border-radius:    12px;
+    border-color:     @selected;
+    background-color: @background;
+    cursor:           "default";
+    padding:          0px;
+    margin:           0px;
+}
+
+/*  ── Layout ─────────────────────────────────────────────────────── */
+mainbox {
+    spacing:          0px;
+    padding:          0px;
+    margin:           0px;
+    background-color: transparent;
+    children:         [ "inputbar", "listview" ];
+}
+
+/*  ── Header bar (icon + section name) ───────────────────────────── */
+inputbar {
+    spacing:          0px;
+    padding:          0px;
+    margin:           0px;
+    background-color: transparent;
+    children:         [ "textbox-prompt-colon", "prompt", "textbox-prompt-end" ];
+}
+
+/* Left pill — settings gear icon */
+textbox-prompt-colon {
+    padding:          12px 13px;
+    expand:           false;
+    str:              "󰒓";
+    font:             "Material Design Icons Desktop 12";
+    background-color: @selected;
+    text-color:       @background;
+    border-radius:    12px 0px 0px 0px;
+}
+
+/* Section title (the -p argument) */
+prompt {
+    padding:          12px 14px;
+    background-color: @bg-alt;
+    text-color:       @foreground;
+    expand:           true;
+    border-radius:    0px;
+}
+
+/* Right spacer — keeps the header strip flush on the right */
+textbox-prompt-end {
+    str:              " ";
+    expand:           false;
+    padding:          12px 10px;
+    background-color: @bg-alt;
+    text-color:       @foreground;
+    border-radius:    0px 12px 0px 0px;
+}
+
+/*  ── List ────────────────────────────────────────────────────────── */
+listview {
+    columns:          1;
+    lines:            12;
+    dynamic:          true;
+    fixed-height:     false;
+    fixed-columns:    true;
+    scrollbar:        false;
+    cycle:            true;
+    spacing:          2px;
+    padding:          10px 8px;
+    margin:           0px;
+    background-color: transparent;
+    text-color:       @foreground;
+    cursor:           "default";
+}
+
+/*  ── Rows ────────────────────────────────────────────────────────── */
+element {
+    spacing:          0px;
+    padding:          8px 14px;
+    border-radius:    8px;
+    background-color: transparent;
+    text-color:       @foreground;
+    cursor:           pointer;
+}
+
+/* Normal row */
+element normal.normal {
+    background-color: transparent;
+    text-color:       @foreground;
+}
+
+/* Separator / disabled rows — show dimmed */
+element normal.urgent {
+    background-color: transparent;
+    text-color:       @bg-alt;
+}
+
+/* "Active" marker — e.g. an ON toggle */
+element normal.active {
+    background-color: transparent;
+    text-color:       @active;
+}
+
+/* Selected row */
+element selected.normal {
+    background-color: @selected;
+    text-color:       @background;
+    border-radius:    8px;
+}
+
+element selected.urgent {
+    background-color: transparent;
+    text-color:       @bg-alt;
+}
+
+element selected.active {
+    background-color: @selected;
+    text-color:       @background;
+}
+
+element alternate.normal {
+    background-color: transparent;
+    text-color:       @foreground;
+}
+
+element alternate.urgent {
+    background-color: transparent;
+    text-color:       @bg-alt;
+}
+
+element alternate.active {
+    background-color: transparent;
+    text-color:       @active;
+}
+
+element-text {
+    background-color: transparent;
+    text-color:       inherit;
+    highlight:        inherit;
+    cursor:           inherit;
+    vertical-align:   0.5;
+    horizontal-align: 0.0;
+}

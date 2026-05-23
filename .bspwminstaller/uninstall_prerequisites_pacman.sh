@@ -1,8 +1,15 @@
 #!/bin/bash
-# ============================================================
-# uninstall_prerequisites_pacman.sh
-# Remove everything installed by install_prerequisites_pacman.sh
-# ============================================================
+# =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
+#  uninstall_prerequisites_pacman.sh — remove packages, configs, and daemons
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
+# =============================================================
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 info()  { echo -e "${GREEN}[+]${NC} $*"; }
@@ -35,6 +42,10 @@ remove_packages() {
 
 # ── Confirmation ──────────────────────────────────────────────────────────────
 confirm
+
+# ── Stop daemons ──────────────────────────────────────────────────────────────
+info "Stopping bt-reconnect daemon..."
+pkill -f bt-reconnect 2>/dev/null || true
 
 # ── Browser (detect which one was installed) ──────────────────────────────────
 info "Removing browser..."
@@ -132,8 +143,16 @@ info "Removing media packages..."
 remove_packages mpd mpc ncmpcpp mpv playerctl pamixer ffmpeg
 
 # ── Editors ───────────────────────────────────────────────────────────────────
-info "Removing editors..."
+info "Removing editors (any that were installed by the setup)..."
 remove_packages neovim
+# VS Code / VS Codium
+for pkg in visual-studio-code-bin vscodium-bin vscodium; do
+    pacman -Q "$pkg" >/dev/null 2>&1 && sudo pacman -Rns --noconfirm "$pkg" 2>/dev/null
+done
+# Zed
+for pkg in zed zed-git; do
+    pacman -Q "$pkg" >/dev/null 2>&1 && sudo pacman -Rns --noconfirm "$pkg" 2>/dev/null
+done
 
 # ── File manager ──────────────────────────────────────────────────────────────
 info "Removing file manager..."
@@ -207,7 +226,7 @@ rmdir "$HOME/.icons" 2>/dev/null || true
 
 # ── Deployed config directories ───────────────────────────────────────────────
 info "Removing deployed ~/.config entries..."
-for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime; do
+for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime Thunar; do
     [ -d "$HOME/.config/$cfg" ] && rm -rf "$HOME/.config/$cfg" && info "  removed: ~/.config/$cfg"
 done
 
@@ -216,6 +235,21 @@ info "Removing deployed home dotfiles..."
 for f in .zshrc.bak .gtkrc-2.0; do
     [ -f "$HOME/$f" ] && rm -f "$HOME/$f" && info "  removed: ~/$f"
 done
+
+# ── oh-my-zsh ─────────────────────────────────────────────────────────────────
+info "Removing ~/.oh-my-zsh/..."
+rm -rf "$HOME/.oh-my-zsh"
+
+# ── bt-reconnect favorites ─────────────────────────────────────────────────────
+info "Removing bt-reconnect favorites file..."
+rm -f "$HOME/.config/bspwm/config/.bt_favorites"
+
+# ── xfce4 helpers (alacritty terminal override) ───────────────────────────────
+info "Removing xfce4 terminal helper overrides..."
+rm -f "$HOME/.config/xfce4/helpers.rc"
+rm -f "$HOME/.local/share/xfce4/helpers/alacritty.desktop"
+rmdir "$HOME/.local/share/xfce4/helpers" 2>/dev/null || true
+rmdir "$HOME/.local/share/xfce4" 2>/dev/null || true
 
 # ── Installer scripts ──────────────────────────────────────────────────────────
 info "Removing ~/.bspwminstaller/..."

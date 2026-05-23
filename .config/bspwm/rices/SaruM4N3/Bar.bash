@@ -23,10 +23,40 @@ SCREEN_W=$(xrandr --current 2>/dev/null | awk '
 : "${SCREEN_W:=3840}"
 
 RICE_DIR="${HOME}/.config/bspwm/rices/${RICE}"
-BAR_CFG="/tmp/SaruM4N3-bar-${HOME##*/}.ini"
+BAR_CFG="${HOME}/.config/bspwm/rices/SaruM4N3/bar-generated.ini"
+THEME_CFG="${RICE_DIR}/theme-config.bash"
 
-if [ "$SCREEN_W" -le 2560 ]; then
-    # 1080p/1440p: resolve paths + scale down bar height and fonts
+# Load bar sizing vars from theme-config, with safe fallbacks
+. "$THEME_CFG" 2>/dev/null
+BAR_HEIGHT_1080="${BAR_HEIGHT_1080:-24}"
+BAR_PIXELSIZE_1080="${BAR_PIXELSIZE_1080:-7}"
+BAR_HEIGHT_4K="${BAR_HEIGHT_4K:-40}"
+BAR_PIXELSIZE_4K="${BAR_PIXELSIZE_4K:-10}"
+
+if [ "$SCREEN_W" -le 1920 ]; then
+    # 1080p: resolve paths + scale down bar height and fonts aggressively
+    _px="${BAR_PIXELSIZE_1080}"
+    _px1=$(( _px + 1 ))
+    _px2=$(( _px + 2 ))
+    sed \
+        -e "s|include-file = ../../config/|include-file = ${HOME}/.config/bspwm/config/|g" \
+        -e "s|include-file = modules.ini|include-file = ${RICE_DIR}/modules.ini|g" \
+        -e "s/height = 40/height = ${BAR_HEIGHT_1080}/g" \
+        -e "s/pixelsize=12;/pixelsize=${_px1};/g" \
+        -e "s/pixelsize=10;/pixelsize=${_px};/g" \
+        -e "s/:size=14;/:size=${_px2};/g" \
+        -e "s/:size=12;/:size=${_px1};/g" \
+        -e "s/:size=10;/:size=${_px};/g" \
+        -e 's/;3"/;2"/g' \
+        "${RICE_DIR}/config.ini" > "$BAR_CFG"
+    # saru1 launcher icon: keep slightly larger than blanket scale
+    sed -i "/\[bar\/saru1\]/,/\[bar\/saru2\]/{
+        s/Material Design Icons Desktop:size=${_px};/Material Design Icons Desktop:size=${_px2};/g
+    }" "$BAR_CFG"
+    # Adjust bspwm top padding: offset_y(8) + height + gap(5)
+    bspc config top_padding $(( BAR_HEIGHT_1080 + 13 ))
+elif [ "$SCREEN_W" -le 2560 ]; then
+    # 1440p: resolve paths + scale down bar height and fonts
     sed \
         -e "s|include-file = ../../config/|include-file = ${HOME}/.config/bspwm/config/|g" \
         -e "s|include-file = modules.ini|include-file = ${RICE_DIR}/modules.ini|g" \
@@ -45,13 +75,22 @@ if [ "$SCREEN_W" -le 2560 ]; then
     # Adjust bspwm top padding: offset_y(8) + height(30) + gap(5) = 43
     bspc config top_padding 43
 else
-    # 4K: resolve paths only — no size changes
+    # 4K: resolve paths + apply theme-config sizing
+    _px="${BAR_PIXELSIZE_4K}"
+    _px1=$(( _px + 1 ))
+    _px2=$(( _px + 2 ))
     sed \
         -e "s|include-file = ../../config/|include-file = ${HOME}/.config/bspwm/config/|g" \
         -e "s|include-file = modules.ini|include-file = ${RICE_DIR}/modules.ini|g" \
+        -e "s/height = 40/height = ${BAR_HEIGHT_4K}/g" \
+        -e "s/pixelsize=12;/pixelsize=${_px1};/g" \
+        -e "s/pixelsize=10;/pixelsize=${_px};/g" \
+        -e "s/:size=14;/:size=${_px2};/g" \
+        -e "s/:size=12;/:size=${_px1};/g" \
+        -e "s/:size=10;/:size=${_px};/g" \
         "${RICE_DIR}/config.ini" > "$BAR_CFG"
-    # Adjust bspwm top padding: offset_y(8) + height(40) + gap(5) = 53
-    bspc config top_padding 53
+    # Adjust bspwm top padding: offset_y(8) + height + gap(5)
+    bspc config top_padding $(( BAR_HEIGHT_4K + 13 ))
 fi
 
 # This file launch the bar/s
