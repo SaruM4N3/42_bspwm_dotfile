@@ -4,7 +4,7 @@ A different way to see the world in 42 cluster, everyone’s hate gnome.
 
 ## Credits
 
-This dotfile setup was originally taken from [gh0stzk/dotfiles](https://github.com/gh0stzk/dotfiles) and then modified almost completely to work on a 24-based machine, especially on Ubuntu GNOME.
+This dotfile setup was originally taken from [gh0stzk/dotfiles](https://github.com/gh0stzk/dotfiles) and then modified almost completely to work on a 42-based machine, especially on Ubuntu GNOME.
 
 ## About
 
