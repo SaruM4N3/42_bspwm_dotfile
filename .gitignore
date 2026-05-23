@@ -1,3 +1,5 @@
+
+.vscode
 # Temporary / runtime state
 .config/bspwm/config/.animwall_index
 .config/bspwm/config/.bt_favorites
