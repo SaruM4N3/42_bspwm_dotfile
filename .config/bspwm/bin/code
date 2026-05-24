@@ -1,0 +1,26 @@
+#!/bin/sh
+# =============================================================
+#  code — VS Code launcher for bspwm/bwrap environment
+#
+#  VS Code's Electron binary is compiled against Ubuntu libs.
+#  Inside the /usr overlay (Arch on top), launching a fresh
+#  Electron process fails due to library conflicts.
+#  When VS Code is already running, code uses IPC and works fine.
+#  When not running, we delegate to a host-side watcher (started
+#  by bspwm.sh) that launches code with the full Ubuntu environment.
+# =============================================================
+
+_CODE_REQ="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm_code_req"
+
+# Resolve the target path (default to $HOME if no arg or arg is ".")
+_target="${1:-.}"
+[ "$_target" = "." ] && _target="$PWD"
+[ "$_target" = "." ] && _target="$HOME"
+
+if [ -p "$_CODE_REQ" ]; then
+    # Send the path to the host-side watcher
+    echo "$_target" > "$_CODE_REQ"
+else
+    # Fallback: try direct launch (works if VS Code already running via IPC)
+    /usr/bin/code "$_target"
+fi

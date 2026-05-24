@@ -37,6 +37,28 @@ _CLEAN_PATH=$(echo "$PATH" | tr ':' '\n' | grep -vF "$HOME/.junest/usr/bin_wrapp
 unset _CLEAN_PATH
 export PATH
 
+# ft_lock cannot be exec'd from overlay lower-layer inside bwrap user namespace.
+# Watcher on the host runs ft_lock when the Lock script writes to the request FIFO.
+_LOCK_REQ="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm_lock_req"
+_LOCK_ACK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm_lock_ack"
+rm -f "$_LOCK_REQ" "$_LOCK_ACK"
+mkfifo "$_LOCK_REQ" "$_LOCK_ACK"
+while IFS= read -r _ < "$_LOCK_REQ"; do
+    LD_PRELOAD=/tmp/time.so /usr/local/bin/ft_lock
+    echo done > "$_LOCK_ACK"
+done &
+_LOCK_WATCHER_PID=$!
+
+# VS Code cannot launch fresh Electron from inside the overlay (Ubuntu ELF vs Arch libs).
+# Watcher on the host launches code with the full Ubuntu environment.
+_CODE_REQ="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm_code_req"
+rm -f "$_CODE_REQ"
+mkfifo "$_CODE_REQ"
+while IFS= read -r _cwd < "$_CODE_REQ"; do
+    code "${_cwd:-$HOME}" &>/dev/null &
+done &
+_CODE_WATCHER_PID=$!
+
 # Snapshot GNOME theme settings before killing gnome-shell.
 # When gnome-shell restarts after bspwm exits it resets these to its defaults
 # (prefer-light / Yaru), so we restore them on the way out.
@@ -59,7 +81,7 @@ killall -9 gnome-shell 2>/dev/null
 _deadline=$(( $(date +%s) + 10 ))
 while pgrep -x gnome-shell > /dev/null 2>&1; do
     [ "$(date +%s)" -ge "$_deadline" ] && break
-    sleep 0.2
+    sleep 0.1
 done
 # sleep 0.3
 unset _deadline
@@ -75,63 +97,30 @@ swap_zshrc() {
 }
 swap_zshrc
 
-# Generate GNOME bin wrappers — check /usr/bin/ (the host path, which becomes /host/usr/
-# inside the inner bspwm junest via --bind /usr /host/usr).
-# Wrappers use the host's own ld-linux + lib path to avoid Arch/Ubuntu ABI mismatch.
-GNOME_WRAPPERS="$HOME/.cache/bspwm/gnome-wrappers"
-mkdir -p "$GNOME_WRAPPERS"
+# Overlay Ubuntu's /usr as lower layer under Arch's — Arch takes priority, Ubuntu fills
+# the gaps. No wrappers needed: Ubuntu tools are at their native paths inside bwrap.
+rm -rf "$HOME/.junest/.overlay-work"
+mkdir -p "$HOME/.junest/.overlay-work"
 
-# Host ld-linux is at /usr/lib/x86_64-linux-gnu/ (not /usr/lib64/ — that's a broken symlink
-# inside bwrap because it resolves via /lib/ which maps to Arch's lib).
-# Inside the inner bspwm junest the host /usr is mounted at /host/usr.
-_LDLINUX_INNER="/host/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2"
-_LIBPATH=$(find /usr/lib/x86_64-linux-gnu /usr/lib -maxdepth 2 -type d 2>/dev/null \
-    | sed 's|^/usr/|/host/usr/|' | tr '\n' ':' | sed 's/:$//')
-
-for _bin in /usr/bin/gnome-* /usr/bin/nautilus /usr/bin/gedit \
-            /usr/bin/eog /usr/bin/evince /usr/bin/baobab \
-            /usr/bin/cheese /usr/bin/totem /usr/bin/seahorse \
-            /usr/bin/file-roller /usr/bin/rhythmbox \
-            /usr/bin/firefox /usr/bin/firefox-esr \
-            /usr/bin/chromium /usr/bin/chromium-browser \
-            /usr/bin/google-chrome /usr/bin/google-chrome-stable \
-            /usr/bin/thunderbird /usr/bin/vlc \
-            /usr/bin/libreoffice /usr/bin/gimp \
-            /usr/bin/brave /usr/bin/discord /usr/bin/obs \
-            /usr/bin/pavucontrol /usr/bin/wine \
-            /usr/bin/zenity /usr/bin/code \
-            /usr/bin/thunar /usr/bin/xdg-open /usr/bin/xdg-mime; do
-    [ -x "$_bin" ] || continue
-    _name=$(basename "$_bin")
-    # Resolve symlinks to find the real file
-    _real=$(readlink -f "$_bin")
-    if file "$_real" | grep -q ELF; then
-        # ELF binary: use ld-linux with full host lib path
-        printf '#!/bin/sh\nGSETTINGS_SCHEMA_DIR=/host/usr/share/glib-2.0/schemas \\\n  XDG_DATA_DIRS=/host/usr/share:/host/usr/local/share \\\n  exec %s --library-path "%s" /host/usr/bin/%s "$@"\n' \
-            "$_LDLINUX_INNER" "$_LIBPATH" "$_name" > "$GNOME_WRAPPERS/$_name"
-    else
-        # Shell script: exec directly — Ubuntu scripts (brave, code, xdg-open…) bundle
-        # their own libs or handle lib paths internally. DO NOT inject LD_LIBRARY_PATH
-        # here: it propagates to child processes and breaks Arch's /bin/sh (Arch glibc
-        # 2.38 requires symbols not in Ubuntu's libc 2.35).
-        printf '#!/bin/sh\nGSETTINGS_SCHEMA_DIR=/host/usr/share/glib-2.0/schemas \\\n  XDG_DATA_DIRS=/host/usr/share:/host/usr/local/share \\\n  exec /host/usr/bin/%s "$@"\n' \
-            "$_name" > "$GNOME_WRAPPERS/$_name"
-    fi
-    chmod +x "$GNOME_WRAPPERS/$_name"
-done
-# Steam is installed inside junest (Arch), not on Ubuntu — no gnome wrapper needed.
-# The junest-side launcher is at /usr/local/bin/steam inside the junest root.
-
-echo "GNOME wrappers generated: $(ls "$GNOME_WRAPPERS" | wc -l) scripts" >> "$LOG"
-unset _bin _name _LDLINUX_INNER _LIBPATH
-
-# Prepend GNOME wrappers dir so they're found inside bspwm/junest
-export PATH="$GNOME_WRAPPERS:$PATH"
+# Recreate Steam library dir — /tmp is wiped on reboot but Steam expects this path
+mkdir -p /tmp/SteamLibrary/steamapps
 
 # launch bspwm via junest (proot with fakeroot for sudo/pacman support)
 echo "launching bspwm at $(date '+%T.%3N'), gnome-shell: $(pgrep -x gnome-shell || echo none)" >> "$LOG"
-"$HOME/.local/share/junest/bin/junest" -b "--bind /sgoinfre /sgoinfre --bind /goinfre /goinfre --bind /dev/shm /dev/shm --bind /run /run --bind /usr /host/usr" -- DRI_PRIME=1 bspwm 2>>"$LOG"
+"$HOME/.local/share/junest/bin/junest" -b \
+"--bind /sgoinfre /sgoinfre \
+--bind /goinfre /goinfre \
+--bind /dev/shm /dev/shm \
+--bind /run /run \
+--overlay-src /usr \
+--overlay $HOME/.junest/usr $HOME/.junest/.overlay-work /usr" -- bspwm 2>>"$LOG"
 echo "bspwm exited: $? at $(date '+%T.%3N')" >> "$LOG"
+
+kill "$_LOCK_WATCHER_PID" 2>/dev/null
+kill "$_CODE_WATCHER_PID" 2>/dev/null
+rm -f "$_CODE_REQ"
+
+rm -f "$_LOCK_REQ" "$_LOCK_ACK"
 
 # Swap ~/.zshrc <-> ~/.zshrc.bak back on bspwm exit
 swap_zshrc
@@ -156,16 +145,9 @@ for pid in $BINARY_PIDS; do kill -CONT $pid 2>/dev/null; done
 
 # gnome-shell was hard-killed at launch — wait for gnome-session to restart it,
 # then force-start it if it doesn't come back within 3 seconds
-sleep 1
+sleep 0.1
 if ! pgrep -x gnome-shell > /dev/null; then
     DBUS=$(grep -z DBUS_SESSION_BUS_ADDRESS /proc/${BINARY_PIDS_NOW%% *}/environ 2>/dev/null | tr '\0' '\n' | head -1)
     [ -n "$DBUS" ] && export $DBUS
     gnome-shell --replace &
 fi
-
-# Restore GNOME dark theme — gnome-shell resets these to defaults on restart
-sleep 1
-[ -n "$GNOME_COLOR_SCHEME" ] && dconf write /org/gnome/desktop/interface/color-scheme "$GNOME_COLOR_SCHEME"
-[ -n "$GNOME_GTK_THEME" ]    && dconf write /org/gnome/desktop/interface/gtk-theme    "$GNOME_GTK_THEME"
-[ -n "$GNOME_ICON_THEME" ]   && dconf write /org/gnome/desktop/interface/icon-theme   "$GNOME_ICON_THEME"
-[ -n "$GNOME_CURSOR_THEME" ] && dconf write /org/gnome/desktop/interface/cursor-theme "$GNOME_CURSOR_THEME"
