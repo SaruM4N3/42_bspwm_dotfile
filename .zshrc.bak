@@ -46,6 +46,8 @@ zstyle ':completion:*' matcher-list \
 		'm:{a-zA-Z}={A-Za-z}' \
 		'+r:|[._-]=* r:|=*' \
 		'+l:|=*'
+zstyle ':vcs_info:*' enable git
+zstyle ':vcs_info:git:*' check-for-changes false
 zstyle ':vcs_info:*' formats ' %B%s-[%F{magenta}%f %F{yellow}%b%f]-'
 zstyle ':fzf-tab:*' fzf-flags --style=full --height=90% --pointer '>' \
                 --color 'pointer:green:bold,bg+:-1:,fg+:green:bold,info:blue:bold,marker:yellow:bold,hl:gray:bold,hl+:yellow:bold' \
@@ -205,7 +207,7 @@ typeset -U path  # deduplicate PATH entries
 #  ┌─┐┬┌┬┐  ┌─┐┬  ┬┌─┐┌─┐┌─┐┌─┐
 #  │ ┬│ │   ├─┤│  │├─┤└─┐├┤ └─┐
 #  └─┘┴ ┴   ┴ ┴┴─┘┴┴ ┴└─┘└─┘└─┘
-source ~/.oh-my-zsh/plugins/git/git.plugin.zsh
+# source ~/.oh-my-zsh/plugins/git/git.plugin.zsh
 
 # Self-check: if loaded outside junest (GNOME), swap back to GNOME config and reload
 _swap_zshrc() {

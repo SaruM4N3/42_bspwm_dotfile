@@ -3,57 +3,57 @@
 #############################
 
 # (Lovelace) colorscheme from Elenapan
-bg="#1D1F28"
-fg="#FDFDFD"
+bg="#1A1B26"
+fg="#C0CAF5"
 
-black="#282A36"
-red="#F37F97"
-green="#5ADECD"
-yellow="#F2A272"
-blue="#8897F4"
-magenta="#C574DD"
-cyan="#79E6F3"
-white="#FDFDFD"
-blackb="#414458"
-redb="#FF4971"
-greenb="#18E3C8"
-yellowb="#FF8037"
-blueb="#556FFF"
-magentab="#B043D1"
-cyanb="#3FDCEE"
-whiteb="#BEBEC1"
+black="#15161E"
+red="#F7768E"
+green="#9ECE6A"
+yellow="#E0AF68"
+blue="#7AA2F7"
+magenta="#BB9AF7"
+cyan="#7DCFFF"
+white="#A9B1D6"
+blackb="#414868"
+redb="#F7768E"
+greenb="#9ECE6A"
+yellowb="#E0AF68"
+blueb="#7AA2F7"
+magentab="#BB9AF7"
+cyanb="#7DCFFF"
+whiteb="#C0CAF5"
 
-accent_color="#1F222B"
+accent_color="#24283B"
 arch_icon="#0f94d2"
 
 # Bspwm options
 BORDER_WIDTH="2"		# Bspwm border
-WINDOW_GAP="3"			# Gap between windows
+WINDOW_GAP="6"			# Gap between windows
 TOP_PADDING="53"
 BOTTOM_PADDING="1"
 LEFT_PADDING="1"
 RIGHT_PADDING="1"
-NORMAL_BC="#1C71D8"		# Normal border color
-FOCUSED_BC="#26A269"	# Focused border color
+NORMAL_BC="#1C71D8"
+FOCUSED_BC="#24FF00"
 
 # Terminal font & size
-term_font_size="11"
+term_font_size="8"
 term_font_name="Adwaita Mono"
 
 # Picom options
 # Bar sizing (per resolution — edited via RiceSettings)
-BAR_HEIGHT_4K="40"
+BAR_HEIGHT_4K="35"
 BAR_HEIGHT_1080="24"
-BAR_PIXELSIZE_4K="10"
+BAR_PIXELSIZE_4K="12"
 BAR_PIXELSIZE_1080="7"
 
 P_FADE="false"
 P_SHADOWS="false"
-SHADOW_C="#26A269"		# Shadow color
-P_CORNER_R="14"			# Corner radius (0 = disabled)
+SHADOW_C="#000000"
+P_CORNER_R="18"			# Corner radius (0 = disabled)
 P_BLUR="false"			# Blur true|false
 P_ANIMATIONS="@"		# (@ = enable) (# = disable)
-P_TERM_OPACITY="0.7"	# Terminal transparency. Range: 0.1 - 1.0 (1.0 = disabled)
+P_TERM_OPACITY="0.70"	# Terminal transparency. Range: 0.1 - 1.0 (1.0 = disabled)
 
 # Dunst
 dunst_offset='(28, 65)'
