@@ -22,6 +22,7 @@ pick_random_wall() {
         "Animated")
             _last="$HOME/.config/bspwm/config/.animwall_last"
             _wall=$([ -f "$_last" ] && cat "$_last" || echo "$ANIMATED_WALL")
+            xsetroot -solid "${bg:-#1A1B26}"
             AnimatedWall --stop --start "$_wall"
             WallSync --animated &
             ;;

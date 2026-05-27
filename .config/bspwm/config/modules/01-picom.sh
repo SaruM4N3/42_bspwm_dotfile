@@ -2,12 +2,6 @@
 
 picom_conf_file="$HOME/.config/bspwm/config/picom.conf"
 picom_animations_file="$HOME/.config/bspwm/config/picom-animations.conf"
-picom_backup="$HOME/.local/share/gh0stzk/config/bspwm/config/picom.conf"
-picom_animations_backup="$HOME/.local/share/gh0stzk/config/bspwm/config/picom-animations.conf"
-
-# Restore from backup if files are empty
-[ ! -s "$picom_conf_file" ] && [ -f "$picom_backup" ] && cp "$picom_backup" "$picom_conf_file"
-[ ! -s "$picom_animations_file" ] && [ -f "$picom_animations_backup" ] && cp "$picom_animations_backup" "$picom_animations_file"
 
 sed -i "$picom_conf_file" \
     -e "s/shadow-color = .*/shadow-color = \"${SHADOW_C}\"/" \

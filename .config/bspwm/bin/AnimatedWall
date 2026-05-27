@@ -1,15 +1,14 @@
 #!/bin/sh
 # =============================================================
-# Author:  gh0stzk
-# Repo:    https://github.com/gh0stzk/dotfiles
-# Date:    24.04.2025
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
 #
-# AnimateWall - Animated Wallpaper for BSPWM
-# Info:  Script to set animated backgrounds using
-#        xwinwrap and mpv. Supports automatic aspect ratio adjustment.
-#
-# Copyright (C) 2021-2025 gh0stzk <z0mbi3.zk@protonmail.com>
-# Licensed under GPL-3.0 license
+#  AnimatedWall - handle animated wall
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
 start() {
@@ -56,11 +55,13 @@ start() {
         esac
 
         # INFO: for each screen, launch the video with the appropriate aspect ratio
+        # Use XV output — bypasses Mesa/DRI entirely (Arch mesa-tkg-git requires DRM 3.54,
+        # host kernel only has 3.42, so all GPU-backed vo backends fail).
         xwinwrap -g "$geometry" -un -fdt -ni -b -nf \
-            -- mpv --hwdec=auto -vo gpu --no-audio --no-border --no-config \
+            -- mpv --hwdec=no -vo xv --no-audio --no-border --no-config \
             --no-window-dragging --no-input-default-bindings --no-osd-bar \
             --no-sub --loop -wid WID --cache=yes --vd-lavc-threads=0 \
-            --video-aspect-override="$videoaspect" --video-scale-x=1 --video-scale-y=1 \
+            --video-aspect-override="$videoaspect" \
             "$video_path" > /dev/null 2>&1 &
     done
 }
