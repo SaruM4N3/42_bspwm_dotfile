@@ -1,0 +1,12 @@
+#!/bin/sh
+# =============================================================
+#  discord — launcher wrapper for bspwm/junest environment
+#
+#  junest ships mesa-tkg-git which requires DRM 3.54; the 42-school
+#  host kernel only provides DRM 3.42.  Electron's GPU process init
+#  fails with an EGL/DRI error, showing a black window or crashing.
+#  --disable-gpu bypasses the GPU process entirely (SwiftShader CPU
+#  compositing) so Discord runs reliably at the cost of GPU effects.
+# =============================================================
+
+exec /usr/bin/discord --disable-gpu --no-sandbox "$@"
