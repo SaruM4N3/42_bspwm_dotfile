@@ -99,6 +99,23 @@ grep -rl "/home/zsonie" "$HOME/.config/bspwm" "$HOME/.bspwminstaller" 2>/dev/nul
     | xargs -r sed -i "s|/home/zsonie|$HOME|g"
 info "Hardcoded paths rewritten to: $HOME"
 
+# GL shim: symlinks to host Ubuntu mesa so all bspwm apps get hardware OpenGL.
+# Arch mesa (any version) can't negotiate GLX visuals with Ubuntu's Xorg server.
+# Ubuntu mesa 23.2.1 supports DRM 3.42 (kernel 5.15) natively.
+GL_SHIM="$HOME/.config/bspwm/gl-host"
+mkdir -p "$GL_SHIM"
+HLIB="/usr/lib/x86_64-linux-gnu"
+for lib in \
+    libGL.so libGL.so.1 libGL.so.1.7.0 \
+    libGLX.so.0 libGLX.so libGLX_mesa.so.0 \
+    libGLdispatch.so.0 libGLdispatch.so \
+    libEGL.so.1 libEGL.so libEGL_mesa.so.0 \
+    libGLESv2.so.2 libGLESv1_CM.so.1
+do
+    [ -e "$HLIB/$lib" ] && ln -sf "$HLIB/$lib" "$GL_SHIM/$lib"
+done
+info "GL host shim created at $GL_SHIM"
+
 # Animated wallpapers (4K archives, if present)
 mkdir -p "$HOME/Pictures"
 for tar in "$REPO/Pictures"/AnimatedWallpaper-*.tar; do
