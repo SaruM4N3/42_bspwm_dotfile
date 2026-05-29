@@ -156,10 +156,11 @@ pgrep -x mpd >/dev/null || mpd "${HOME}"/.config/mpd/mpd.conf
 # Kill gsd-power to prevent auto-brightness via iio-sensor-proxy
 pkill -x gsd-power 2>/dev/null
 
-# Launch picom — GLX fails on this machine (AMD driver not compatible in bwrap),
-# go straight to xrender to avoid the "another compositor" race from double-start
+# Launch picom with GLX backend — now available via the GL host shim
+# (GL_SHIM + LIBGL_DRIVERS_PATH set above redirects to Ubuntu mesa 23.2.1
+# which supports DRM 3.42; the GLX shader renders proper rounded border colors)
 pkill -x picom 2>/dev/null
-env -u DRI_PRIME picom --config "${HOME}"/.config/bspwm/config/picom.conf --backend xrender &
+picom --config "${HOME}"/.config/bspwm/config/picom.conf &
 
 # Animated wallpaper is restored by ThemeLaunch → 06-wallpaper.sh (ENGINE=Animated)
 
