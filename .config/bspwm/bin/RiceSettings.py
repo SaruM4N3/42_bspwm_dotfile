@@ -419,6 +419,17 @@ CSS = """
 * { font-family: "JetBrainsMono Nerd Font Mono", "Noto Sans", sans-serif; }
 window { background-color: #1a1b26; }
 
+.collapse-header {
+    background: transparent; border: none; border-radius: 8px;
+    padding: 7px 4px; box-shadow: none; text-shadow: none;
+}
+.collapse-header:hover { background: rgba(255,255,255,0.04); }
+.collapse-arrow { font-size: 11px; color: rgba(253,253,253,0.35); min-width: 16px; }
+.collapse-title {
+    font-size: 10px; font-weight: bold;
+    color: rgba(253,253,253,0.28);
+}
+
 .topbar {
     background-color: #16171f; min-height: 52px;
     padding: 0 18px; border-bottom: 1px solid rgba(255,255,255,0.055);
@@ -602,6 +613,42 @@ def make_group(title, rows):
         l.get_style_context().add_class("group-lbl")
         vb.pack_start(l, False, False, 0)
     vb.pack_start(make_card(rows), False, False, 0)
+    return vb
+
+def make_collapsible_group(title, rows, expanded=False):
+    """A group card that can be toggled open/closed via a clickable header."""
+    vb = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+
+    arrow = Gtk.Label(label="▾" if expanded else "▸", xalign=0)
+    arrow.get_style_context().add_class("collapse-arrow")
+    arrow.set_margin_end(6)
+
+    lbl = Gtk.Label(label=title.upper(), xalign=0)
+    lbl.get_style_context().add_class("collapse-title")
+    lbl.set_hexpand(True)
+
+    hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+    hbox.pack_start(arrow, False, False, 0)
+    hbox.pack_start(lbl,   True,  True,  0)
+
+    header = Gtk.Button()
+    header.get_style_context().add_class("collapse-header")
+    header.add(hbox)
+
+    revealer = Gtk.Revealer()
+    revealer.set_transition_type(Gtk.RevealerTransitionType.SLIDE_DOWN)
+    revealer.set_transition_duration(180)
+    revealer.set_reveal_child(expanded)
+    revealer.add(make_card(rows))
+
+    def toggle(_b):
+        rev = not revealer.get_reveal_child()
+        revealer.set_reveal_child(rev)
+        arrow.set_text("▾" if rev else "▸")
+
+    header.connect("clicked", toggle)
+    vb.pack_start(header,   False, False, 0)
+    vb.pack_start(revealer, False, False, 0)
     return vb
 
 def make_spin(val, lo, hi, step=1, digits=0):
@@ -949,14 +996,15 @@ def colors_page(cfg):
                      [schemes_grp, base, palette, bright, actions_grp])
 
 
-def borders_page(cfg):
+def window_page(cfg):
+    # ── Borders ───────────────────────────────────────────────────────────────
     bw  = make_spin(cfg.get("BORDER_WIDTH","2"), 0, 20)
     gap = make_spin(cfg.get("WINDOW_GAP","3"), 0, 100)
     nbc = ColorSwatch(cfg.get("NORMAL_BC","#1C71D8"))
     fbc = ColorSwatch(cfg.get("FOCUSED_BC","#26A269"))
 
-    btn = apply_btn()
-    def apply(btn):
+    borders_btn = apply_btn("Apply Borders")
+    def apply_borders(btn):
         cfg.set("BORDER_WIDTH", str(int(bw.get_value())))
         cfg.set("WINDOW_GAP",   str(int(gap.get_value())))
         cfg.set("NORMAL_BC",    nbc.get_hex())
@@ -966,22 +1014,10 @@ def borders_page(cfg):
         subprocess.run(["bspc","config","window_gap",           cfg.get("WINDOW_GAP")])
         subprocess.run(["bspc","config","normal_border_color",  cfg.get("NORMAL_BC")])
         subprocess.run(["bspc","config","focused_border_color", cfg.get("FOCUSED_BC")])
-        flash_btn(btn, "✓ Applied!")
-        notify("Borders applied.")
-    btn.connect("clicked", safe_apply(apply))
+        flash_btn(btn, "✓ Applied!"); notify("Borders applied.")
+    borders_btn.connect("clicked", safe_apply(apply_borders))
 
-    return page_wrap("Borders", "Window borders and gaps.", [
-        make_group("Window Borders", [
-            make_row("Border Width",  bw),
-            make_row("Window Gap",    gap),
-            make_row("Normal Color",  nbc, "Unfocused window border"),
-            make_row("Focused Color", fbc, "Active window border"),
-        ]),
-        make_group("", [make_row("Apply to running bspwm", btn)]),
-    ])
-
-
-def picom_page(cfg):
+    # ── Picom ─────────────────────────────────────────────────────────────────
     fade   = make_switch(cfg.get("P_FADE")       == "true")
     shadow = make_switch(cfg.get("P_SHADOWS")    == "true")
     blur   = make_switch(cfg.get("P_BLUR")       == "true")
@@ -990,9 +1026,8 @@ def picom_page(cfg):
     corner = make_spin(cfg.get("P_CORNER_R","0"), 0, 50)
     opac   = make_spin(cfg.get("P_TERM_OPACITY","1.0"), 0.1, 1.0, 0.05, 2)
 
-    backends = ["glx","xrender","egl"]
-    cur_backend = picom_get("backend") or "glx"
-    backend_combo = make_combo(backends, cur_backend)
+    backends      = ["glx","xrender","egl"]
+    backend_combo = make_combo(backends, picom_get("backend") or "glx")
 
     def dspin(trigger):
         return make_spin(anim_get_duration(trigger), 0.05, 2.0, 0.05, 2)
@@ -1003,8 +1038,8 @@ def picom_page(cfg):
     d_hide  = dspin("hide")
     d_geom  = dspin("geometry")
 
-    btn = apply_btn()
-    def apply(btn):
+    picom_btn = apply_btn("Apply Picom")
+    def apply_picom(btn):
         cfg.set("P_FADE",         "true" if fade.get_active()   else "false")
         cfg.set("P_SHADOWS",      "true" if shadow.get_active() else "false")
         cfg.set("SHADOW_C",       shc.get_hex())
@@ -1025,33 +1060,35 @@ def picom_page(cfg):
         subprocess.Popen(["bash","-c",
             "pkill -x picom; sleep 0.2; picom --config ~/.config/bspwm/config/picom.conf &"],
             env=env)
-        flash_btn(btn, "✓ Applied!")
-        notify("Picom applied.")
-    btn.connect("clicked", safe_apply(apply))
+        flash_btn(btn, "✓ Applied!"); notify("Picom applied.")
+    picom_btn.connect("clicked", safe_apply(apply_picom))
 
-    return page_wrap("Picom", "Compositor effects and transparency.", [
-        make_group("Backend", [
-            make_row("Renderer", backend_combo, "glx = GPU  |  xrender = CPU  |  egl = modern GPU"),
+    return page_wrap("Window", "Borders, gaps and compositor settings.", [
+        make_group("Borders & Gaps", [
+            make_row("Border Width",  bw),
+            make_row("Window Gap",    gap),
+            make_row("Normal Color",  nbc, "Unfocused window border"),
+            make_row("Focused Color", fbc, "Active window border"),
+            make_row("Apply to running bspwm", borders_btn),
         ]),
-        make_group("Effects", [
-            make_row("Fade",             fade,   "Fade windows in/out"),
-            make_row("Shadows",          shadow, "Drop shadows on windows"),
+        make_group("Compositor", [
+            make_row("Renderer",         backend_combo, "glx = GPU  |  xrender = CPU"),
+            make_row("Fade",             fade,          "Fade windows in/out"),
+            make_row("Shadows",          shadow,        "Drop shadows on windows"),
             make_row("Shadow Color",     shc),
-            make_row("Blur",             blur,   "Background blur"),
-            make_row("Animations",       anim,   "Enable open/close animations"),
+            make_row("Blur",             blur,          "Background blur"),
+            make_row("Animations",       anim,          "Enable open/close animations"),
+            make_row("Corner Radius",    corner,        "Rounded corners (0 = off)"),
+            make_row("Terminal Opacity", opac,          "0.1 transparent → 1.0 opaque"),
         ]),
-        make_group("Tweaks", [
-            make_row("Corner Radius",    corner, "Rounded corners (0 = off)"),
-            make_row("Terminal Opacity", opac,   "0.1 transparent → 1.0 opaque"),
-        ]),
-        make_group("Animation Durations", [
+        make_collapsible_group("Animation Durations", [
             make_row("Open",     d_open,  "Window opening"),
             make_row("Close",    d_close, "Window closing"),
             make_row("Show",     d_show,  "Workspace switch in"),
             make_row("Hide",     d_hide,  "Workspace switch out"),
             make_row("Geometry", d_geom,  "Window resize/move"),
         ]),
-        make_group("", [make_row("Restart picom with new settings", btn)]),
+        make_group("", [make_row("Restart picom with new settings", picom_btn)]),
     ])
 
 
@@ -1074,28 +1111,26 @@ def bar_page(cfg):
     module_entries = {}
     layout_entries = {}
 
-    def module_section(bar):
+    def module_section(bar, first=False):
         label = BAR_LABELS.get(bar, bar)
-        # Position / size
         e_w   = make_entry(bar_get_prop(bar, "width",    ""), 80)
         e_ox  = make_entry(bar_get_prop(bar, "offset-x", ""), 80)
         e_oy  = make_entry(bar_get_prop(bar, "offset-y", ""), 60)
         layout_entries[bar] = {"width": e_w, "offset-x": e_ox, "offset-y": e_oy}
-        # Modules
         e_l = make_entry(bar_get_modules(bar, "left"),   220)
         e_c = make_entry(bar_get_modules(bar, "center"), 220)
         e_r = make_entry(bar_get_modules(bar, "right"),  220)
         module_entries[bar] = {"left": e_l, "center": e_c, "right": e_r}
-        return make_group(f"{bar}  —  {label}", [
+        return make_collapsible_group(f"{bar}  —  {label}", [
             make_row("Width",    e_w,  "e.g. 10% or 200"),
             make_row("Offset X", e_ox, "e.g. 5% or 80"),
             make_row("Offset Y", e_oy, "pixels from edge"),
             make_row("Left",     e_l,  "Space-separated module names"),
             make_row("Center",   e_c),
             make_row("Right",    e_r),
-        ])
+        ], expanded=first)
 
-    mod_groups = [module_section(b) for b in BARS]
+    mod_groups = [module_section(b, first=(i == 0)) for i, b in enumerate(BARS)]
 
     btn = apply_btn()
     def apply(btn):
@@ -1382,28 +1417,16 @@ def keybinds_page(_cfg):
     current_rows  = []
     current_title = ""
 
+    section_index = [0]   # mutable counter to expand first section
+
     def flush_section(title, rows):
         if not rows:
             return
-        grp_lbl = Gtk.Label(
-            label=(title.upper() if title else "GENERAL"), xalign=0)
-        grp_lbl.get_style_context().add_class("group-lbl")
-
-        lb = Gtk.ListBox()
-        lb.set_selection_mode(Gtk.SelectionMode.NONE)
-        lb.get_style_context().add_class("card-list")
-        for row_box in rows:
-            lb.add(row_box)
-
-        card = Gtk.Frame()
-        card.get_style_context().add_class("card")
-        card.set_shadow_type(Gtk.ShadowType.NONE)
-        card.add(lb)
-
-        vb = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        vb.pack_start(grp_lbl, False, False, 0)
-        vb.pack_start(card,    False, False, 0)
-        groups_vbox.pack_start(vb, False, False, 0)
+        first = section_index[0] == 0
+        section_index[0] += 1
+        grp = make_collapsible_group(
+            title if title else "General", rows, expanded=first)
+        groups_vbox.pack_start(grp, False, False, 0)
 
     for entry in entries:
         if entry['type'] == 'section':
@@ -1487,8 +1510,7 @@ def keybinds_page(_cfg):
 
 PAGES = [
     ("●", "Colors",    colors_page),
-    ("▣", "Borders",   borders_page),
-    ("✦", "Picom",     picom_page),
+    ("▣", "Window",    window_page),
     ("▬", "Bar",       bar_page),
     ("◆", "Dunst",     dunst_page),
     ("◈", "Wallpaper", wallpaper_page),
