@@ -22,6 +22,16 @@ LD_LIBRARY_PATH=/usr/lib ldconfig 2>/dev/null || true
 export PATH="$HOME/.config/bspwm/bin:$HOME/.cache/bspwm/gnome-wrappers:$PATH"
 
 export LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+
+# Use Ubuntu's mesa GL/EGL libraries so all apps get hardware-accelerated OpenGL.
+# junest's Arch mesa (even 24.3.4) can't negotiate GLX visuals with Ubuntu's Xorg
+# server. Ubuntu's mesa 23.2.1 supports DRM 3.42 (kernel 5.15) natively.
+# GL_SHIM contains only GL/EGL symlinks — not libstdc++/glibc — so Arch binaries
+# keep their own C++ runtime while getting the compatible GL stack.
+export GL_SHIM="$HOME/.config/bspwm/gl-host"
+export LD_LIBRARY_PATH="$GL_SHIM${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+
 export XDG_CURRENT_DESKTOP='bspwm'
 ## Fix java applications
 export _JAVA_AWT_WM_NONREPARENTING=1

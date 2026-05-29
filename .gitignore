@@ -15,4 +15,4 @@
 *.tmp
 *.bak
 !.zshrc.bak
-*.swp
+*.swp.config/bspwm/gl-host/
