@@ -1,18 +1,14 @@
 #!/bin/sh
 # =============================================================
-# Author: gh0stzk
-# Repo:   https://github.com/gh0stzk/dotfiles
-# Date:   02.02.2025 16:50:44
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
 #
-# SoftReload - Dynamic reloading of graphical components
-# Features:
-#   ✔ Reload POLYBAR or EWW depending on the theme you are in.
-#   ✔ Reload PICOM, XSETTINGSD, SXHKD, DUNST daemons and its configurations.
-#   ✔ Restart the Eww daemon if it is active
-#   ✔ Sends a notification that the configuration has been successfully reloaded.
-#
-# Copyright (C) 2021-2025 gh0stzk <z0mbi3.zk@protonmail.com>
-# Licensed under GPL-3.0 license
+# SoftReload - SoftReload bspwm by reloading stuff like eww picom etc
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
 CONFIG_DIR="$HOME/.config/bspwm"
@@ -20,9 +16,17 @@ RICES_DIR="$CONFIG_DIR/rices"
 DUNST_CONFIG="$CONFIG_DIR/config/dunstrc"
 read -r CURRENT_RICE < "$CONFIG_DIR"/.rice
 
-save-config.sh
+save-config
 
 reload() {
+    # Restart picom FIRST so it is ready before polybar creates its ARGB window.
+    # Full restart instead of USR1: SIGUSR1 hot-reload resets picom's texture cache
+    # and damage state mid-session, causing border color and resize glitch regressions.
+    pkill -x picom 2>/dev/null || true
+    sleep 0.1
+    picom --config "${HOME}/.config/bspwm/config/picom.conf" --backend xrender &
+    sleep 0.15
+
     # Reload bars polybar or eww
     if pgrep -x polybar >/dev/null; then
         polybar-msg cmd restart >/dev/null
@@ -31,8 +35,7 @@ reload() {
         [ -d "$eww_bar_config" ] && eww reload -c "$eww_bar_config"
     fi
 
-    # Reload common services
-    pkill -USR1 -x picom 2>/dev/null || true
+    # Reload remaining services
     pkill -1 xsettingsd 2>/dev/null || true
     pkill -USR1 -x sxhkd 2>/dev/null || true
     dunstctl reload "$DUNST_CONFIG" 2>/dev/null || true
