@@ -420,14 +420,15 @@ CSS = """
 window { background-color: #1a1b26; }
 
 .collapse-header {
-    background: transparent; border: none; border-radius: 8px;
-    padding: 7px 4px; box-shadow: none; text-shadow: none;
+    background: rgba(255,255,255,0.05); border: none; border-radius: 9px;
+    padding: 10px 14px; box-shadow: none; text-shadow: none;
 }
-.collapse-header:hover { background: rgba(255,255,255,0.04); }
-.collapse-arrow { font-size: 11px; color: rgba(253,253,253,0.35); min-width: 16px; }
+.collapse-header:hover { background: rgba(136,151,244,0.12); }
+.collapse-header:active { background: rgba(136,151,244,0.2); }
+.collapse-arrow { font-size: 13px; color: rgba(253,253,253,0.6); min-width: 18px; }
 .collapse-title {
-    font-size: 10px; font-weight: bold;
-    color: rgba(253,253,253,0.28);
+    font-size: 12px; font-weight: bold;
+    color: rgba(253,253,253,0.82);
 }
 
 .topbar {
