@@ -41,6 +41,10 @@ super + Escape
 super + {_,alt + }Return
     OpenApps --{terminal,floating}
 
+# Open btop system monitor
+super + ctrl + Return
+    OpenApps --btop
+
 # App launcher (super tap via xcape → F13)
 @F13
     OpenApps --menu
@@ -49,7 +53,7 @@ super + {_,alt + }Return
 alt + @space
     RiceSelector
 
-# Rice Setting 
+# Rice Setting
 super + shift + s
     RiceSettings
 
@@ -94,7 +98,7 @@ super + alt + w
     WallSelect
 
 # Mount Android phones
-# super + alt + a
+# super +
     # OpenApps --android
 
 # Network Manager

@@ -1,11 +1,14 @@
 #!/bin/sh
 # =============================================================
-# Script to control prefered apps to launch for all themes
-# Author:  z0mbi3
-# Repo:    https://github.com/gh0stzk/dotfiles
-# Date:    24.04.2025
-# Copyright (C) 2021-2025 gh0stzk <z0mbi3.zk@protonmail.com>
-# Licensed under GPL-3.0 license
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
+#  OpenApps - Where everything is defined as default
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
 WIDGET_DIR="$HOME/.config/bspwm/eww"
@@ -32,9 +35,6 @@ case "$1" in
 	--netmanager)
 		NetManagerDM
 		;;
-	--pass)
-		RofiPass
-		;;
 	--bluetooth)
 		rofi-bluetooth
 		;;
@@ -46,9 +46,6 @@ case "$1" in
 		;;
 	--powermenu)
 		PowerMenu
-		;;
-	--android)
-		AndroidMount
 		;;
 	--keyboard)
 		KeyBoardL
@@ -65,8 +62,11 @@ case "$1" in
 	--fetch)
 		Term --fetch
 		;;
+	--btop)
+		Term --btop
+		;;
 	--scratch)
-		Bspwm-ScratchPad
+		scratchPad
 		;;
 		# Apps
 	--filemanager)
