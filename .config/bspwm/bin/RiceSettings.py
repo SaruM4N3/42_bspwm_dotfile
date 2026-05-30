@@ -124,6 +124,41 @@ def anim_set_duration(trigger, val):
     except Exception as e:
         print(f"[anim_set_duration] {e}")
 
+def dunst_anim_get(which):
+    """Get dunst animation duration. which = 'close' or 'open'."""
+    defaults = {"close": "0.30", "open": "0.40"}
+    try:
+        with open(PICOM_ANIM) as f: raw = f.read()
+        m = re.search(r"class_g\s*=\s*'Dunst'(.*?)(?=\n\s*\},?\s*\n#|\Z)", raw, re.DOTALL)
+        if m:
+            block = m.group(1)
+            # find the inner animation block containing 'which' trigger
+            for inner in re.findall(r'\{[^{}]*\}', block, re.DOTALL):
+                if f'"{which}"' in inner:
+                    d = re.search(r'duration\s*=\s*([0-9.]+)', inner)
+                    if d: return d.group(1)
+    except Exception: pass
+    return defaults.get(which, "0.30")
+
+def dunst_anim_set(which, val):
+    """Set dunst animation duration. which = 'close' or 'open'."""
+    try:
+        with open(PICOM_ANIM) as f: raw = f.read()
+        # Find Dunst class block, then replace duration in the right inner block
+        def replace_dunst(m):
+            block = m.group(0)
+            def replace_inner(im):
+                inner = im.group(0)
+                if f'"{which}"' in inner:
+                    return re.sub(r'(duration\s*=\s*)[0-9.]+', rf'\g<1>{val}', inner, count=1)
+                return inner
+            return re.sub(r'\{[^{}]*\}', replace_inner, block, flags=re.DOTALL)
+        new = re.sub(r"class_g\s*=\s*'Dunst'.*?(?=\n\s*\},?\s*\n#|\Z)",
+                     replace_dunst, raw, flags=re.DOTALL)
+        with open(PICOM_ANIM, "w") as f: f.write(new)
+    except Exception as e:
+        print(f"[dunst_anim_set] {e}")
+
 def bar_get_modules(bar, side):
     """Read modules-left/center/right for a bar section."""
     try:
@@ -1195,6 +1230,8 @@ def dunst_page(cfg):
     o_pre = make_combo(o_presets, cfg.get("dunst_open_preset","fly-in"))
     c_dir = make_combo(dirs,      cfg.get("dunst_close_direction","up"))
     o_dir = make_combo(dirs,      cfg.get("dunst_open_direction","right"))
+    c_dur = make_spin(dunst_anim_get("close"), 0.05, 2.0, 0.05, 2)
+    o_dur = make_spin(dunst_anim_get("open"),  0.05, 2.0, 0.05, 2)
 
     btn = apply_btn()
     def apply(btn):
@@ -1209,6 +1246,8 @@ def dunst_page(cfg):
         cfg.set("dunst_close_direction", c_dir.get_active_text())
         cfg.set("dunst_open_preset",     o_pre.get_active_text())
         cfg.set("dunst_open_direction",  o_dir.get_active_text())
+        dunst_anim_set("close", f"{c_dur.get_value():.2f}")
+        dunst_anim_set("open",  f"{o_dur.get_value():.2f}")
         cfg.save(); run_module("08-dunst.sh"); flash_btn(btn, "✓ Applied!"); notify("Dunst applied.")
     btn.connect("clicked", safe_apply(apply))
 
@@ -1223,10 +1262,12 @@ def dunst_page(cfg):
             make_row("Origin",        orig),
         ]),
         make_group("Animations", [
-            make_row("Close Preset",    c_pre),
-            make_row("Close Direction", c_dir),
-            make_row("Open Preset",     o_pre),
-            make_row("Open Direction",  o_dir),
+            make_row("Close Preset",     c_pre),
+            make_row("Close Direction",  c_dir),
+            make_row("Close Duration",   c_dur, "seconds"),
+            make_row("Open Preset",      o_pre),
+            make_row("Open Direction",   o_dir),
+            make_row("Open Duration",    o_dur, "seconds"),
         ]),
         make_group("", [make_row("Restart dunst", btn)]),
     ])
