@@ -4,31 +4,44 @@
 #
 #  Usage in modules.ini:  click-left = PolyOpen OpenApps --xxx
 #
-#  Captures the mouse X position at click time and reads the
-#  bottom edge of the topmost polybar window.  Exports
-#  POLY_ROFI_POS so any Rofi-based script can inject a
-#  -theme-str to anchor the window below the clicked module.
+#  Captures mouse X/Y at click time, finds the polybar window
+#  that contains the click (correct monitor on multi-head setups),
+#  and exports POLY_ROFI_POS / POLY_X / POLY_BAR_BOTTOM so Rofi
+#  and eww popups can anchor themselves below the clicked module.
 # =============================================================
 
-# ── Get mouse X at click time ─────────────────────────────────
+# ── Get mouse position at click time ─────────────────────────
 eval "$(xdotool getmouselocation --shell 2>/dev/null)" || { exec "$@"; }
 MOUSE_X=${X:-0}
+MOUSE_Y=${Y:-0}
 
-# ── Get bar bottom from the running polybar geometry ──────────
-BAR_BOTTOM=52   # sensible fallback
-_bar=$(xdotool search --class Polybar 2>/dev/null | head -1)
-if [ -n "$_bar" ]; then
-    _geo=$(xdotool getwindowgeometry "$_bar" 2>/dev/null)
-    _by=$(printf '%s' "$_geo" | grep -oP 'Position: [0-9]+,\K[0-9]+' || echo "")
-    _bh=$(printf '%s' "$_geo" | grep -oP 'Geometry: [0-9]+x\K[0-9]+'  || echo "")
-    [ -n "$_by" ] && [ -n "$_bh" ] && BAR_BOTTOM=$(( _by + _bh + 4 ))
-fi
+# ── Find the polybar that contains the mouse X ───────────────
+# On multi-monitor setups each monitor has its own bar.
+# We pick the bar whose x-range covers MOUSE_X.
+BAR_BOTTOM=52   # fallback
+for _wid in $(xdotool search --class Polybar 2>/dev/null); do
+    _geo=$(xdotool getwindowgeometry "$_wid" 2>/dev/null)
+    # Position: bx,by   Geometry: bwxbh
+    _bx=$(printf '%s' "$_geo" | awk '/Position:/{split($2,a,","); print a[1]}')
+    _by=$(printf '%s' "$_geo" | awk '/Position:/{split($2,a,","); print a[2]}')
+    _bw=$(printf '%s' "$_geo" | awk '/Geometry:/{split($2,a,"x"); print a[1]}')
+    _bh=$(printf '%s' "$_geo" | awk '/Geometry:/{split($2,a,"x"); print a[2]}')
+    if [ -n "$_bx" ] && [ -n "$_bw" ]; then
+        _bx_end=$(( _bx + _bw ))
+        if [ "$MOUSE_X" -ge "$_bx" ] && [ "$MOUSE_X" -lt "$_bx_end" ]; then
+            BAR_BOTTOM=$(( _by + _bh + 4 ))
+            break
+        fi
+    fi
+done
 
-# ── Screen width for Rofi x-offset (relative to screen centre) ─
+# ── Screen width of the monitor containing the click ─────────
+# xdotool getdisplaygeometry gives the full virtual desktop width;
+# use MOUSE_Y proximity to the bar to stay monitor-local for Rofi.
 SW=$(xdotool getdisplaygeometry 2>/dev/null | awk '{print $1}')
 ROFI_X=$(( MOUSE_X - ${SW:-1920} / 2 ))
 
-# ── Export positioning strings ────────────────────────────────
+# ── Export ────────────────────────────────────────────────────
 export POLY_ROFI_POS="window { location: north; anchor: north; x-offset: ${ROFI_X}px; y-offset: ${BAR_BOTTOM}px; }"
 export POLY_X=$MOUSE_X
 export POLY_BAR_BOTTOM=$BAR_BOTTOM
