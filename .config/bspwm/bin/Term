@@ -90,6 +90,7 @@ case $MY_TERM in
 	    "--micro") alacritty --working-directory "$HOME" -e micro ;;
 	    "--music") kitty --name=MusicTerm --directory "$HOME" -e ncmpcpp ;;
 	    "--fetch") kitty --name=FetchTerm --directory "$HOME" -e ~/.local/bin/sysfetch ;;
+	    "--btop") alacritty --working-directory "$HOME" -e btop ;;
 	esac
 	;;
     "st")
@@ -103,6 +104,7 @@ case $MY_TERM in
 	    "--micro") cd "$HOME" && st -e micro ;;
 	    "--music") cd "$HOME" && st -n MusicTerm -e ncmpcpp ;;
 	    "--fetch") cd "$HOME" && st -n FetchTerm -e ~/.local/bin/sysfetch ;;
+	    "--btop") cd "$HOME" && st -e btop ;;
 	esac
 	;;
     "kitty")
@@ -116,6 +118,7 @@ case $MY_TERM in
 	    "--micro") kitty --directory "$HOME" -e micro ;;
 	    "--music") kitty --name=MusicTerm --directory "$HOME" -e ncmpcpp ;;
 	    "--fetch") kitty --name=FetchTerm --directory "$HOME" -e ~/.local/bin/sysfetch ;;
+	    "--btop") kitty --name=BtopTerm --directory "$HOME" -e btop ;;
 	esac
 	;;
 esac
