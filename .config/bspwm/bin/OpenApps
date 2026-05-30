@@ -109,10 +109,16 @@ case "$1" in
 		;;
 	--player)
 		if [ -n "$POLY_X" ] && [ -n "$POLY_BAR_BOTTOM" ]; then
-			eww -c "$WIDGET_DIR" open music \
-				--pos "${POLY_X}x${POLY_BAR_BOTTOM}" \
-				--anchor "top center" \
-				--toggle
+			# eww --anchor "top left" uses absolute pixel coords.
+			# Subtract half the music player width (~200px) to centre on click.
+			_eww_left=$(( POLY_X - 200 ))
+			if eww -c "$WIDGET_DIR" active-windows 2>/dev/null | grep -qw "music"; then
+				eww -c "$WIDGET_DIR" close music
+			else
+				eww -c "$WIDGET_DIR" open music \
+					--pos "${_eww_left}x${POLY_BAR_BOTTOM}" \
+					--anchor "top left"
+			fi
 		else
 			eww -c "$WIDGET_DIR" open --toggle music
 		fi
