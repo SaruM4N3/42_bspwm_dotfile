@@ -35,14 +35,14 @@ for _wid in $(xdotool search --class Polybar 2>/dev/null); do
     fi
 done
 
-# ── Screen width of the monitor containing the click ─────────
-# xdotool getdisplaygeometry gives the full virtual desktop width;
-# use MOUSE_Y proximity to the bar to stay monitor-local for Rofi.
+# ── Screen width → offset from screen centre ─────────────────
+# Both Rofi (x-offset) and eww (--pos with top-center anchor) treat
+# x as an offset from screen centre, not an absolute pixel position.
 SW=$(xdotool getdisplaygeometry 2>/dev/null | awk '{print $1}')
-ROFI_X=$(( MOUSE_X - ${SW:-1920} / 2 ))
+CENTER_OFFSET=$(( MOUSE_X - ${SW:-1920} / 2 ))
 
 # ── Export ────────────────────────────────────────────────────
-export POLY_ROFI_POS="window { location: north; anchor: north; x-offset: ${ROFI_X}px; y-offset: ${BAR_BOTTOM}px; }"
+export POLY_ROFI_POS="window { location: north; anchor: north; x-offset: ${CENTER_OFFSET}px; y-offset: ${BAR_BOTTOM}px; }"
 export POLY_X=$MOUSE_X
 export POLY_BAR_BOTTOM=$BAR_BOTTOM
 
