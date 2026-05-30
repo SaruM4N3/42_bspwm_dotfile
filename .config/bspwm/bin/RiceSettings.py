@@ -471,8 +471,8 @@ window { background-color: #1a1b26; }
 .page-title { font-size: 22px; font-weight: bold; color: #FDFDFD; }
 .page-sub   { font-size: 12px; color: rgba(253,253,253,0.36); }
 .group-lbl  {
-    font-size: 10px; font-weight: bold;
-    color: rgba(253,253,253,0.28); padding: 0 2px 5px 2px;
+    font-size: 12px; font-weight: bold;
+    color: rgba(253,253,253,0.65); padding: 0 2px 6px 2px;
 }
 
 .card {
