@@ -314,7 +314,9 @@ if __name__ == "__main__":
     )
     pids = [p for p in result.stdout.strip().splitlines() if p != str(os.getpid())]
     if pids:
-        subprocess.run(["wmctrl", "-a", "Logtime Settings"])
+        # Toggle: already open → close it
+        for pid in pids:
+            subprocess.run(["kill", pid])
         raise SystemExit(0)
 
     LogtimeSettings()
