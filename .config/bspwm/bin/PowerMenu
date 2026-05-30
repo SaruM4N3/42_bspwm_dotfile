@@ -1,37 +1,39 @@
 #!/bin/sh
 # =============================================================
-# Author: gh0stzk
-# Repo: https://github.com/gh0stzk/dotfiles
-# Date: 2024-02-22
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
 #
-# Script Name: PowerMenu
-# Description: Minimalist system power control menu for bspwm
-#
-# Copyright (C) 2021-2025 gh0stzk <z0mbi3.zk@protonmail.com>
-# Licensed under GPL-3.0 license
+#  PowerMenu - the powermenu page
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
-options="󰍁
-
-󰗽
-󰜉
-󰐥"
-
-rofi_cmd() {
-	rofi -dmenu \
-		-p "Goodbye ${USER}" \
-		-mesg "Uptime: $(uptime -p | sed -e 's/up //g')" \
-		-theme "$HOME"/.config/bspwm/config/rofi-themes/PowerMenu.rasi
+# &#10; is a pango line-break entity — keeps each entry as one stdin line
+# so rofi treats icon+label as a single item, not two separate entries.
+entry() {
+    printf '<span font="Material Design Icons Desktop 32">%s</span>&#10;<span font="JetBrains Mono Bold 11">%s</span>' "$1" "$2"
 }
 
-chosen=$(printf "%s\n" "$options" | rofi_cmd)
+LOCK=$(entry    "󰍁" "Lock")
+GNOME=$(entry   "󰗽" "Back to GNOME")
+LOGOUT=$(entry  "󰍃" "Logout")
 
-case $chosen in
-    "󰐥") systemctl poweroff ;;
-    "󰜉") systemctl reboot ;;
-    "󰍁") Lock ;;
-    "") systemctl suspend ;;
-    "󰗽")
-        quit.sh
-        ;;
+rofi_cmd() {
+    rofi -dmenu \
+        -markup-rows \
+        -p "Goodbye ${USER}" \
+        -mesg "Uptime: $(uptime -p | sed -e 's/up //g')" \
+        -theme "$HOME"/.config/bspwm/config/rofi-themes/PowerMenu.rasi \
+        ${POLY_ROFI_POS:+-theme-str "$POLY_ROFI_POS"}
+}
+
+chosen=$(printf '%s\n' "$LOCK" "$GNOME" "$LOGOUT" | rofi_cmd)
+
+case "$chosen" in
+    *"󰍁"*) Lock ;;
+    *"󰗽"*) Quit ;;
+    *"󰍃"*) Logout ;;
 esac

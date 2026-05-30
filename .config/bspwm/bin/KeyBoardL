@@ -1,32 +1,21 @@
 #!/bin/sh
 # =============================================================
-# Author: gh0stzk | https://github.com/gh0stzk/dotfiles
-# Date: 23.04.2025 08:33:18
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
 #
-# Script Name: Keyboard Layout Switcher
-# Description: Dynamic keyboard layout switcher using rofi and setxkbmap.
-#              Allows users to select from predefined layouts with a GUI menu.
-# Features:
-#   - Multiple keyboard layout support (customizable list)
-#   - Rofi-driven interactive menu
-#   - Real-time current layout display
-#
-# Copyright (C) 2021-2025 gh0stzk <z0mbi3.zk@protonmail.com>
-# Licensed under GPL-3.0 license
+#  KeyBoardL - Choose current layout
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
 # Get the current layout
 CURRENT=$(setxkbmap -query | awk '/layout/ {print $2}')
 
 # Layouts. You can add yours.
-LAYOUTS="US English|us
-ES América Latina|latam
-ES España|es
-FR France|fr
-DE Deutschland|de
-RU Россия|ru
-IT Italia|it
-PT Brasil|br"
+LAYOUTS="US English|us"
 
 # Show rofi menu
 show_rofi_menu() {
@@ -35,7 +24,8 @@ show_rofi_menu() {
         -p "Keyboard Layout" \
         -mesg "Current layout --> $CURRENT" \
         -markup-rows \
-        -theme "$HOME/.config/bspwm/config/rofi-themes/Keyboard.rasi"
+        -theme "$HOME/.config/bspwm/config/rofi-themes/Keyboard.rasi" \
+        ${POLY_ROFI_POS:+-theme-str "$POLY_ROFI_POS"}
 }
 
 # Select and apply the layout

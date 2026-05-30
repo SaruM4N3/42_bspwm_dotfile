@@ -227,7 +227,8 @@ case "$1" in
             # Direct call — launch rofi in script mode (window stays open)
             rm -f "$STATE_FILE"
             rofi -modi "bluetooth:$0" -show bluetooth \
-                -theme "$HOME/.config/bspwm/config/rofi-themes/Bluetooth.rasi"
+                -theme "$HOME/.config/bspwm/config/rofi-themes/Bluetooth.rasi" \
+                ${POLY_ROFI_POS:+-theme-str "$POLY_ROFI_POS"}
         elif [ "$ROFI_RETV" = "0" ]; then
             # Rofi initial call
             show_main_menu
