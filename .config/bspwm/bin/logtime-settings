@@ -134,7 +134,19 @@ class LogtimeSettings(Gtk.Window):
         self.set_default_size(440, -1)
         self.set_border_width(16)
         self.set_resizable(False)
-        self.set_position(Gtk.WindowPosition.CENTER)
+
+        poly_x   = os.environ.get("POLY_X")
+        poly_y   = os.environ.get("POLY_BAR_BOTTOM")
+        if poly_x and poly_y:
+            # Appear below the clicked polybar module, centred on click X
+            self.set_position(Gtk.WindowPosition.NONE)
+            # move() after realize so the window manager honours it
+            self.connect("realize", lambda _: self.move(
+                int(poly_x) - 220,   # 220 = half of 440px default width
+                int(poly_y)
+            ))
+        else:
+            self.set_position(Gtk.WindowPosition.CENTER)
 
         provider = Gtk.CssProvider()
         provider.load_from_data(CSS)

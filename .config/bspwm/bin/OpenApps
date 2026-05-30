@@ -108,7 +108,14 @@ case "$1" in
 		fi
 		;;
 	--player)
-		eww -c "$WIDGET_DIR" open --toggle music
+		if [ -n "$POLY_X" ] && [ -n "$POLY_BAR_BOTTOM" ]; then
+			eww -c "$WIDGET_DIR" open music \
+				--pos "${POLY_X}x${POLY_BAR_BOTTOM}" \
+				--anchor "top center" \
+				--toggle
+		else
+			eww -c "$WIDGET_DIR" open --toggle music
+		fi
 		;;
 	*)
 		echo "Invalid Option"
