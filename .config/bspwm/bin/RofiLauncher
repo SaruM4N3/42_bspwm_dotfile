@@ -1,14 +1,14 @@
 #!/bin/sh
 # =============================================================
-# Author: gh0stzk
-# Repo:   https://github.com/gh0stzk/dotfiles
-# Date:   27.06.2025 12:30:38
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
 #
-# Script Name: RofiLauncher
-# Description: Dynamic theme selector and launcher for Rofi
-#
-# Copyright (C) 2021-2025 gh0stzk <z0mbi3.zk@protonmail.com>
-# Licensed under GPL-3.0 license
+#  RofiLauncher — launch the rofilauncher that search for .desktop
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
 # Main vars
@@ -58,7 +58,51 @@ choose_launcher_style() {
 
 launch_launcher () {
     ROFI_THEME="$styleDir/style_$current_style.rasi"
-    rofi -show drun -theme "$ROFI_THEME"
+
+    # -format 'f' outputs the full .desktop file path instead of the app name.
+    # Ctrl+Delete = custom-1 (exit 10) → remove/hide the app.
+    result=$(rofi -show drun \
+        -theme "$ROFI_THEME" \
+        -kb-cancel "Escape,F13" \
+        -kb-custom-1 "ctrl+x" \
+        -format 'f' \
+        ${POLY_ROFI_POS:+-theme-str "$POLY_ROFI_POS"})
+    rc=$?
+
+    case $rc in
+        0)
+            # Normal launch
+            [ -n "$result" ] && gio launch "$result" 2>/dev/null &
+            ;;
+        10)
+            # Right-click / shift+Delete — remove or hide the app
+            [ -z "$result" ] && return
+            app_name=$(grep -m1 "^Name=" "$result" 2>/dev/null | cut -d= -f2)
+            [ -z "$app_name" ] && app_name=$(basename "$result" .desktop)
+
+            if echo "$result" | grep -q "$HOME"; then
+                # User app (~/.local/share/applications) — delete it
+                confirm=$(printf "Yes\nNo" | rofi -dmenu \
+                    -theme "$ROFI_THEME" \
+                    -p "Remove '$app_name' from launcher?")
+                if [ "$confirm" = "Yes" ]; then
+                    rm "$result"
+                    dunstify -u low "Removed" "'$app_name' removed from launcher."
+                fi
+            else
+                # System app — hide with a local override instead of deleting
+                confirm=$(printf "Yes\nNo" | rofi -dmenu \
+                    -theme "$ROFI_THEME" \
+                    -p "Hide '$app_name' from launcher?")
+                if [ "$confirm" = "Yes" ]; then
+                    mkdir -p "$HOME/.local/share/applications"
+                    printf '[Desktop Entry]\nHidden=true\n' \
+                        > "$HOME/.local/share/applications/$(basename "$result")"
+                    dunstify -u low "Hidden" "'$app_name' hidden from launcher."
+                fi
+            fi
+            ;;
+    esac
 }
 
 # -- Main executor -- #

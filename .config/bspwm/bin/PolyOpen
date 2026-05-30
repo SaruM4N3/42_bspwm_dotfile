@@ -1,0 +1,36 @@
+#!/bin/sh
+# =============================================================
+#  PolyOpen — polybar click wrapper for position-aware popups
+#
+#  Usage in modules.ini:  click-left = PolyOpen OpenApps --xxx
+#
+#  Captures the mouse X position at click time and reads the
+#  bottom edge of the topmost polybar window.  Exports
+#  POLY_ROFI_POS so any Rofi-based script can inject a
+#  -theme-str to anchor the window below the clicked module.
+# =============================================================
+
+# ── Get mouse X at click time ─────────────────────────────────
+eval "$(xdotool getmouselocation --shell 2>/dev/null)" || { exec "$@"; }
+MOUSE_X=${X:-0}
+
+# ── Get bar bottom from the running polybar geometry ──────────
+BAR_BOTTOM=52   # sensible fallback
+_bar=$(xdotool search --class Polybar 2>/dev/null | head -1)
+if [ -n "$_bar" ]; then
+    _geo=$(xdotool getwindowgeometry "$_bar" 2>/dev/null)
+    _by=$(printf '%s' "$_geo" | grep -oP 'Position: [0-9]+,\K[0-9]+' || echo "")
+    _bh=$(printf '%s' "$_geo" | grep -oP 'Geometry: [0-9]+x\K[0-9]+'  || echo "")
+    [ -n "$_by" ] && [ -n "$_bh" ] && BAR_BOTTOM=$(( _by + _bh + 4 ))
+fi
+
+# ── Screen width for Rofi x-offset (relative to screen centre) ─
+SW=$(xdotool getdisplaygeometry 2>/dev/null | awk '{print $1}')
+ROFI_X=$(( MOUSE_X - ${SW:-1920} / 2 ))
+
+# ── Export positioning strings ────────────────────────────────
+export POLY_ROFI_POS="window { location: north; anchor: north; x-offset: ${ROFI_X}px; y-offset: ${BAR_BOTTOM}px; }"
+export POLY_X=$MOUSE_X
+export POLY_BAR_BOTTOM=$BAR_BOTTOM
+
+exec "$@"
