@@ -37,7 +37,7 @@ resize_increments = true
 
 [scrolling]
 history = 10000
-multiplier = 3
+multiplier = 6
 
 [bell]
 animation = "Linear"

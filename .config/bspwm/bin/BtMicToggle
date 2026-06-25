@@ -1,7 +1,17 @@
 #!/bin/sh
+# =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
 # BtMicToggle — toggle the active Bluetooth headset between
 # A2DP (high-quality audio, no mic) and HFP (mic enabled, mono 16kHz).
 # Sends a dunst notification showing the new mode.
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
+# =============================================================
 
 CARD=$(pactl list cards short 2>/dev/null | awk '/bluez_card/ { print $2; exit }')
 

@@ -6,3 +6,4 @@ Xft/Hinting 1
 Xft/HintStyle "hintfull"
 Xft/Antialias 1
 Xft/RGBA "none"
+Gtk/EnableOverlayScrolling 1

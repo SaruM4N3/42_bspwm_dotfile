@@ -1,5 +1,3 @@
-// # z0mbi3 -  https://github.com/gh0stzk/dotfiles
-
 
 configuration {
     show-icons:                 false;
@@ -58,8 +56,8 @@ prompt {
     enabled:                     true;
     padding:                     8px 12px;
     border-radius:               0%;
-    background-color:            @selected;
-    text-color:                  @background;
+    background-color:            transparent;
+    text-color:                  @foreground;
 }
 
 textbox-prompt-colon {

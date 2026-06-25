@@ -1,16 +1,14 @@
 #!/bin/sh
 # =============================================================
-# Author: gh0stzk
-# Repo:   https://github.com/gh0stzk/dotfiles
-# Date:   12.11.2025
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
 #
-# Original Idea:    https://github.com/ArnaudLelievre48/Minimizing-BSPWM
-#
-# Script Name: HideNode
-# Description: Hides windows and displays a menu to restore them.
-#
-# Copyright (C) 2021-2025 gh0stzk <z0mbi3.zk@protonmail.com>
-# Licensed under GPL-3.0 license
+#  HideNode - hide current node
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
 THUMB_DIR="/tmp/Minimize_thumbs"

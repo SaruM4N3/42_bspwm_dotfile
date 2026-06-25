@@ -42,5 +42,5 @@ selected=$(
 # If a valid option was selected, write the value to the configuration file and change theme.
 if [ -n "$selected" ] && [ "$selected" != "$current_rice" ]; then
     echo "$selected" > "$bspwm_dir"/.rice
-    "${bspwm_dir}"/bin/Theme.sh
+    "${bspwm_dir}"/bin/ThemeLaunch
 fi

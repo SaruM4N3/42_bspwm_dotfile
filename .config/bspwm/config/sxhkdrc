@@ -12,7 +12,7 @@
 
 
 # Show help
-alt + F2
+super + F1
     OpenApps --KeyHelp
 
 # Close cheatsheet overlay (~ replays Escape to other apps so nothing breaks)

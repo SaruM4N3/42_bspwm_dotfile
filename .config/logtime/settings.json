@@ -1,14 +1,14 @@
 {
-  "bonusDays":      0,
-  "giftDays":       0,
-  "displayFormat":  "ratio",
-  "showMinutes":    true,
-  "showCurrentDay": false,
-  "showMoney":      false,
-  "birthDate":      "",
-  "startColor":     "#ef4444",
-  "endColor":       "#4ade80",
-  "aheadColor":     "#00c8ff",
-  "colorGradient":  "exponential",
-  "fontSize":       "large"
+  "bonusDays": 0,
+  "giftDays": 5,
+  "displayFormat": "all",
+  "showMinutes": true,
+  "showCurrentDay": true,
+  "showMoney": true,
+  "birthDate": "1996-05-01",
+  "startColor": "#ffd800",
+  "endColor": "#24ff00",
+  "aheadColor": "#00c8ff",
+  "colorGradient": "exponential",
+  "fontSize": "small"
 }

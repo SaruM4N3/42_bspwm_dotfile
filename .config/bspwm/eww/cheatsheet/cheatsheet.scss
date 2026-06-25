@@ -5,7 +5,7 @@
 }
 
 .title {
-  font-family: JetBrainsMono NF;
+  font-family: JetBrains Mono;
   font-weight: Bold;
   font-size: 2rem;
   letter-spacing: 0.4rem;
@@ -18,7 +18,7 @@
 }
 
 .column {
-  min-width: 300px;
+  min-width: 300px; /* overridden by _cs_scale.scss at runtime */
 }
 
 .row {
@@ -27,7 +27,7 @@
 }
 
 .category-bspwm {
-  font-family: JetBrainsMono NF;
+  font-family: JetBrains Mono;
   font-weight: Bold;
   font-size: 0.8rem;
   background-color: $green;
@@ -38,7 +38,7 @@
 }
 
 .category-system {
-  font-family: JetBrainsMono NF;
+  font-family: JetBrains Mono;
   font-weight: Bold;
   font-size: 0.8rem;
   background-color: $red;
@@ -49,7 +49,7 @@
 }
 
 .category-nodes {
-  font-family: JetBrainsMono NF;
+  font-family: JetBrains Mono;
   font-weight: Bold;
   font-size: 0.8rem;
   background-color: $yellow;
@@ -60,7 +60,7 @@
 }
 
 .category-workspaces {
-  font-family: JetBrainsMono NF;
+  font-family: JetBrains Mono;
   font-weight: Bold;
   font-size: 0.8rem;
   background-color: $magenta;
@@ -71,7 +71,7 @@
 }
 
 .category-move {
-  font-family: JetBrainsMono NF;
+  font-family: JetBrains Mono;
   font-weight: Bold;
   font-size: 0.8rem;
   background-color: $archicon;
@@ -82,7 +82,7 @@
 }
 
 .category-apps {
-  font-family: JetBrainsMono NF;
+  font-family: JetBrains Mono;
   font-weight: Bold;
   font-size: 0.8rem;
   background-color: $green;
@@ -93,7 +93,7 @@
 }
 
 .category-preselection {
-  font-family: JetBrainsMono NF;
+  font-family: JetBrains Mono;
   font-weight: Bold;
   font-size: 0.8rem;
   background-color: $blue;
@@ -104,7 +104,7 @@
 }
 
 .category-others {
-  font-family: JetBrainsMono NF;
+  font-family: JetBrains Mono;
   font-weight: Bold;
   font-size: 0.8rem;
   background-color: $red;
@@ -115,7 +115,7 @@
 }
 
 .category-power {
-  font-family: JetBrainsMono NF;
+  font-family: JetBrains Mono;
   font-weight: Bold;
   font-size: 0.8rem;
   background-color: $cyan;
@@ -126,13 +126,13 @@
 }
 
 .keys {
-  font-family: BebasNeue;
+  font-family: JetBrains Mono;
   font-size: 1rem;
   color: $fg;
 }
 
 .keys-alt {
-  font-family: JetBrainsMono NF;
+  font-family: JetBrainsMono Nerd Font Mono;
   font-weight: Bold;
   font-size: 0.8rem;
   color: $fg;

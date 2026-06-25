@@ -1,4 +1,3 @@
-// Keybinds.rasi — cheatsheet theme for rofi-keybinds
 
 configuration {
     show-icons: false;

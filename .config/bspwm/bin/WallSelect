@@ -1,26 +1,14 @@
 #!/bin/sh
 # =============================================================
-# Author:  gh0stzk
-# Repo:    https://github.com/gh0stzk/dotfiles
-# Date:    27.06.2025 11:43:32
-
-# WallSelect - Dynamic wallpaper selector with intelligent caching system
-# Features:
-#   ✔ Auto-updating menu (add/delete wallpapers without restart)
-#   ✔ Parallel image processing (optimized CPU usage)
-#   ✔ XXHash64 checksum verification for cache integrity
-#   ✔ Orphaned cache detection and cleanup
-#   ✔ Lockfile system for safe concurrent operations
-#   ✔ Rofi integration with theme support
-#   ✔ Lightweight (~2ms overhead on cache hits)
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
 #
-# Dependencies:
-#   → Core: bspwm, xrandr, xdpyinfo, rofi, xxhsum (xxhash)
-#   → Media: feh, imagemagick
-#   → GNU: findutils, coreutils
-
-# Copyright (C) 2021-2025 gh0stzk <z0mbi3.zk@protonmail.com>
-# Licensed under GPL-3.0 license
+# WallSelect- basic wallpaper selector
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
 # Set some variables
