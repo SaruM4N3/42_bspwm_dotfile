@@ -1,7 +1,17 @@
 #!/bin/sh
+# =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
 # CycleWallEngine — cycle the wallpaper ENGINE for the active rice.
 # Cycle order: Random → Animated → Slideshow → Random
 # (Animated is skipped if ANIMATED_WALL is not set in theme-config.bash)
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
+# =============================================================
 
 RICE=$(cat "$HOME/.config/bspwm/.rice" 2>/dev/null)
 CFG="$HOME/.config/bspwm/rices/${RICE}/theme-config.bash"

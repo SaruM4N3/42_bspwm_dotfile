@@ -1,9 +1,8 @@
-// # z0mbi3 - https://github.com/gh0stzk/dotfiles
 
 
 configuration {
 	modi: 						"drun";
-	icon-theme: 				"Papirus-Dark";
+	icon-theme: 				"Papirus";
 	application-fallback-icon: 	"Adwaita";
     show-icons:                 true;
 	drun-display-format:        "{name}";

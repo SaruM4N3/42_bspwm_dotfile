@@ -1,18 +1,14 @@
 #!/bin/sh
 # =============================================================
-# Script Name: MonitorSetup
-# Description: Dynamic multi-monitor configuration for bspwm using xrandr
-# Features:
-#   - Auto-detect connected monitors (Up to 4 monitors)
-#   - Dynamic workspace assignment
-#   - Resolution/refresh rate detection
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
 #
-# Author: gh0stzk
-# Repo:   https://github.com/gh0stzk/dotfiles
-# Date:   24.04.2025
-#
-# Copyright (C) 2021-2025 gh0stzk <z0mbi3.zk@protonmail.com>
-# Licensed under GPL-3.0 license
+#  MonitorSetup - Autocheck for monitor
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
 # xrandr cmd

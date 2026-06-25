@@ -1,8 +1,16 @@
 #!/bin/sh
 # =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
 # SetTimezone - Pick a timezone via rofi and apply it
 # Works without systemd (uses ln -sf on /etc/localtime)
 # Right-click the polybar date module to trigger this.
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
 ROFI_THEME="$HOME/.config/bspwm/config/rofi-themes/style_2.rasi"

@@ -106,7 +106,7 @@
 				   :halign "start"
 				   :hexpand false
 				   (eventbox :cursor "pointer"
-				   (button :class "btn-info" :tooltip "Lock Computer" :onclick "/host/usr/share/42/ft_lock &" "󱅞"))
+				   (button :class "btn-info" :tooltip "Lock Computer" :onclick "~/.config/bspwm/bin/Lock &" "󱅞"))
 				   (eventbox :cursor "pointer"
 				   (button :class "btn-info" :tooltip "Logout BSPWM" :onclick "bspc quit" "󰍃")))
 		)

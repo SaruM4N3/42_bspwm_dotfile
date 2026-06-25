@@ -1,6 +1,17 @@
 #!/bin/sh
+# =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
 # SmartWallSelect - Dispatches to AnimWallSelect or WallSelect depending on
 # the current rice's ENGINE setting. Bound to super + shift + w.
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
+# =============================================================
+
 
 RICE=$(cat "$HOME/.config/bspwm/.rice" 2>/dev/null)
 ENGINE=$(grep '^ENGINE=' "$HOME/.config/bspwm/rices/${RICE}/theme-config.bash" 2>/dev/null | cut -d'"' -f2)

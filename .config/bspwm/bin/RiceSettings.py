@@ -17,6 +17,7 @@ PICOM_ANIM    = os.path.expanduser("~/.config/bspwm/config/picom-animations.conf
 BAR_CFG       = os.path.expanduser(f"~/.config/bspwm/rices/{RICE}/config.ini")
 ALACRITTY_CFG = os.path.expanduser("~/.config/alacritty/alacritty.toml")
 SXHKDRC       = os.path.expanduser("~/.config/bspwm/config/sxhkdrc")
+XSETTINGSD    = os.path.expanduser("~/.config/bspwm/config/xsettingsd")
 
 # ── ThemeConfig ───────────────────────────────────────────────────────────────
 
@@ -101,6 +102,26 @@ def picom_set(key, val):
         with open(PICOM_CONF, "w") as f: f.write(new)
     except Exception as e:
         print(f"[picom_set] {e}")
+
+def xsettingsd_get(key, fallback=""):
+    try:
+        with open(XSETTINGSD) as f:
+            for line in f:
+                m = re.match(rf'^\s*{re.escape(key)}\s+"?([^"\n]*)"?\s*$', line)
+                if m: return m.group(1).strip()
+    except Exception: pass
+    return fallback
+
+def xsettingsd_set(key, val, quoted=True):
+    try:
+        with open(XSETTINGSD) as f: raw = f.read()
+    except Exception:
+        raw = ""
+    line = f'{key} "{val}"' if quoted else f'{key} {val}'
+    new, n = re.subn(rf'^\s*{re.escape(key)}\s+.*$', line, raw, count=1, flags=re.MULTILINE)
+    if n == 0:
+        new = raw.rstrip("\n") + f"\n{line}\n"
+    with open(XSETTINGSD, "w") as f: f.write(new)
 
 def anim_get_duration(trigger):
     try:
@@ -1357,13 +1378,16 @@ def gtk_page(cfg):
     theme  = make_entry(cfg.get("gtk_theme",""),  200)
     icons  = make_entry(cfg.get("gtk_icons",""),  200)
     cursor = make_entry(cfg.get("gtk_cursor",""), 200)
+    scrollbar = make_switch(xsettingsd_get("Gtk/EnableOverlayScrolling", "1") == "0")
 
     btn = apply_btn()
     def apply(btn):
         cfg.set("gtk_theme",  theme.get_text())
         cfg.set("gtk_icons",  icons.get_text())
         cfg.set("gtk_cursor", cursor.get_text())
-        cfg.save(); run_module("05-gtk.sh"); flash_btn(btn, "✓ Applied!"); notify("GTK theme applied.")
+        cfg.save()
+        xsettingsd_set("Gtk/EnableOverlayScrolling", "0" if scrollbar.get_active() else "1", quoted=False)
+        run_module("05-gtk.sh"); flash_btn(btn, "✓ Applied!"); notify("GTK theme applied.")
     btn.connect("clicked", safe_apply(apply))
 
     return page_wrap("GTK", "GTK theme, icons and cursor.", [
@@ -1371,6 +1395,7 @@ def gtk_page(cfg):
             make_row("GTK Theme",  theme),
             make_row("Icon Theme", icons),
             make_row("Cursor",     cursor),
+            make_row("Visible Scrollbars", scrollbar, "Always show scrollbars instead of auto-hiding overlay"),
         ]),
         make_group("", [make_row("Apply GTK theme", btn)]),
     ])

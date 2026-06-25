@@ -28,7 +28,7 @@ horizontal_padding = 15
 text_icon_padding = 0
 
 frame_width = 0
-frame_color = "#8897F4"
+frame_color = "#7AA2F7"
 
 sort = no
 idle_threshold = 0
@@ -37,7 +37,7 @@ font = JetBrainsMono Nerd Font Mono 9
 line_height = 0
 
 markup = full
-format = "<span size='xx-large' font_desc='Cantarell 9' weight='bold' foreground='#8897F4'>%s</span>\n%b"
+format = "<span size='xx-large' font_desc='Cantarell 9' weight='bold' foreground='#7AA2F7'>%s</span>\n%b"
 alignment = center
 vertical_alignment = center
 
@@ -82,15 +82,15 @@ class = Dunst
 
 [urgency_low]
 timeout = 3
-background = "#1D1F28"
-foreground = "#5ADECD"
+background = "#1A1B26"
+foreground = "#9ECE6A"
 
 [urgency_normal]
 timeout = 5
-background = "#1D1F28"
-foreground = "#FDFDFD"
+background = "#1A1B26"
+foreground = "#C0CAF5"
 
 [urgency_critical]
 timeout = 0
-background = "#1D1F28"
-foreground = "#F37F97"
+background = "#1A1B26"
+foreground = "#F7768E"

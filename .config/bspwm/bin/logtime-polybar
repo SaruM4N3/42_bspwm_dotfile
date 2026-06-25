@@ -10,6 +10,7 @@
 #  logtime-polybar — 42 API time tracker for polybar
 #  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
+
 """
 Polybar logtime module for 42 API.
 Credentials: ~/.config/logtime/credentials.json  { "clientId": "...", "clientSecret": "..." }
@@ -68,8 +69,8 @@ def get_token(client_id, client_secret):
     if cache and cache.get("expires_at", 0) > time.time() + 120:
         return cache["token"]
     data = urllib.parse.urlencode({
-        "grant_type": "client_credentials",
-        "client_id": client_id,
+        "grant_type":    "client_credentials",
+        "client_id":     client_id,
         "client_secret": client_secret,
     }).encode()
     req = urllib.request.Request(
@@ -307,6 +308,52 @@ def build_display(locations, cfg, today):
     return f"%{{F{color}}}%{{T{font_n}}} {text}%{{T-}}%{{F-}}"
 
 
+API_REFRESH = 120  # seconds between API/cache fetches
+
+
+def run_daemon():
+    """Persistent loop for polybar tail=true mode.
+    Outputs one line per second; hits the API at most every API_REFRESH seconds.
+    The display increments locally between fetches because sum_seconds() uses
+    datetime.now() for any open session."""
+    import signal
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
+    locations  = None
+    cfg        = None
+    username   = os.environ.get("USER") or os.getlogin()
+    last_fetch = 0.0
+
+    while True:
+        now = time.time()
+
+        if now - last_fetch >= API_REFRESH or locations is None:
+            creds = load_credentials()
+            if not creds:
+                print("No credentials — click to configure", flush=True)
+                time.sleep(API_REFRESH)
+                continue
+
+            token = get_token(creds["clientId"], creds["clientSecret"])
+            if not token:
+                print("Auth failed", flush=True)
+                time.sleep(API_REFRESH)
+                continue
+
+            fetched, _ = get_locations(token, username)
+            if fetched is not None:
+                locations = fetched
+            cfg        = load_json(SETTINGS_FILE, DEFAULTS)
+            last_fetch = now
+
+        if locations is None:
+            print("API error", flush=True)
+        else:
+            print(build_display(locations, cfg, date.today()), flush=True)
+
+        time.sleep(1)
+
+
 def main():
     # Background cache refresh mode — called by get_locations via Popen
     if "--refresh-cache" in sys.argv:
@@ -318,6 +365,12 @@ def main():
                 save_locations_cache(fresh)
         sys.exit(0)
 
+    # Daemon mode for polybar tail=true — one process, local increment, API every 2 min
+    if "--daemon" in sys.argv:
+        run_daemon()
+        return
+
+    # One-shot mode (legacy / manual test)
     creds = load_credentials()
     if not creds:
         print("No credentials — click to configure")

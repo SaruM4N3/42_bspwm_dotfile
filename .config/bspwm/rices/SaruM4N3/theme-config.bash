@@ -50,7 +50,7 @@ BAR_PIXELSIZE_1080="7"
 P_FADE="false"
 P_SHADOWS="false"
 SHADOW_C="#000000"
-P_CORNER_R="18"			# Corner radius (0 = disabled)
+P_CORNER_R="23"			# Corner radius (0 = disabled)
 P_BLUR="false"			# Blur true|false
 P_ANIMATIONS="@"		# (@ = enable) (# = disable)
 P_TERM_OPACITY="0.70"	# Terminal transparency. Range: 0.1 - 1.0 (1.0 = disabled)
@@ -101,6 +101,6 @@ gtk_cursor="Qogirr-Dark"
 # - Slideshow (Change randomly every 15 minutes your wallpaper from Walls rice directory)
 ENGINE="Animated"
 
-CUSTOM_DIR="/path/to/your/wallpapers/directory"
+CUSTOM_DIR="/home/zsonie/Pictures/wallpapers"
 DEFAULT_WALL="/home/zsonie/.config/bspwm/rices/SaruM4N3/walls/wall-01.webp"
 ANIMATED_WALL="/home/zsonie/Pictures/AnimatedWallpaper/frog-sleeping-near-the-waterfall-moewalls-com.mp4"

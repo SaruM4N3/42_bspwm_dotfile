@@ -1,6 +1,17 @@
 #!/bin/sh
+# =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
+#  Lock - Lock setup so ft_lock is well launched
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
+# =============================================================
 
-save-config.sh
+save-config
 BSPLOGDIR=$HOME/.BspwmLogs
 mkdir -p "$BSPLOGDIR"
 LOG=$BSPLOGDIR/lock.log
@@ -30,14 +41,11 @@ else
     echo "animated wall not running" >> $LOG
 fi
 
-# Launch ft_lock
+# Trigger ft_lock via host watcher — overlay lower-layer files cannot be exec'd inside bwrap
 echo "ft_lock launch: $(date '+%T.%3N')" >> $LOG
-/host/usr/share/42/ft_lock &
-FTLOCK_PID=$!
-
-# Wait for ft_lock to exit (user authenticated / lock screen dismissed)
-wait $FTLOCK_PID
-echo "ft_lock exit: $? at $(date '+%T.%3N')" >> $LOG
+echo lock > "${XDG_RUNTIME_DIR}/bspwm_lock_req"
+read _ < "${XDG_RUNTIME_DIR}/bspwm_lock_ack"
+echo "ft_lock exit at $(date '+%T.%3N')" >> $LOG
 
 # Restart animated wallpaper after unlock
 if [ -f "$WALL_RESUME" ]; then

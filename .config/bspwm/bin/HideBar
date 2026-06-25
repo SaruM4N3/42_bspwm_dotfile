@@ -1,15 +1,14 @@
 #!/bin/sh
 # =============================================================
-# Author:  gh0stzk
-# Repo:    https://github.com/gh0stzk/dotfiles
-# Date:    03.02.2025 20:31:58
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
 #
-# HideBar - Hide polybar or eww bars for gh0stzk dotfiles
-# Dependencies:
-#   → bspwm, polybar, eww, xrandr
-#
-# Copyright (C) 2021-2025 gh0stzk <z0mbi3.zk@protonmail.com>
-# Licensed under GPL-3.0 license
+#  HideBar - hide polyBar
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
 # Configuration

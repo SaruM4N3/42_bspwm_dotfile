@@ -1,11 +1,14 @@
 #!/bin/sh
 # =============================================================
-# Author: gh0stzk
-# Repo:   https://github.com/gh0stzk/dotfiles
-# Date:   24.04.2025
-# Info:   This script uses playerctl and mpc to control the multimedia playback
-#         "stop, pause, play, next, previous" of different players like
-#         spotify, ncmpcpp, clementine, strawberry and others.
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
+#  MediaControl - use to control mpc (pause, next, previous, etc)
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
 # Set the player: prefer Spotify, then any active MPRIS player, then MPD

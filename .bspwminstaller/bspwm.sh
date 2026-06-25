@@ -1,7 +1,7 @@
 #!/bin/bash
 
 kill $(ps aux | grep ft_ld | grep -v grep | awk '{print $2}')
-gcc -shared -fPIC -o /tmp/time.so /home/zsonie/locker/time.c -ldl
+gcc -shared -fPIC -o /tmp/time.so "$HOME/.bspwminstaller/locker/time.c" -ldl
 LD_PRELOAD=/tmp/time.so /usr/local/bin/ft_lock -d 2>/dev/null || true  # daemon may already be running; that's fine
 
 # Init LOGDIR

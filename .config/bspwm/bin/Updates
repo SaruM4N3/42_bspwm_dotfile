@@ -1,20 +1,14 @@
 #!/bin/sh
 # =============================================================
-# Author: gh0stzk
-# Repo:   https://github.com/gh0stzk/dotfiles
-# Date:   06.04.2025 09:41:28
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
 #
-# ArchUpdates - Script to check for new updates in ARCH and AUR
-#               and sync updates module in polybar/Eww.
-# Features:
-#   ✔ Shows the number of updates available in polybar/eww
-#   ✔ Used in a pacman hook to update the polybar-module/eww-poll. --sync-polybar
-#
-# Dependencies:
-#   → pacman-contrib, paru, polybar
-#
-# Copyright (C) 2021-2025 gh0stzk <z0mbi3.zk@protonmail.com>
-# Licensed under GPL-3.0 license
+#  Updates - launch sudo pacman -Syu
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
 UPDATE_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/Updates.txt"

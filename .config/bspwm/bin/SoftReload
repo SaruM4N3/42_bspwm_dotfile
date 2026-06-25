@@ -24,7 +24,10 @@ reload() {
     # and damage state mid-session, causing border color and resize glitch regressions.
     pkill -x picom 2>/dev/null || true
     sleep 0.1
-    picom --config "${HOME}/.config/bspwm/config/picom.conf" --backend xrender &
+    GL_SHIM="${HOME}/.config/bspwm/gl-host"
+    LD_LIBRARY_PATH="${GL_SHIM}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
+    LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri \
+    picom --config "${HOME}/.config/bspwm/config/picom.conf" &
     sleep 0.15
 
     # Reload bars polybar or eww

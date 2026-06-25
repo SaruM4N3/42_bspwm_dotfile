@@ -2,17 +2,37 @@
 .vscode
 # Temporary / runtime state
 .config/bspwm/config/.animwall_index
+.config/bspwm/config/.animwall_last
 .config/bspwm/config/.bt_favorites
 .config/bspwm/config/.brightness_xrandr
+.config/bspwm/bin/Lock.tmp.*
+.config/bspwm/bin/__pycache__/
+.config/bspwm/gl-host/
+.config/bspwm/rices/*/bar-generated.ini
 /tmp/
 
 # Micro editor caches/backups
 .config/micro/backups/
 .config/micro/buffers/
 
+# Runtime state for apps mirrored into the rice (not config)
+.config/mpd/log
+.config/mpd/mpd.db
+.config/mpd/mpdstate
+.config/mpd/playlists/
+.config/mpd/socket
+.config/ncmpcpp/error.log
+.config/ncmpcpp/lyrics/
+.config/kitty/current-theme.conf.atomic-write-*
+.config/kitty/kitty.conf.bak
+.config/gtk-3.0/bookmarks
+.config/logtime/credentials.json
+
 # Misc
 *.log
 *.tmp
 *.bak
 !.zshrc.bak
-*.swp.config/bspwm/gl-host/
+*.swp
+*.pyc
+__pycache__/

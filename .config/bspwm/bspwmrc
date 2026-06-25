@@ -156,10 +156,10 @@ pgrep -x mpd >/dev/null || mpd "${HOME}"/.config/mpd/mpd.conf
 # Kill gsd-power to prevent auto-brightness via iio-sensor-proxy
 pkill -x gsd-power 2>/dev/null
 
-# xrender backend — GLX requires root window GL visual which Xorg/LightDM
-# doesn't expose. xrender is stable and works with all animations + SIGUSR1 reload.
+# GLX backend via GL_SHIM (Ubuntu mesa 23.2.1 — set above) so picom's GLSL
+# shader renders border color correctly at rounded corners.
 pkill -x picom 2>/dev/null
-picom --config "${HOME}"/.config/bspwm/config/picom.conf --backend xrender &
+picom --config "${HOME}"/.config/bspwm/config/picom.conf &
 
 # Animated wallpaper is restored by ThemeLaunch → 06-wallpaper.sh (ENGINE=Animated)
 

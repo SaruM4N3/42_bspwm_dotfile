@@ -1,5 +1,15 @@
 #!/bin/sh
-# Cycle through animated wallpapers
+# =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
+# CycleAnimWall - cycle function for animated wallpaper
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
+# =============================================================
 
 ASSETS="$HOME/Pictures/AnimatedWallpaper"
 STATE_FILE="$HOME/.config/bspwm/config/.animwall_index"
