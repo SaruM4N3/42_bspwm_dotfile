@@ -24,6 +24,21 @@ STAMP=$(date +"%Y%m%d-%H%M%S")
 
 [ "$(id -u)" = 0 ] && error "Do not run as root."
 
+# ── Args ──────────────────────────────────────────────────────
+FRESH=0
+WIPE_JUNEST=0
+case "$1" in
+    --fresh|-f) FRESH=1 ;;
+    -h|--help)
+        echo "Usage: $0 [--fresh|-f]"
+        echo "  --fresh, -f   Force a clean reinstall: wipe oh-my-zsh and"
+        echo "                ~/.bspwminstaller before redeploying (and"
+        echo "                optionally the junest Arch environment too),"
+        echo "                instead of upgrading in place."
+        exit 0
+        ;;
+esac
+
 # ── Welcome ───────────────────────────────────────────────────
 clear
 echo -e "${BLD}${GRN}"
@@ -36,7 +51,11 @@ cat << 'EOF'
   ╚═════╝ ╚══════╝╚═╝      ╚══╝╚══╝ ╚═╝     ╚═╝
 EOF
 echo -e "${NC}"
-echo -e "${BLD}  bspwm dotfiles — 42 school / junest edition${NC}"
+if [ "$FRESH" -eq 1 ]; then
+    echo -e "${BLD}  bspwm dotfiles — 42 school / junest edition  ${RED}[FRESH REINSTALL]${NC}"
+else
+    echo -e "${BLD}  bspwm dotfiles — 42 school / junest edition${NC}"
+fi
 echo ""
 echo -e "  This script will:"
 echo -e "    ${GRN}[1]${NC} Install junest + Arch dependencies inside it"
@@ -48,10 +67,31 @@ echo -e "    ${GRN}[6]${NC} Install oh-my-zsh + custom plugins"
 echo -e "    ${GRN}[7]${NC} Patch ~/.zshrc with junest/bspwm swap"
 echo ""
 warn "Existing configs will be backed up before anything is overwritten."
+
+if [ "$FRESH" -eq 1 ]; then
+    echo ""
+    warn "Fresh reinstall: ~/.oh-my-zsh and ~/.bspwminstaller will be wiped"
+    warn "and rebuilt from scratch instead of upgraded in place."
+    echo ""
+    printf "%b" "${BLD}${BLU}[?]${NC} Also wipe the junest Arch environment (~/.junest)? "
+    printf "%b" "This removes ANY manually pacman-installed packages too. [y/N]: "
+    read -r wj
+    case "$wj" in [Yy]) WIPE_JUNEST=1 ;; *) WIPE_JUNEST=0 ;; esac
+fi
+
 echo ""
 printf "%b" "${BLD}${BLU}[?]${NC} Continue? [y/N]: "
 read -r yn
 case "$yn" in [Yy]) ;; *) echo "Cancelled."; exit 0 ;; esac
+
+if [ "$FRESH" -eq 1 ]; then
+    info "Fresh reinstall — wiping previous installer state..."
+    rm -rf "$HOME/.oh-my-zsh"
+    if [ "$WIPE_JUNEST" -eq 1 ]; then
+        info "Wiping junest Arch environment..."
+        rm -rf "$HOME/.junest" "$HOME/.local/share/junest"
+    fi
+fi
 
 # ── Step 1: junest setup ──────────────────────────────────────
 clear
@@ -76,7 +116,9 @@ info "Step 3/7 — Deploying dotfiles..."
 
 mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.local/share"
 
-# Installer scripts
+# Installer scripts — remove first so renamed/deleted files from older
+# versions never linger alongside the current ones.
+rm -rf "$HOME/.bspwminstaller"
 mkdir -p "$HOME/.bspwminstaller"
 cp -r "$REPO/.bspwminstaller/." "$HOME/.bspwminstaller/"
 chmod +x "$HOME/.bspwminstaller/"*.sh
