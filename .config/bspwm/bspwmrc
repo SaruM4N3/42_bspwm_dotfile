@@ -11,11 +11,12 @@
 #  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
-# Ensure Arch's readline takes priority over Ubuntu's in the overlay.
-# Ubuntu's libreadline.so.8.1 (missing rl_trim_arg_from_keyseq) would otherwise
-# shadow Arch's 8.3 via ld.so.cache, causing "undefined symbol" crashes in bash/zsh.
-# LD_LIBRARY_PATH takes priority over ld.so.cache immediately — no rebuild needed.
-export LD_LIBRARY_PATH="/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+# The overlay's ld.so.cache is Arch-only (from ~/.junest/etc/) and doesn't know
+# about Ubuntu's /usr/lib/x86_64-linux-gnu. Explicitly set both in LD_LIBRARY_PATH
+# so the linker finds them without needing ldconfig:
+#   /usr/lib          — Arch's readline 8.3 wins over Ubuntu's 8.1 (missing symbol)
+#   /usr/lib/x86_64-linux-gnu — Ubuntu's libLLVM-15 and other multilib deps for GL
+export LD_LIBRARY_PATH="/usr/lib:/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 # Set environment variables
 export PATH="$HOME/.config/bspwm/bin:$HOME/.cache/bspwm/gnome-wrappers:$PATH"
