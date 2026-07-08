@@ -1,21 +1,25 @@
-#  ╔═╗╔═╗╦ ╦╦═╗╔═╗  ╔═╗╔═╗╔╗╔╔═╗╦╔═╗
-#  ╔═╝╚═╗╠═╣╠╦╝║    ║  ║ ║║║║╠╣ ║║ ╦
-#  ╚═╝╚═╝╩ ╩╩╚═╚═╝  ╚═╝╚═╝╝╚╝╚  ╩╚═╝
+#  ╔═╗╔═╗╦ ╦╦═╗╔═╗  ╔═╗╔═╗╔╗╔╔═╗╦╔═╗	-
+#  ╔═╝╚═╗╠═╣╠╦╝║    ║  ║ ║║║║╠╣ ║║ ╦	-
+#  ╚═╝╚═╝╩ ╩╩╚═╚═╝  ╚═╝╚═╝╝╚╝╚  ╩╚═╝	-
 
 # If not running interactively, don't do anything
 [[ $- != *i* ]] && return
 
-
 #  ┬  ┬┌─┐┬─┐┌─┐
 #  └┐┌┘├─┤├┬┘└─┐
 #   └┘ ┴ ┴┴└─└─┘
-export EDITOR='micro'
 export VISUAL="${EDITOR}"
+export EDITOR='geany'
 export BROWSER='brave'
 export HISTORY_IGNORE="(ls|cd|pwd|exit|sudo reboot|history|cd -|cd ..)"
 export SUDO_PROMPT="Deploying root access for %u. Password pls: "
 export BAT_THEME="base16"
 # Place at top of ~/.zshrc
+
+# Pin standard paths first — needed for tools like fzf-tab that use `command cat`
+# (the cat alias points to bat, but fzf-tab bypasses aliases with `command cat`)
+path=(/usr/local/bin /usr/bin /bin /usr/sbin /sbin $path)
+typeset -U path
 
 if [ -d "$HOME/.local/bin" ] ;
   then PATH="$HOME/.local/bin:$PATH"
@@ -33,6 +37,11 @@ if [[ -n "$zcompdump"(#qN.mh+24) ]]; then
 else
     compinit -C -d "$zcompdump"
 fi
+
+if [[ ! -f "${zcompdump}.zwc" || "$zcompdump" -nt "${zcompdump}.zwc" ]]; then
+    zcompile -U "$zcompdump"
+fi
+
 
 autoload -Uz add-zsh-hook
 autoload -Uz vcs_info
@@ -94,7 +103,7 @@ setopt hist_find_no_dups
 setopt AUTOCD              # change directory just by typing its name
 setopt PROMPT_SUBST        # enable command substitution in prompt
 setopt MENU_COMPLETE       # Automatically highlight first element of completion menu
-setopt LIST_PACKED		     # The completion menu takes less space.
+setopt LIST_PACKED		   # The completion menu takes less space.
 setopt AUTO_LIST           # Automatically list choices on ambiguous completion.
 setopt COMPLETE_IN_WORD    # Complete from both ends of a word.
 
@@ -114,25 +123,31 @@ PS1='%B%F{blue}%f%b  %B%F{magenta}%n%f%b $(dir_icon)  %B%F{red}%~%f%b${vcs_in
 #  ┌─┐┬  ┬ ┬┌─┐┬┌┐┌┌─┐
 #  ├─┘│  │ ││ ┬││││└─┐
 #  ┴  ┴─┘└─┘└─┘┴┘└┘└─┘
-source /usr/share/zsh/plugins/fzf-tab-git/fzf-tab.zsh
-source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
-source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-source /usr/share/zsh/plugins/zsh-history-substring-search/zsh-history-substring-search.zsh
+# /usr/share/zsh/plugins is an Arch package path that only exists when
+# junest's overlay is active. VS Code's integrated terminal runs on the
+# host (Electron can't launch inside the bwrap overlay), so fall back to
+# the junest-prefixed path there or these sources fail silently.
+_ZSH_PLUGIN_DIR="/usr/share/zsh/plugins"
+[ -d "$_ZSH_PLUGIN_DIR" ] || _ZSH_PLUGIN_DIR="$HOME/.junest/usr/share/zsh/plugins"
+source "$_ZSH_PLUGIN_DIR/fzf-tab-git/fzf-tab.zsh"
+source "$_ZSH_PLUGIN_DIR/zsh-autosuggestions/zsh-autosuggestions.zsh"
+source "$_ZSH_PLUGIN_DIR/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+source "$_ZSH_PLUGIN_DIR/zsh-history-substring-search/zsh-history-substring-search.zsh"
+unset _ZSH_PLUGIN_DIR
 
 # fzf-tab navigation: Tab opens fzf-tab, alt-right enters dir, alt-left goes up.
 # Loop so alt-left works at any depth, not just once.
-# Uses zf_rm (zsh/files builtin) and `: >` to avoid relying on PATH in junest.
+# _FZFTAB_BACK is shared between the zstyle binding and this widget (pre-expanded PID-free path).
 zmodload zsh/files
 _fzf_tab_with_back() {
-    local _back_sig="/tmp/.fzftab_back_$$"
     while true; do
-        zf_rm -f "$_back_sig"
+        zf_rm -f "$_FZFTAB_BACK"
         zle fzf-tab-complete
-        [[ -f "$_back_sig" ]] || break
-        zf_rm -f "$_back_sig"
-        local path="${LBUFFER##* }"
+        [[ -f "$_FZFTAB_BACK" ]] || break
+        zf_rm -f "$_FZFTAB_BACK"
+        local path="${LBUFFER##* }"   # last word on the line
         local prefix="${LBUFFER:0:$((${#LBUFFER} - ${#path}))}"
-        path="${path%/}"
+        path="${path%/}"              # strip trailing slash
         if [[ $path == */* ]]; then
             local parent="${path%/*}"
             LBUFFER="${prefix}${parent:+${parent}/}"
@@ -189,20 +204,23 @@ alias cat="bat --theme=base16"
 alias ls='eza --icons=always --color=always -a'
 alias ll='eza --icons=always --color=always -la'
 
-alias conf_zsh="micro ~/.zshrc"
-alias conf_keybinds="micro ~/.config/bspwm/config/sxhkdrc"
-alias conf_general="micro ~/.config/bspwm/bspwmrc"
-alias conf_picom="micro ~/.config/bspwm/config/picom.conf"
-alias conf_picomanim="micro ~/.config/bspwm/config/picom-animations.conf"
-alias conf_topbar='micro "$HOME/.config/bspwm/rices/$(cat "$HOME/.config/bspwm/.rice")/config.ini"'
-alias conf_micro="micro $HOME/.config/micro/settings.json"
-
 #  ┌─┐┬ ┬┌┬┐┌─┐  ┌─┐┌┬┐┌─┐┬─┐┌┬┐
 #  ├─┤│ │ │ │ │  └─┐ │ ├─┤├┬┘ │
 #  ┴ ┴└─┘ ┴ └─┘  └─┘ ┴ ┴ ┴┴└─ ┴
 #$HOME/.local/bin/colorscript -r
 #disable-fzf-tab
+export PATH=$HOME/.config/bspwm/bin:~/.local/share/junest/bin:$PATH
+export PATH=$PATH:~/.junest/usr/bin_wrappers
 typeset -U path  # deduplicate PATH entries
+
+alias conf_zsh="micro ~/.zshrc"
+alias conf_keybinds="micro ~/.config/bspwm/config/sxhkdrc"
+alias conf_general="micro ~/.config/bspwm/bspwmrc"
+alias conf_picom="micro ~/.config/bspwm/config/picom.conf"
+alias conf_picomanim="micro ~/.config/bspwm/config/picom-animations.conf"
+alias conf_fzf-tab='micro /usr/share/zsh/plugins/fzf-tab-git/fzf-tab.zsh'
+alias conf_topbar='micro "$HOME/.config/bspwm/rices/$(cat "$HOME/.config/bspwm/.rice")/config.ini"'
+alias conf_micro="micro $HOME/.config/micro/settings.json"
 
 #  ┌─┐┬┌┬┐  ┌─┐┬  ┬┌─┐┌─┐┌─┐┌─┐
 #  │ ┬│ │   ├─┤│  │├─┤└─┐├┤ └─┐
@@ -219,6 +237,15 @@ _swap_zshrc() {
 }
 if [[ -z "$JUNEST_ENV" ]]; then
     _swap_zshrc
-    exec zsh
 fi
 unset -f _swap_zshrc
+
+# MonkeyLauncher
+alias MonkeyLauncher='/home/zsonie/.local/bin/MonkeyLauncher'
+alias monkeylauncher-cli='/home/zsonie/.local/bin/MonkeyLauncherCLI'
+alias gcl='git clone'
+alias brave='brave --password-store=basic'
+alias discord='/usr/share/discord/Discord'
+
+# Keep Vagrant box cache off the small /home quota
+export VAGRANT_HOME="/goinfre/zsonie/.vagrant.d"
