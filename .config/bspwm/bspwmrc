@@ -16,7 +16,9 @@
 # shadow Arch's 8.3, causing random "undefined symbol" crashes in bash/zsh.
 # /etc/ld.so.conf.d/00-arch-lib.conf pins /usr/lib first; ldconfig rebuilds
 # the cache so that priority survives pacman post-install scripts overwriting it.
-LD_LIBRARY_PATH=/usr/lib ldconfig 2>/dev/null || true
+# Run in background — takes ~16s due to overlay layer scan; done well before
+# any terminal opens.
+LD_LIBRARY_PATH=/usr/lib ldconfig 2>/dev/null &
 
 # Set environment variables
 export PATH="$HOME/.config/bspwm/bin:$HOME/.cache/bspwm/gnome-wrappers:$PATH"
@@ -86,8 +88,8 @@ xmodmap -e "keycode 93 = F13" 2>/dev/null || true
 # Launch sxhkd daemon (after xmodmap so it grabs keycode 93 / F13)
 run sxhkd -c "${HOME}"/.config/bspwm/config/sxhkdrc
 
-# xcape synthesises F13 on bare Super_L tap
-pkill -x xcape 2>/dev/null; xcape -e 'Super_L=F13'
+# xcape synthesises F13 on bare Super_L tap (150ms quick-press window)
+pkill -x xcape 2>/dev/null; xcape -t 150 -e 'Super_L=F13'
 
 # Restore config files from session save, fallback to original backup
 SESSION_DIR="$HOME/.config/bspwm/config/.session"
