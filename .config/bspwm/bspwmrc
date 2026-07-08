@@ -13,12 +13,9 @@
 
 # Ensure Arch's readline takes priority over Ubuntu's in the overlay.
 # Ubuntu's libreadline.so.8.1 (missing rl_trim_arg_from_keyseq) would otherwise
-# shadow Arch's 8.3, causing random "undefined symbol" crashes in bash/zsh.
-# /etc/ld.so.conf.d/00-arch-lib.conf pins /usr/lib first; ldconfig rebuilds
-# the cache so that priority survives pacman post-install scripts overwriting it.
-# Run in background — takes ~16s due to overlay layer scan; done well before
-# any terminal opens.
-LD_LIBRARY_PATH=/usr/lib ldconfig 2>/dev/null &
+# shadow Arch's 8.3 via ld.so.cache, causing "undefined symbol" crashes in bash/zsh.
+# LD_LIBRARY_PATH takes priority over ld.so.cache immediately — no rebuild needed.
+export LD_LIBRARY_PATH="/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 # Set environment variables
 export PATH="$HOME/.config/bspwm/bin:$HOME/.cache/bspwm/gnome-wrappers:$PATH"
