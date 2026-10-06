@@ -1,0 +1,19 @@
+#!/bin/sh
+# Generate a host-side wrapper for Ubuntu binaries that can't run inside bwrap.
+# Usage: make-host-wrapper <binary> [binary2 ...]
+# Example: make-host-wrapper unityhub google-chrome
+
+WRAPPER_DIR="$HOME/.cache/bspwm/gnome-wrappers"
+mkdir -p "$WRAPPER_DIR"
+
+for bin in "$@"; do
+    # Use the name as-is — the host side has the full Ubuntu PATH to resolve it.
+    # If a full path is given (starts with /), pass it directly.
+    dest="$WRAPPER_DIR/$(basename "$bin")"
+    cat > "$dest" << EOF
+#!/bin/sh
+host-run $bin "\$@"
+EOF
+    chmod +x "$dest"
+    echo "created: $dest"
+done

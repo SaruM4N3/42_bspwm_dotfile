@@ -1,0 +1,71 @@
+! =============================================================
+!  URxvt — SaruM4N3 rice
+! =============================================================
+
+! ── Colors (matches kitty current-theme) ──────────────────────
+*.background:  #0E1113
+*.foreground:  #afb1db
+*.cursorColor: #8656e3
+
+*.color0:  #353c52
+*.color1:  #e7034a
+*.color2:  #61b33e
+*.color3:  #ffb964
+*.color4:  #5884d4
+*.color5:  #7a44e3
+*.color6:  #7df0f0
+*.color7:  #afb1db
+*.color8:  #353c52
+*.color9:  #e71c5b
+*.color10: #6fb352
+*.color11: #ffb964
+*.color12: #5f90ea
+*.color13: #8656e3
+*.color14: #97f0f0
+*.color15: #afb1db
+
+! ── Font ──────────────────────────────────────────────────────
+URxvt.font:     xft:Adwaita Mono:size=11
+URxvt.boldFont: xft:Adwaita Mono:bold:size=11
+
+! ── Scrollbar ─────────────────────────────────────────────────
+URxvt.scrollBar:           true
+URxvt.scrollBar_right:     true
+URxvt.scrollBar_floating:  false
+URxvt.scrollstyle:         plain
+URxvt.scrollColor:         #353c52
+URxvt.troughColor:         #0E1113
+URxvt.scrollBar_thickness: 12
+
+! ── Scrollback ────────────────────────────────────────────────
+URxvt.saveLines:         10000
+URxvt.scrollWithBuffer:  false
+URxvt.scrollTtyOutput:   true
+URxvt.scrollTtyKeypress: true
+
+! ── Appearance (matches kitty padding + style) ────────────────
+URxvt.internalBorder: 10
+URxvt.lineSpace:      0
+URxvt.letterSpace:    0
+URxvt.depth:          32
+
+! ── Cursor ────────────────────────────────────────────────────
+URxvt.cursorBlink: true
+URxvt.cursorUnderline: false
+
+! ── Term name (allows zshrc xterm_title_precmd to fire, used by perl ext) ──
+URxvt.termName: xterm-256color
+
+! ── Perl extensions ───────────────────────────────────────────
+URxvt.perl-lib:         /home/zsonie/.urxvt/ext
+URxvt.perl-ext-common:  default,scroll-to-bottom
+
+! ── Misc ──────────────────────────────────────────────────────
+URxvt.urgentOnBell:  false
+URxvt.iso14755:      false
+URxvt.iso14755_52:   false
+URxvt.copyCommand:   xclip -i -selection clipboard
+URxvt.pasteCommand:  xclip -o -selection clipboard
+
+URxvt.fps: 30
+URxvt.rewrapMode: always

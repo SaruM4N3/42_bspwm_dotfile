@@ -26,7 +26,8 @@ choose_terminal() {
     # Terminal List
     terminals="Alacritty
 St
-Kitty"
+Kitty
+Urxvt"
 
     current_term=$(tr '[:upper:]' '[:lower:]' < "$CFG_TERM")
 
@@ -119,6 +120,20 @@ case $MY_TERM in
 	    "--music") kitty --name=MusicTerm --directory "$HOME" -e ncmpcpp ;;
 	    "--fetch") kitty --name=FetchTerm --directory "$HOME" -e ~/.local/bin/sysfetch ;;
 	    "--btop") kitty --name=BtopTerm --directory "$HOME" -e btop ;;
+	esac
+	;;
+    "urxvt")
+	case $1 in
+	    "--terminal")     cd "$HOME" && urxvt ;;
+	    "--floating")     cd "$HOME" && urxvt -name FloatTerm ;;
+	    "--update")       urxvt -name UpdateTerm -e sh -c 'paru -Syu --nocombinedupgrade; read _' ;;
+	    "--checkupdates") urxvt -name Updating   -e sh -c 'Updates --print-updates; read _' ;;
+	    "--yazi")         urxvt -name YaziTerm -e yazi ;;
+	    "--nvim")         cd "$HOME" && urxvt -e nvim ;;
+	    "--micro")        cd "$HOME" && urxvt -e micro ;;
+	    "--music")        cd "$HOME" && urxvt -name MusicTerm -e ncmpcpp ;;
+	    "--fetch")        urxvt -name FetchTerm -e ~/.local/bin/sysfetch ;;
+	    "--btop")         cd "$HOME" && urxvt -name BtopTerm -e btop ;;
 	esac
 	;;
 esac

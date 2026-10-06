@@ -61,7 +61,7 @@ super + shift + s
 
 # Brave
 super + w
-	brave
+	brave --password-store=basic
 
 # Thunar (FileManager)
 super + e

@@ -1,0 +1,11 @@
+#!/bin/bash
+# Send a command to the host-side watcher (bspwm.sh) for execution
+# outside the bwrap overlay with full Ubuntu environment.
+# Usage: host-run /usr/bin/unityhub [args...]
+
+_HOST_REQ="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm_host_req"
+if [ ! -p "$_HOST_REQ" ]; then
+    echo "host-run: FIFO not available (bspwm.sh not running?)" >&2
+    exit 1
+fi
+echo "$*" > "$_HOST_REQ" || echo "host-run: write failed" >&2
