@@ -1,6 +1,6 @@
 {
   "bonusDays": 0,
-  "giftDays": 5,
+  "giftDays": 10,
   "displayFormat": "all",
   "showMinutes": true,
   "showCurrentDay": true,

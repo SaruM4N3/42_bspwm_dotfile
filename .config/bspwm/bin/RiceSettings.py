@@ -16,8 +16,10 @@ PICOM_CONF    = os.path.expanduser("~/.config/bspwm/config/picom.conf")
 PICOM_ANIM    = os.path.expanduser("~/.config/bspwm/config/picom-animations.conf")
 BAR_CFG       = os.path.expanduser(f"~/.config/bspwm/rices/{RICE}/config.ini")
 ALACRITTY_CFG = os.path.expanduser("~/.config/alacritty/alacritty.toml")
+KITTY_CFG     = os.path.expanduser("~/.config/kitty/kitty.conf")
 SXHKDRC       = os.path.expanduser("~/.config/bspwm/config/sxhkdrc")
 XSETTINGSD    = os.path.expanduser("~/.config/bspwm/config/xsettingsd")
+ZSHRC         = os.path.expanduser("~/.zshrc")
 
 # ── ThemeConfig ───────────────────────────────────────────────────────────────
 
@@ -93,12 +95,14 @@ def picom_get(key):
 def picom_set(key, val):
     try:
         with open(PICOM_CONF) as f: raw = f.read()
+        is_bool = val in ("true", "false")
+        quoted  = val if is_bool else f'"{val}"'
         new, n = re.subn(
             rf'^(\s*{re.escape(key)}\s*=\s*)"?[^";]*"?(\s*;?)',
-            lambda m: f'{m.group(1)}"{val}"{m.group(2)}',
+            lambda m: f'{m.group(1)}{quoted}{m.group(2)}',
             raw, flags=re.MULTILINE)
         if n == 0:
-            new += f'\n{key} = "{val}";\n'
+            new += f'\n{key} = {quoted};\n'
         with open(PICOM_CONF, "w") as f: f.write(new)
     except Exception as e:
         print(f"[picom_set] {e}")
@@ -287,6 +291,65 @@ def alacritty_scroll_set(key, val):
         with open(ALACRITTY_CFG, "w") as f: f.write(new)
     except Exception as e:
         print(f"[alacritty_scroll_set] {e}")
+
+def kitty_get(key, fallback=""):
+    try:
+        with open(KITTY_CFG) as f:
+            for line in f:
+                s = line.strip()
+                if s.startswith("#") or not s: continue
+                parts = s.split(None, 1)
+                if len(parts) == 2 and parts[0] == key:
+                    return parts[1]
+    except Exception: pass
+    return fallback
+
+def kitty_set(key, val):
+    try:
+        with open(KITTY_CFG) as f: lines = f.readlines()
+        for i, line in enumerate(lines):
+            s = line.strip()
+            if s.startswith("#") or not s: continue
+            parts = s.split(None, 1)
+            if parts[0] == key:
+                lines[i] = f"{key} {val}\n"
+                with open(KITTY_CFG, "w") as f: f.writelines(lines)
+                return
+        # Key not found — append before BEGIN_KITTY_THEME block or at end
+        insert = len(lines)
+        for i, line in enumerate(lines):
+            if "BEGIN_KITTY_THEME" in line:
+                insert = i
+                break
+        lines.insert(insert, f"{key} {val}\n")
+        with open(KITTY_CFG, "w") as f: f.writelines(lines)
+    except Exception as e:
+        print(f"[kitty_set] {e}")
+
+def zshrc_line_enabled(needle):
+    """Return True if the first line containing needle is not commented out."""
+    try:
+        with open(ZSHRC) as f:
+            for line in f:
+                if needle in line:
+                    return not line.strip().startswith("#")
+    except Exception: pass
+    return False
+
+def zshrc_set_line(needle, enabled):
+    """Comment out or uncomment the first line containing needle in ~/.zshrc."""
+    try:
+        with open(ZSHRC) as f: lines = f.readlines()
+        for i, line in enumerate(lines):
+            if needle in line:
+                if enabled:
+                    lines[i] = line.lstrip("#")
+                elif not line.strip().startswith("#"):
+                    lines[i] = "#" + line
+                break
+        with open(ZSHRC, "w") as f: f.writelines(lines)
+    except Exception as e:
+        print(f"[zshrc_set_line] {e}")
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -945,113 +1008,6 @@ def setup_key_capture(button, entry):
 
 # ── Pages ─────────────────────────────────────────────────────────────────────
 
-def colors_page(cfg):
-    widgets = {}
-
-    def crow(key, label):
-        sw = ColorSwatch(cfg.get(key, "#000000"))
-        widgets[key] = sw
-        return make_row(label, sw)
-
-    scheme_tiles = {}
-
-    def apply_scheme(name):
-        s = SCHEMES[name]
-        for k, sw in widgets.items():
-            if k in s: sw.set_hex(s[k])
-        for n, tile in scheme_tiles.items():
-            ctx = tile.get_style_context()
-            ctx.add_class("active-scheme") if n == name else ctx.remove_class("active-scheme")
-        for k, sw in widgets.items():
-            cfg.set(k, sw.get_hex())
-        cfg.save()
-        notify(f"Scheme '{name}' saved.")
-
-    flow = Gtk.FlowBox()
-    flow.set_max_children_per_line(2); flow.set_min_children_per_line(2)
-    flow.set_selection_mode(Gtk.SelectionMode.NONE)
-    flow.set_column_spacing(10); flow.set_row_spacing(10)
-    flow.set_homogeneous(True)
-    cur_bg = cfg.get("bg", "").upper()
-    for name, colors in SCHEMES.items():
-        eb = Gtk.EventBox()
-        eb.get_style_context().add_class("scheme-tile")
-        if colors["bg"].upper() == cur_bg:
-            eb.get_style_context().add_class("active-scheme")
-        tile = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
-        nm = Gtk.Label(label=name, xalign=0)
-        nm.get_style_context().add_class("scheme-name")
-        dots = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
-        for k in PALETTE_KEYS:
-            dots.pack_start(color_dot(colors[k], 14), False, False, 0)
-        tile.pack_start(nm, False, False, 0)
-        tile.pack_start(dots, False, False, 0)
-        eb.add(tile)
-        eb.connect("button-press-event", lambda _e, _ev, n=name: apply_scheme(n))
-        scheme_tiles[name] = eb
-        flow.add(eb)
-
-    schemes_grp = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-    sl = Gtk.Label(label="PREDEFINED COLOR SCHEMES", xalign=0)
-    sl.get_style_context().add_class("group-lbl")
-    schemes_grp.pack_start(sl, False, False, 0)
-    schemes_grp.pack_start(flow, False, False, 0)
-
-    base    = make_group("Base Colors", [
-        crow("bg","Background"), crow("fg","Foreground"), crow("accent_color","Accent"),
-    ])
-    palette = make_group("Palette", [
-        crow("black","Black"), crow("red","Red"), crow("green","Green"),
-        crow("yellow","Yellow"), crow("blue","Blue"), crow("magenta","Magenta"),
-        crow("cyan","Cyan"), crow("white","White"),
-    ])
-    bright  = make_group("Bright Palette", [
-        crow("blackb","Bright Black"), crow("redb","Bright Red"),
-        crow("greenb","Bright Green"), crow("yellowb","Bright Yellow"),
-        crow("blueb","Bright Blue"), crow("magentab","Bright Magenta"),
-        crow("cyanb","Bright Cyan"), crow("whiteb","Bright White"),
-    ])
-
-    save_btn = apply_btn("Save Colors")
-    def save(btn):
-        for k, sw in widgets.items(): cfg.set(k, sw.get_hex())
-        cfg.save(); notify("Colors saved.")
-    save_btn.connect("clicked", safe_apply(save))
-
-    # Apply Everywhere: dunst / rofi / jgmenu only — NOT terminals
-    # (Terminal has its own page with Apply button)
-    apply_all_btn = apply_btn("Apply to UI Apps")
-    apply_all_btn.get_style_context().add_class("apply-all-btn")
-    def apply_all(btn):
-        for k, sw in widgets.items(): cfg.set(k, sw.get_hex())
-        cfg.save()
-        for mod in ("08-dunst.sh","09-rofi.sh","10-jgmenu.sh"):
-            run_module(mod)
-        flash_btn(btn, "✓ Applied!")
-        notify("Colors applied to dunst, rofi, jgmenu.\nGo to Terminal page to apply to terminals.")
-    apply_all_btn.connect("clicked", safe_apply(apply_all))
-
-    action_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10,
-                         halign=Gtk.Align.END)
-    action_box.set_margin_top(4); action_box.set_margin_bottom(4)
-    action_box.set_margin_end(4)
-    action_box.pack_start(save_btn,      False, False, 0)
-    action_box.pack_start(apply_all_btn, False, False, 0)
-
-    note = Gtk.Label(
-        label="Colors are used by dunst, rofi, jgmenu and also as defaults for terminals.\n"
-              "'Apply to UI Apps' updates dunst/rofi/jgmenu. Use the Terminal page to apply to terminals.",
-        xalign=0, wrap=True)
-    note.get_style_context().add_class("row-sub")
-    note.set_margin_start(2)
-
-    actions_grp = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-    actions_grp.pack_start(note,       False, False, 0)
-    actions_grp.pack_start(action_box, False, False, 0)
-
-    return page_wrap("Colors", "Colorscheme settings for UI apps (dunst, rofi, jgmenu).",
-                     [schemes_grp, base, palette, bright, actions_grp])
-
 
 def window_page(cfg):
     # ── Borders ───────────────────────────────────────────────────────────────
@@ -1083,6 +1039,8 @@ def window_page(cfg):
     corner = make_spin(cfg.get("P_CORNER_R","0"), 0, 50)
     opac   = make_spin(cfg.get("P_TERM_OPACITY","1.0"), 0.1, 1.0, 0.05, 2)
 
+    vsync         = make_switch(picom_get("vsync") == "true")
+
     backends      = ["glx","xrender","egl"]
     backend_combo = make_combo(backends, picom_get("backend") or "glx")
 
@@ -1106,6 +1064,7 @@ def window_page(cfg):
         cfg.set("P_TERM_OPACITY", f"{opac.get_value():.2f}")
         cfg.save()
         picom_set("backend", backend_combo.get_active_text())
+        picom_set("vsync", "true" if vsync.get_active() else "false")
         anim_set_duration("open",     f"{d_open.get_value():.2f}")
         anim_set_duration("close",    f"{d_close.get_value():.2f}")
         anim_set_duration("show",     f"{d_show.get_value():.2f}")
@@ -1130,6 +1089,7 @@ def window_page(cfg):
         ]),
         make_group("Compositor", [
             make_row("Renderer",         backend_combo, "glx = GPU  |  xrender = CPU"),
+            make_row("vSync",            vsync,         "Prevent screen tearing"),
             make_row("Fade",             fade,          "Fade windows in/out"),
             make_row("Shadows",          shadow,        "Drop shadows on windows"),
             make_row("Shadow Color",     shc),
@@ -1408,9 +1368,24 @@ def terminal_page(cfg):
     font = make_entry(cfg.get("term_font_name",""), 220)
     size = make_spin(cfg.get("term_font_size","11"), 6, 32)
 
-    # ── Scrollback (alacritty.toml [scrolling]) ────────────────────────────
-    history    = make_spin(alacritty_scroll_get("history",    "10000"), 0, 100000, 1000)
-    multiplier = make_spin(alacritty_scroll_get("multiplier", "3"),     1, 20)
+    # ── Kitty settings ────────────────────────────────────────────────────
+    history    = make_spin(kitty_get("scrollback_lines", "10000"), 0, 100000, 1000)
+    sb_mode    = make_combo(["always", "if-needed", "never"], kitty_get("scrollbar", "always"))
+    sb_opacity = make_spin(kitty_get("scrollbar_handle_opacity", "0.5"), 0, 1, 0.05, digits=2)
+    sb_width   = make_spin(kitty_get("scrollbar_width", "0.5"), 0, 5, 0.5, digits=1)
+    sb_hover   = make_spin(kitty_get("scrollbar_hover_width", "1"), 0, 5, 0.5, digits=1)
+
+    # ── Shell tweaks (.zshrc) ──────────────────────────────────────────────
+    pixel_art = make_switch(zshrc_line_enabled("$HOME/.local/bin/colorscript -r"))
+    fzf_tab   = make_switch(zshrc_line_enabled("disable-fzf-tab"))
+
+    shell_btn = apply_btn("Apply Shell")
+    def apply_shell(btn):
+        zshrc_set_line("$HOME/.local/bin/colorscript -r", pixel_art.get_active())
+        zshrc_set_line("disable-fzf-tab",                 fzf_tab.get_active())
+        flash_btn(btn, "✓ Applied!")
+        notify("Shell settings applied. Restart terminal to take effect.")
+    shell_btn.connect("clicked", safe_apply(apply_shell))
 
     # ── Terminal Colors ────────────────────────────────────────────────────
     # Same vars as Colors page — but applied only to terminals
@@ -1430,9 +1405,12 @@ def terminal_page(cfg):
         for k, sw in tc.items():
             cfg.set(k, sw.get_hex())
         cfg.save()
-        # Scrollback in alacritty.toml
-        alacritty_scroll_set("history",    str(int(history.get_value())))
-        alacritty_scroll_set("multiplier", str(int(multiplier.get_value())))
+        # Kitty settings
+        kitty_set("scrollback_lines",        str(int(history.get_value())))
+        kitty_set("scrollbar",               sb_mode.get_active_text())
+        kitty_set("scrollbar_handle_opacity", f"{sb_opacity.get_value():.2f}")
+        kitty_set("scrollbar_width",          f"{sb_width.get_value():.1f}")
+        kitty_set("scrollbar_hover_width",    f"{sb_hover.get_value():.1f}")
         # Run terminal modules
         for m in ("03-alacritty.sh","04-st.sh","14-kitty.sh"):
             run_module(m)
@@ -1445,9 +1423,17 @@ def terminal_page(cfg):
             make_row("Font Name", font),
             make_row("Font Size", size),
         ]),
-        make_group("Scrollback  ( Alacritty )", [
-            make_row("History Lines",    history,    "Lines kept in scrollback buffer (0 = unlimited)"),
-            make_row("Scroll Multiplier", multiplier, "Mouse-wheel scroll speed"),
+        make_group("Kitty  ( ~/.config/kitty/kitty.conf )", [
+            make_row("Scrollback Lines",       history,    "Lines kept in scrollback buffer"),
+            make_row("Scrollbar",              sb_mode,    "When to show the scrollbar"),
+            make_row("Scrollbar Opacity",      sb_opacity, "Handle transparency (0–1)"),
+            make_row("Scrollbar Width",        sb_width,   "Width in cells when idle"),
+            make_row("Scrollbar Hover Width",  sb_hover,   "Width in cells on hover"),
+        ]),
+        make_group("Shell  ( ~/.zshrc )", [
+            make_row("Pixel-Art on Start",        pixel_art, "Show colorscript art on each new terminal"),
+            make_row("Disable fzf-tab Completion", fzf_tab,  "Disable fuzzy tab-completion (fzf-tab)"),
+            make_row("Apply shell settings",       shell_btn),
         ]),
         make_group("Colors — Background / Foreground", [
             trow("bg",           "Background"),
@@ -1576,7 +1562,6 @@ def keybinds_page(_cfg):
 # ── Sidebar nav ───────────────────────────────────────────────────────────────
 
 PAGES = [
-    ("●", "Colors",    colors_page),
     ("▣", "Window",    window_page),
     ("▬", "Bar",       bar_page),
     ("◆", "Dunst",     dunst_page),

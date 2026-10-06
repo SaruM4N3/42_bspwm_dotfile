@@ -166,6 +166,9 @@ picom --config "${HOME}"/.config/bspwm/config/picom.conf &
 # Launch ft_lock daemon
 # ft_lock daemon is started outside bwrap by bspwm.sh (overlay prevents exec here)
 
+# Load Xresources (urxvt colors, scrollbar config)
+[ -f "$HOME/.Xresources" ] && xrdb -merge "$HOME/.Xresources"
+
 # Launch xsettingsd
 run xsettingsd --config="${HOME}"/.config/bspwm/config/xsettingsd >/dev/null 2>&1
 

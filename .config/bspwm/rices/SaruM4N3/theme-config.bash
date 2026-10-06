@@ -53,7 +53,7 @@ SHADOW_C="#000000"
 P_CORNER_R="23"			# Corner radius (0 = disabled)
 P_BLUR="false"			# Blur true|false
 P_ANIMATIONS="@"		# (@ = enable) (# = disable)
-P_TERM_OPACITY="0.70"	# Terminal transparency. Range: 0.1 - 1.0 (1.0 = disabled)
+P_TERM_OPACITY="0.60"	# Terminal transparency. Range: 0.1 - 1.0 (1.0 = disabled)
 
 # Dunst
 dunst_offset='(28, 65)'

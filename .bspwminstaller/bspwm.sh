@@ -51,13 +51,26 @@ _LOCK_WATCHER_PID=$!
 
 # VS Code cannot launch fresh Electron from inside the overlay (Ubuntu ELF vs Arch libs).
 # Watcher on the host launches code with the full Ubuntu environment.
+# Open in read-write (<>) so the FIFO never hits EOF between writes.
 _CODE_REQ="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm_code_req"
 rm -f "$_CODE_REQ"
 mkfifo "$_CODE_REQ"
-while IFS= read -r _cwd < "$_CODE_REQ"; do
+exec 5<>"$_CODE_REQ"
+while IFS= read -r _cwd <&5; do
     code "${_cwd:-$HOME}" &>/dev/null &
 done &
 _CODE_WATCHER_PID=$!
+
+# Generic host runner — any Ubuntu binary that can't run inside bwrap writes
+# a shell-quoted command line here; the host eval's it in the Ubuntu environment.
+_HOST_REQ="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm_host_req"
+rm -f "$_HOST_REQ"
+mkfifo "$_HOST_REQ"
+exec 6<>"$_HOST_REQ"
+while IFS= read -r _hcmd <&6; do
+    eval "$_hcmd" &>/dev/null &
+done &
+_HOST_WATCHER_PID=$!
 
 # Snapshot GNOME theme settings before killing gnome-shell.
 # When gnome-shell restarts after bspwm exits it resets these to its defaults
@@ -118,7 +131,9 @@ echo "bspwm exited: $? at $(date '+%T.%3N')" >> "$LOG"
 
 kill "$_LOCK_WATCHER_PID" 2>/dev/null
 kill "$_CODE_WATCHER_PID" 2>/dev/null
-rm -f "$_CODE_REQ"
+kill "$_HOST_WATCHER_PID" 2>/dev/null
+exec 5>&- 6>&-
+rm -f "$_CODE_REQ" "$_HOST_REQ"
 
 rm -f "$_LOCK_REQ" "$_LOCK_ACK"
 

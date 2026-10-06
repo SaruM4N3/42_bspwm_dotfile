@@ -108,6 +108,7 @@ for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi bto
     [ -d "$HOME/.config/$cfg" ] && mv "$HOME/.config/$cfg" "$BACKUP/" && backed=1
 done
 [ -f "$HOME/.gtkrc-2.0" ] && mv "$HOME/.gtkrc-2.0" "$BACKUP/" && backed=1
+[ -f "$HOME/.Xresources" ] && mv "$HOME/.Xresources" "$BACKUP/" && backed=1
 [ "$backed" -eq 1 ] && info "Backups saved to: $BACKUP" || info "Nothing to back up."
 
 # ── Step 3: Deploy dotfiles ───────────────────────────────────
@@ -132,12 +133,12 @@ for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi bto
 done
 
 # Home dotfiles (.zshrc.bak is the bspwm zshrc — swapped in at login, user's .zshrc untouched)
-for f in .zshrc.bak .gtkrc-2.0; do
+for f in .zshrc.bak .gtkrc-2.0 .Xresources; do
     [ -f "$REPO/$f" ] && cp "$REPO/$f" "$HOME/$f" && info "Deployed: ~/$f"
 done
 
 # Rewrite any hardcoded paths to match the installing user
-grep -rl "/home/zsonie" "$HOME/.config/bspwm" "$HOME/.bspwminstaller" 2>/dev/null \
+grep -rl "/home/zsonie" "$HOME/.config/bspwm" "$HOME/.bspwminstaller" "$HOME/.Xresources" 2>/dev/null \
     | xargs -r sed -i "s|/home/zsonie|$HOME|g"
 info "Hardcoded paths rewritten to: $HOME"
 
