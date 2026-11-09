@@ -353,11 +353,19 @@ def zshrc_set_line(needle, enabled):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def child_env():
+    """Environment for child processes. Inside junest (normal bspwm session) the
+    native binaries are used directly: the JUNEST_BIN wrappers would start a
+    *nested* junest (picom then fails to restart). Outside junest, go through them."""
+    env = os.environ.copy()
+    if env.get("JUNEST_ENV") != "1":
+        env["PATH"] = JUNEST_BIN + ":" + env.get("PATH", "")
+    return env
+
 def notify(msg, urgency="low"):
     """Fire-and-forget dunst notification. Never blocks the UI."""
     try:
-        env = os.environ.copy()
-        env["PATH"] = JUNEST_BIN + ":" + env.get("PATH", "")
+        env = child_env()
         subprocess.Popen(
             ["dunstify", "-u", urgency, "-i", "preferences-system",
              "RiceSettings", msg],
@@ -393,8 +401,7 @@ def safe_apply(fn):
     return wrapper
 
 def run_module(name):
-    env = os.environ.copy()
-    env["PATH"] = JUNEST_BIN + ":" + env.get("PATH", "")
+    env = child_env()
     # set -a auto-exports all variables so the child sh sees them
     subprocess.Popen(
         ["bash", "-c", f"set -a; source '{THEME_CFG}'; set +a; sh '{MOD_DIR}/{name}'"],
@@ -1071,11 +1078,12 @@ def window_page(cfg):
         anim_set_duration("hide",     f"{d_hide.get_value():.2f}")
         anim_set_duration("geometry", f"{d_geom.get_value():.2f}")
         run_module("01-picom.sh")
-        env = os.environ.copy()
-        env["PATH"] = JUNEST_BIN + ":" + env.get("PATH", "")
+        # Wait for 01-picom.sh to finish writing picom.conf, then restart picom
+        # detached so it survives this window closing
         subprocess.Popen(["bash","-c",
-            "pkill -x picom; sleep 0.2; picom --config ~/.config/bspwm/config/picom.conf &"],
-            env=env)
+            "sleep 0.3; pkill -x picom; while pgrep -x picom >/dev/null; do sleep 0.1; done;"
+            " picom --config ~/.config/bspwm/config/picom.conf >/dev/null 2>&1 &"],
+            env=child_env(), start_new_session=True)
         flash_btn(btn, "✓ Applied!"); notify("Picom applied.")
     picom_btn.connect("clicked", safe_apply(apply_picom))
 
