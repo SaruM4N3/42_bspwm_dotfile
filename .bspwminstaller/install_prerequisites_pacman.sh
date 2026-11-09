@@ -12,6 +12,8 @@ info()  { echo -e "${GREEN}[+]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
 error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 
+DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 ask_editor() {
     printf "\nWhich editor do you want to install?\n"
     printf "  1) micro   (terminal, already included — default)\n"
@@ -30,104 +32,86 @@ ask_editor() {
     info "Editor selected: $EDITOR_BIN${EDITOR_PKG:+ (package: $EDITOR_PKG)}"
 }
 
+# Map an icon theme name (as written in theme-config.bash) to its gh0stzk package.
+# Prints nothing for themes that need no extra package (e.g. Papirus, installed separately).
+icon_theme_pkg() {
+    case "${1,,}" in
+        beautyline*)          echo gh0stzk-icons-beautyline ;;
+        candy*)               echo gh0stzk-icons-candy ;;
+        catppuccin*)          echo gh0stzk-icons-catppuccin-mocha ;;
+        dracula*)             echo gh0stzk-icons-dracula ;;
+        glassy*)              echo gh0stzk-icons-glassy ;;
+        gruvbox*)             echo gh0stzk-icons-gruvbox-plus-dark ;;
+        hack*)                echo gh0stzk-icons-hack ;;
+        luv*)                 echo gh0stzk-icons-luv ;;
+        sweet*)               echo gh0stzk-icons-sweet-rainbow ;;
+        tokyo*)               echo gh0stzk-icons-tokyo-night ;;
+        vimix*)               echo gh0stzk-icons-vimix-white ;;
+        zafiro-purple*)       echo gh0stzk-icons-zafiro-purple ;;
+        zafiro*)              echo gh0stzk-icons-zafiro ;;
+        papirus*|adwaita*|"") ;;
+        *) warn "Unknown icon theme '$1' — no package mapped, install it manually." >&2 ;;
+    esac
+}
+
 ask_rice() {
-    local rices=(aline andrea brenda cristina cynthia daniela emilia h4ck3r isabel jan karla marisol melissa SaruM4N3 silvia varinka yael z0mbi3)
-
-    printf "\nWhich rice theme(s) do you want to install?\n"
-    printf "Enter numbers separated by spaces, or 'all' for everything.\n\n"
-    local i=1
-    for r in "${rices[@]}"; do
-        printf "  %2d) %s\n" "$i" "$r"
-        (( i++ ))
+    local rices_dir="$DOTFILES_DIR/.config/bspwm/rices"
+    local rices=()
+    local d
+    for d in "$rices_dir"/*/; do
+        [ -f "$d/theme-config.bash" ] && rices+=("$(basename "$d")")
     done
-    printf "\nEnter selection [all]: "
-    
-    # Try reading from /dev/tty first, then stdin
-    if [ -t 0 ]; then
-        read -r rice_choice
-    elif [ -c /dev/tty ]; then
-        read -r rice_choice </dev/tty || true
-    else
-        read -r rice_choice || true
-    fi
-    
-    # Debug: show what we got
-    warn "DEBUG: rice_choice='$rice_choice' (length: ${#rice_choice})"
+    [ ${#rices[@]} -gt 0 ] || error "No rices found in $rices_dir"
 
-    if [[ -z "$rice_choice" || "$rice_choice" == "all" ]]; then
-        SELECTED_RICES=("${rices[@]}")
+    if [ ${#rices[@]} -eq 1 ]; then
+        SELECTED_RICES=("${rices[0]}")
+        info "Only one rice available: ${rices[0]} (selected automatically)"
     else
-        SELECTED_RICES=()
-        for n in $rice_choice; do
-            if [[ "$n" =~ ^[0-9]+$ ]] && (( n >= 1 && n <= ${#rices[@]} )); then
-                SELECTED_RICES+=("${rices[$((n-1))]}")
-            fi
+        printf "\nWhich rice theme(s) do you want to install?\n"
+        printf "Enter numbers separated by spaces, or 'all' for everything.\n"
+        printf "The first one selected becomes the active rice.\n\n"
+        local i
+        for i in "${!rices[@]}"; do
+            printf "  %2d) %s\n" "$((i + 1))" "${rices[$i]}"
         done
-        if [[ ${#SELECTED_RICES[@]} -eq 0 ]]; then
-            warn "No valid selection — installing all rices."
+        printf "\nEnter selection [all]: "
+        local rice_choice=""
+        read -r rice_choice </dev/tty || true
+
+        SELECTED_RICES=()
+        if [[ -z "$rice_choice" || "$rice_choice" == "all" ]]; then
             SELECTED_RICES=("${rices[@]}")
+        else
+            local n
+            for n in $rice_choice; do
+                if [[ "$n" =~ ^[0-9]+$ ]] && (( n >= 1 && n <= ${#rices[@]} )); then
+                    SELECTED_RICES+=("${rices[$((n - 1))]}")
+                else
+                    warn "Ignoring invalid choice: $n"
+                fi
+            done
+            if [ ${#SELECTED_RICES[@]} -eq 0 ]; then
+                warn "No valid selection — installing all rices."
+                SELECTED_RICES=("${rices[@]}")
+            fi
         fi
+        info "Selected rices: ${SELECTED_RICES[*]}"
     fi
-    info "Selected rices: ${SELECTED_RICES[*]}"
-    
-    # Save selected rices to a file so install.sh can read it
-    mkdir -p "$HOME/.bspwminstaller"
-    printf '%s\n' "${SELECTED_RICES[@]}" > "$HOME/.bspwminstaller/selected_rices.txt"
-    warn "DEBUG: Saved selected rices to ~/.bspwminstaller/selected_rices.txt"
 
-    # Map each rice to its required icon packages
-    local -A need=()
-    for rice in "${SELECTED_RICES[@]}"; do
-        case "$rice" in
-            aline|andrea|SaruM4N3) need[luv]=1;          need[gruvbox]=1 ;;
-            brenda|cynthia|silvia)  need[gruvbox]=1 ;;
-            cristina|daniela)       need[catppuccin]=1 ;;
-            z0mbi3)                 need[luv]=1;          need[catppuccin]=1 ;;
-            emilia)                 need[tokyo]=1 ;;
-            h4ck3r)                 need[hack]=1;         need[beautyline]=1 ;;
-            isabel)                 need[zafiro]=1;       need[zafiro_purple]=1 ;;
-            jan)                    need[beautyline]=1 ;;
-            karla)                  need[sweet]=1 ;;
-            marisol)                need[dracula]=1 ;;
-            melissa|varinka)        need[vimix]=1 ;;
-            yael)                   need[glassy]=1;       need[candy]=1 ;;
-        esac
-    done
-
+    # Icon packages: read the icon themes each rice actually uses
+    local -A seen=()
+    local rice name pkg
     ICON_PKGS=()
-    [[ ${need[beautyline]}   ]] && ICON_PKGS+=(gh0stzk-icons-beautyline)
-    [[ ${need[candy]}        ]] && ICON_PKGS+=(gh0stzk-icons-candy)
-    [[ ${need[catppuccin]}   ]] && ICON_PKGS+=(gh0stzk-icons-catppuccin-mocha)
-    [[ ${need[dracula]}      ]] && ICON_PKGS+=(gh0stzk-icons-dracula)
-    [[ ${need[glassy]}       ]] && ICON_PKGS+=(gh0stzk-icons-glassy)
-    [[ ${need[gruvbox]}      ]] && ICON_PKGS+=(gh0stzk-icons-gruvbox-plus-dark)
-    [[ ${need[hack]}         ]] && ICON_PKGS+=(gh0stzk-icons-hack)
-    [[ ${need[luv]}          ]] && ICON_PKGS+=(gh0stzk-icons-luv)
-    [[ ${need[sweet]}        ]] && ICON_PKGS+=(gh0stzk-icons-sweet-rainbow)
-    [[ ${need[tokyo]}        ]] && ICON_PKGS+=(gh0stzk-icons-tokyo-night)
-    [[ ${need[vimix]}        ]] && ICON_PKGS+=(gh0stzk-icons-vimix-white)
-    [[ ${need[zafiro]}       ]] && ICON_PKGS+=(gh0stzk-icons-zafiro)
-    [[ ${need[zafiro_purple]} ]] && ICON_PKGS+=(gh0stzk-icons-zafiro-purple)
-    info "Icon packages needed: ${ICON_PKGS[*]}"
-    warn "DEBUG: End of ask_rice - ICON_PKGS count=${#ICON_PKGS[@]}"
-
-    # Font packages per rice
-    # Note: MapleMono, Phosphor, scientifica, BebasNeue, MaterialDesignIcons,
-    #       MesloLGS are all bundled in .local/share/fonts — no pacman package needed.
-    local -A fneed=()
     for rice in "${SELECTED_RICES[@]}"; do
-        case "$rice" in
-            aline|isabel|jan|karla) fneed[inconsolata]=1 ;;
-        esac
-        case "$rice" in
-            cynthia|isabel|jan|melissa|varinka) fneed[terminus]=1 ;;
-        esac
+        while read -r name; do
+            pkg=$(icon_theme_pkg "$name")
+            if [ -n "$pkg" ] && [ -z "${seen[$pkg]}" ]; then
+                seen[$pkg]=1
+                ICON_PKGS+=("$pkg")
+            fi
+        done < <(sed -nE 's/^(gtk_icons|dunst_icon_theme)="([^"]*)".*/\2/p' "$rices_dir/$rice/theme-config.bash")
     done
-
-    FONT_PKGS=()
-    [[ ${fneed[inconsolata]} ]] && FONT_PKGS+=(ttf-inconsolata)
-    [[ ${fneed[terminus]}    ]] && FONT_PKGS+=(ttf-terminus-nerd)
-    info "Font packages needed: ${FONT_PKGS[*]:-none beyond base}"
+    info "Icon packages needed: ${ICON_PKGS[*]:-none}"
 }
 
 ask_browser() {
@@ -256,8 +240,12 @@ sudo pacman -S --needed --noconfirm \
     jgmenu
 
 # Write chosen terminal to .term config
-echo "$TERM_BIN" > "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.config/bspwm/config/.term"
+echo "$TERM_BIN" > "$DOTFILES_DIR/.config/bspwm/config/.term"
 info "Default terminal set to $TERM_BIN in .term"
+
+# Write active rice (first selected) to .rice
+echo "${SELECTED_RICES[0]}" > "$DOTFILES_DIR/.config/bspwm/.rice"
+info "Active rice set to ${SELECTED_RICES[0]} in .rice"
 
 # ── File manager ─────────────────────────────────────────────────────────────
 info "Installing file manager..."
@@ -327,21 +315,11 @@ info "Installing icons and themes..."
 sudo pacman -S --needed --noconfirm papirus-icon-theme
 
 # ── gh0stzk GTK themes, cursors and icon packs ───────────────────────────────
-warn "DEBUG: Before icon install - SELECTED_RICES=${SELECTED_RICES[*]}"
-warn "DEBUG: ICON_PKGS count=${#ICON_PKGS[@]}, content=${ICON_PKGS[*]}"
-info "Installing gh0stzk GTK themes, cursors and icon sets..."
-if [ ${#ICON_PKGS[@]} -gt 0 ]; then
-    info "Installing icon packages: ${ICON_PKGS[*]}"
-    sudo pacman -S --needed --noconfirm \
-        gh0stzk-gtk-themes \
-        gh0stzk-cursor-qogirr \
-        "${ICON_PKGS[@]}"
-else
-    warn "No icon packages needed for selected rices (minimal install)"
-    sudo pacman -S --needed --noconfirm \
-        gh0stzk-gtk-themes \
-        gh0stzk-cursor-qogirr
-fi
+info "Installing gh0stzk GTK themes, cursors and icon sets: ${ICON_PKGS[*]:-none}"
+sudo pacman -S --needed --noconfirm \
+    gh0stzk-gtk-themes \
+    gh0stzk-cursor-qogirr \
+    "${ICON_PKGS[@]}"
 
 # ── Shell ────────────────────────────────────────────────────────────────────
 info "Installing zsh and plugins..."
@@ -353,15 +331,13 @@ sudo pacman -S --needed --noconfirm \
 
 # ── Fonts ────────────────────────────────────────────────────────────────────
 info "Installing fonts..."
-_base_fonts=(fontconfig ttf-jetbrains-mono ttf-jetbrains-mono-nerd ttf-font-awesome)
-if [ ${#FONT_PKGS[@]} -gt 0 ]; then
-    info "Installing base fonts + rice-specific fonts: ${FONT_PKGS[*]}"
-    sudo pacman -S --needed --noconfirm "${_base_fonts[@]}" "${FONT_PKGS[@]}"
-else
-    info "Installing base fonts only (no rice-specific fonts needed)"
-    sudo pacman -S --needed --noconfirm "${_base_fonts[@]}"
-fi
-unset _base_fonts
+# Other fonts (MapleMono, Phosphor, scientifica, Meslo, ...) are bundled in
+# .local/share/fonts and deployed by install.sh step 4.
+sudo pacman -S --needed --noconfirm \
+    fontconfig \
+    ttf-jetbrains-mono \
+    ttf-jetbrains-mono-nerd \
+    ttf-font-awesome
 
 # ── Clipboard ────────────────────────────────────────────────────────────────
 info "Installing clipcat..."
@@ -405,7 +381,6 @@ info "Installing browser: $BROWSER_PKG..."
 sudo pacman -S --needed --noconfirm "$BROWSER_PKG"
 
 # Patch sxhkdrc (super+w) and OpenApps (--browser) with chosen browser
-DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 for sxhkd in \
     "$DOTFILES_DIR/.config/bspwm/config/sxhkdrc" \
     "$DOTFILES_DIR/.config/bspwm/config/.session/sxhkdrc"; do
@@ -455,7 +430,6 @@ fi
 
 # ── Config backup dir (required by bspwmrc on every startup) ─────────────────
 info "Setting up ~/.local/share/gh0stzk/config/bspwm/config backup dir..."
-DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKUP_CFG="$HOME/.local/share/gh0stzk/config/bspwm/config"
 mkdir -p "$BACKUP_CFG"
 for f in dunstrc picom.conf picom-animations.conf xsettingsd jgmenurc; do
