@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================
-#  app-launch — start a .desktop app from bspwm (junest/bwrap)
+#  app-launch — start an app from bspwm (junest/bwrap)
 #
 #  Apps installed on the Ubuntu host (GNOME apps: .deb in /opt,
 #  /etc/alternatives links, Electron builds needing Ubuntu libs...)
@@ -9,37 +9,39 @@
 #  the bspwm wrappers) or /tmp (unityhub/steam tmp installs), launch it
 #  here; otherwise launch it on the host through host-run, like GNOME.
 #
-#  Usage: app-launch <file.desktop>          launch it
-#         app-launch --where <file.desktop>  print "junest" or "host"
+#  Usage: app-launch --cmd <program> [args...]   launch a command
+#             (rofi's launcher: RofiLauncher sets -run-command "app-launch --cmd {cmd}",
+#              rofi passing the Exec= line already split into arguments)
+#         app-launch <file.desktop>              launch a desktop entry
+#         app-launch --where <file.desktop>      print "junest" or "host"
+#         app-launch --where --cmd <program>     same, for a command
 # =============================================================
 
-where_only=0
-if [ "$1" = "--where" ]; then
-    where_only=1
-    shift
-fi
-desktop="$1"
-[ -f "$desktop" ] || { echo "app-launch: no such file: $desktop" >&2; exit 1; }
+HOST_REQ="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm_host_req"
 
 # Program of the main Exec= line (skips "env" and VAR=value prefixes)
 exec_bin() {
     local line
     line=$(awk '/^\[/{main=($0=="[Desktop Entry]")} main && /^Exec=/{sub(/^Exec=/,""); print; exit}' "$1")
     set -- $line
-    [ "$1" = "env" ] && shift
-    while [ $# -gt 0 ] && [[ "$1" == *=* ]]; do shift; done
-    local bin="${1//\"/}"
-    printf '%s' "$bin"
+    first_program "$@"
 }
 
-where() {
-    local bin path real
+# First real program of a command line: skips "env" and VAR=value prefixes
+first_program() {
+    [ "$1" = "env" ] && shift
+    while [ $# -gt 0 ] && [[ "$1" == *=* ]]; do shift; done
+    printf '%s' "${1//\"/}"
+}
+
+# junest or host, for a program name or path
+where_bin() {
+    local bin="$1" path real
     # Unity Hub and the other /tmp installs (unityhub-tmp-install, steam-tmp-install)
     # are set up to run inside junest
-    case "$(basename -- "$1")" in
+    case "$(basename -- "$bin")" in
         unityhub*) echo junest; return ;;
     esac
-    bin=$(exec_bin "$1")
     [ -n "$bin" ] || { echo host; return; }
     if [[ "$bin" == /* ]]; then path="$bin"; else path=$(command -v -- "$bin"); fi
     # Not visible inside junest (host-only path, broken alternatives link...)
@@ -55,13 +57,32 @@ where() {
     fi
 }
 
-target=$(where "$desktop")
-if [ "$where_only" -eq 1 ]; then
-    echo "$target"
-    exit 0
+where_only=0
+if [ "$1" = "--where" ]; then
+    where_only=1
+    shift
 fi
 
-if [ "$target" = host ] && [ -p "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm_host_req" ]; then
+if [ "$1" = "--cmd" ]; then
+    shift
+    [ $# -gt 0 ] || { echo "app-launch: --cmd needs a command" >&2; exit 1; }
+    target=$(where_bin "$(first_program "$@")")
+    if [ "$where_only" -eq 1 ]; then echo "$target"; exit 0; fi
+    if [ "$target" = host ] && [ -p "$HOST_REQ" ]; then
+        exec host-run -q "$@"
+    fi
+    exec "$@"
+fi
+
+desktop="$1"
+[ -f "$desktop" ] || { echo "app-launch: no such file: $desktop" >&2; exit 1; }
+case "$(basename -- "$desktop")" in
+    unityhub*) target=junest ;;
+    *)         target=$(where_bin "$(exec_bin "$desktop")") ;;
+esac
+if [ "$where_only" -eq 1 ]; then echo "$target"; exit 0; fi
+
+if [ "$target" = host ] && [ -p "$HOST_REQ" ]; then
     exec host-run -q gio launch "$desktop"
 fi
 exec gio launch "$desktop"

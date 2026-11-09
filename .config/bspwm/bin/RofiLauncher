@@ -59,21 +59,20 @@ choose_launcher_style() {
 launch_launcher () {
     ROFI_THEME="$styleDir/style_$current_style.rasi"
 
-    # -format 'f' outputs the full .desktop file path instead of the app name.
-    # ctrl+x = custom-1 (exit 10) → hide the app (see app-visibility).
+    # rofi starts the selected app itself (enter or click): -run-command routes
+    # it through app-launch, which runs Ubuntu (GNOME) apps on the host.
+    # ctrl+x = custom-1 (exit 10) → print the .desktop path (-format f) and
+    # hide the app (see app-visibility).
     result=$(rofi -show drun \
         -theme "$ROFI_THEME" \
         -kb-cancel "Escape,Super+space" \
         -kb-custom-1 "ctrl+x" \
         -format 'f' \
+        -run-command "$HOME/.config/bspwm/bin/app-launch --cmd {cmd}" \
         ${POLY_ROFI_POS:+-theme-str "$POLY_ROFI_POS"})
     rc=$?
 
     case $rc in
-        0)
-            # Normal launch — app-launch runs Ubuntu (GNOME) apps on the host
-            [ -n "$result" ] && app-launch "$result" 2>/dev/null &
-            ;;
         10)
             # ctrl+x — hide the app from the bspwm launcher only (GNOME keeps it).
             # Shown again from Rice Settings > Apps.
