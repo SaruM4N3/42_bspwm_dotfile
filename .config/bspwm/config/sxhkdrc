@@ -45,6 +45,10 @@ super + {_,alt + }Return
 super + ctrl + Return
     OpenApps --btop
 
+# Open btop system monitor (task manager shortcut)
+ctrl + shift + Escape
+    OpenApps --btop
+
 # App launcher
 super + space
     OpenApps --menu
