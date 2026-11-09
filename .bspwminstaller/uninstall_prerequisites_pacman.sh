@@ -226,7 +226,7 @@ rmdir "$HOME/.icons" 2>/dev/null || true
 
 # ── Deployed config directories ───────────────────────────────────────────────
 info "Removing deployed ~/.config entries..."
-for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime Thunar; do
+for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch Thunar; do
     [ -d "$HOME/.config/$cfg" ] && rm -rf "$HOME/.config/$cfg" && info "  removed: ~/.config/$cfg"
 done
 

@@ -26,7 +26,6 @@
 .config/kitty/current-theme.conf.atomic-write-*
 .config/kitty/kitty.conf.bak
 .config/gtk-3.0/bookmarks
-.config/logtime/credentials.json
 
 # Misc
 *.log

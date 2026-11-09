@@ -1,30 +1,37 @@
 #!/usr/bin/env python3
 """
-Logtime settings window — bspwm/polybar edition
+Logtime settings window — bspwm/polybar edition of LogtimeWidget
 """
 
 import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk
-import json, os, subprocess
+import json, os, shutil, subprocess, time
 
-CREDS_FILE    = os.path.expanduser("~/.config/logtime/credentials.json")
-SETTINGS_FILE = os.path.expanduser("~/.config/logtime/settings.json")
-TOKEN_CACHE   = os.path.expanduser("~/.cache/logtime_token.json")
+DATA_DIR      = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "LogtimeWidget")
+SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
+SESSION_FILE  = os.path.join(DATA_DIR, "session.json")
+WEBKIT_DIR    = os.path.join(DATA_DIR, "webkit")
+BLINK_TEST    = os.path.join(DATA_DIR, "blink_test")
+LOGIN_BIN     = os.path.join(os.path.dirname(os.path.realpath(__file__)), "logtime-login")
 
+# Same defaults as logtime-polybar / the GNOME extension
 DEFAULTS = {
-    "bonusDays":      0,
-    "giftDays":       0,
-    "displayFormat":  "ratio",
-    "showMinutes":    True,
-    "showCurrentDay": False,
-    "showMoney":      False,
-    "birthDate":      "",
-    "startColor":     "#ef4444",
-    "endColor":       "#4ade80",
-    "aheadColor":     "#00c8ff",
-    "colorGradient":  "exponential",
-    "fontSize":       "small",
+    "showMinutes":         True,
+    "displayFormat":       "all",
+    "startColor":          "#fff000",
+    "endColor":            "#47ff00",
+    "aheadColor":          "#00c8ff",
+    "showCurrentDay":      False,
+    "birthDate":           "",
+    "showMoney":           True,
+    "colorGradient":       "ease-out",
+    "displayMode":         "bar",
+    "barColor":            "#47ff00",
+    "badgeColor":          "#facc15",
+    "badgeAlertColor":     "#ef4444",
+    "badgeWarningMinutes": 15,
+    "fontSize":            "small",
 }
 
 CSS = b"""
@@ -57,6 +64,11 @@ button.cancel {
     border: 1px solid #8897F4; border-radius: 4px; padding: 6px 16px;
 }
 button.cancel:hover { background-color: #3a4060; }
+button.danger {
+    background-color: #1e2335; color: #ef4444;
+    border: 1px solid #ef4444; border-radius: 4px; padding: 4px 12px;
+}
+button.danger:hover { background-color: #3a2030; }
 separator { background-color: #8897F4; min-height: 1px; opacity: 0.3; }
 """
 
@@ -116,16 +128,10 @@ def make_section(title):
     return frame, box
 
 
-def refresh_bar():
-    """Restart all running polybar instances via IPC."""
-    try:
-        result = subprocess.run(["pgrep", "-x", "polybar"], capture_output=True, text=True)
-        for line in result.stdout.strip().splitlines():
-            pid = line.strip()
-            if pid:
-                subprocess.run(["polybar-msg", "-p", pid, "cmd", "restart"], capture_output=True)
-    except Exception:
-        pass
+def notify_daemon():
+    """Ask the running logtime-polybar daemon to refresh (it also watches the files)."""
+    polybar_script = os.path.join(os.path.dirname(os.path.realpath(__file__)), "logtime-polybar")
+    subprocess.run([polybar_script, "--refresh"], capture_output=True)
 
 
 class LogtimeSettings(Gtk.Window):
@@ -155,40 +161,45 @@ class LogtimeSettings(Gtk.Window):
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
         )
 
-        self.creds    = load_json(CREDS_FILE,    {"clientId": "", "clientSecret": ""})
         self.settings = load_json(SETTINGS_FILE, DEFAULTS)
 
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         self.add(root)
 
-        # ── API Keys ──────────────────────────────────────────
-        api_frame, api_box = make_section("API Keys")
+        # ── Account ───────────────────────────────────────────
+        acc_frame, acc_box = make_section("Account  (attendance.42lyon.fr)")
 
-        self.id_entry = Gtk.Entry()
-        self.id_entry.set_text(self.creds.get("clientId", ""))
-        self.id_entry.set_placeholder_text("u-s4-xxxxxxxxxxxxxxxxxxxx")
+        self.account_label = Gtk.Label(xalign=0)
+        login_btn = Gtk.Button(label="Log in")
+        login_btn.get_style_context().add_class("cancel")
+        login_btn.connect("clicked", self.on_login)
+        logout_btn = Gtk.Button(label="Log out / Switch account")
+        logout_btn.get_style_context().add_class("danger")
+        logout_btn.connect("clicked", self.on_logout)
+        self.update_account_label()
 
-        self.secret_entry = Gtk.Entry()
-        self.secret_entry.set_text(self.creds.get("clientSecret", ""))
-        self.secret_entry.set_visibility(False)
-        self.secret_entry.set_placeholder_text("s-s4-xxxxxxxxxxxxxxxxxxxx")
-
-        show_btn = Gtk.CheckButton(label="Show secret")
-        show_btn.connect("toggled", lambda b: self.secret_entry.set_visibility(b.get_active()))
-
-        api_box.pack_start(make_row(make_label("Client ID"),     self.id_entry),     False, False, 0)
-        api_box.pack_start(make_row(make_label("Client Secret"), self.secret_entry), False, False, 0)
-        api_box.pack_start(show_btn, False, False, 0)
+        acc_row = Gtk.Box(spacing=8)
+        acc_row.pack_start(self.account_label, True, True, 0)
+        acc_row.pack_end(logout_btn, False, False, 0)
+        acc_row.pack_end(login_btn, False, False, 0)
+        acc_box.pack_start(acc_row, False, False, 0)
 
         # ── Display ───────────────────────────────────────────
         disp_frame, disp_box = make_section("Display")
 
         self.fmt_combo = Gtk.ComboBoxText()
-        for k, v in [("ratio", "Ratio  —  12h30/140h"),
-                     ("remaining", "Remaining  —  Remaining: 5h30"),
-                     ("all", "All  —  12h30/140h | Remaining: 5h30")]:
+        for k, v in [("ratio", "Current / Needed  —  50h47/84h"),
+                     ("remaining", "Remaining  —  Remaining: 33h12"),
+                     ("all", "Combined  —  50h47/84h | Remaining: 33h12")]:
             self.fmt_combo.append(k, v)
-        self.fmt_combo.set_active_id(self.settings.get("displayFormat", "ratio"))
+        self.fmt_combo.set_active_id(self.settings.get("displayFormat", "all"))
+
+        self.mode_combo = Gtk.ComboBoxText()
+        for k, v in [("text", "Text"),
+                     ("bar", "Progress bar"),
+                     ("combined", "Combined  (text + bars)")]:
+            self.mode_combo.append(k, v)
+        self.mode_combo.set_active_id(self.settings.get("displayMode", "bar"))
 
         self.size_combo = Gtk.ComboBoxText()
         for k, v in [("small", "Small"), ("medium", "Medium"), ("large", "Large")]:
@@ -202,6 +213,11 @@ class LogtimeSettings(Gtk.Window):
         self.today_check.set_active(self.settings.get("showCurrentDay", False))
 
         disp_box.pack_start(make_row(make_label("Format"), self.fmt_combo), False, False, 0)
+        disp_box.pack_start(make_row(make_label("Display mode"), self.mode_combo), False, False, 0)
+        hint = Gtk.Label(xalign=0)
+        hint.set_markup('<small>Bars: Current/Needed → month bar, Remaining → badge countdown, Combined → both</small>')
+        hint.set_line_wrap(True)
+        disp_box.pack_start(hint, False, False, 0)
         disp_box.pack_start(make_row(make_label("Font size"), self.size_combo), False, False, 0)
         disp_box.pack_start(self.minutes_check, False, False, 0)
         disp_box.pack_start(self.today_check,   False, False, 0)
@@ -214,7 +230,7 @@ class LogtimeSettings(Gtk.Window):
         self.birth_entry.set_placeholder_text("YYYY-MM-DD")
 
         self.money_check = Gtk.CheckButton(label="Show earned money")
-        self.money_check.set_active(self.settings.get("showMoney", False))
+        self.money_check.set_active(self.settings.get("showMoney", True))
 
         grat_box.pack_start(make_row(make_label("Birth date"), self.birth_entry), False, False, 0)
         grat_box.pack_start(self.money_check, False, False, 0)
@@ -222,41 +238,51 @@ class LogtimeSettings(Gtk.Window):
         # ── Colors ────────────────────────────────────────────
         col_frame, col_box = make_section("Colors")
 
-        self.start_btn = make_color_btn(self.settings.get("startColor",  "#ef4444"))
-        self.end_btn   = make_color_btn(self.settings.get("endColor",    "#4ade80"))
-        self.ahead_btn = make_color_btn(self.settings.get("aheadColor",  "#00c8ff"))
+        self.start_btn = make_color_btn(self.settings["startColor"])
+        self.end_btn   = make_color_btn(self.settings["endColor"])
+        self.ahead_btn = make_color_btn(self.settings["aheadColor"])
 
         self.curve_combo = Gtk.ComboBoxText()
         for k, v in [
-            ("exponential", "Exponential  (default)"),
-            ("linear",      "Linear"),
-            ("ease-out",    "Ease out"),
-            ("cosine",      "Cosine"),
-            ("sine",        "Sine  (S-curve)"),
-            ("smoothstep",  "Smoothstep  (S-curve)"),
-            ("ease-in-out", "Ease in-out  (S-curve)"),
-            ("quadratic",   "Quadratic"),
-            ("cubic",       "Cubic"),
+            ("linear",       "Linear"),
+            ("ease-out",     "Ease out  (default)"),
+            ("cosine",       "Cosine"),
+            ("sine",         "Sine  (S-curve)"),
+            ("smoothstep",   "Smoothstep  (S-curve)"),
+            ("ease-in-out",  "Ease in-out  (S-curve)"),
+            ("smootherstep", "Smootherstep  (S-curve)"),
+            ("quadratic",    "Quadratic"),
+            ("cubic",        "Cubic"),
+            ("circular",     "Circular"),
+            ("bounce",       "Bounce"),
+            ("exponential",  "Exponential"),
         ]:
             self.curve_combo.append(k, v)
-        self.curve_combo.set_active_id(self.settings.get("colorGradient", "exponential"))
+        self.curve_combo.set_active_id(self.settings["colorGradient"])
 
         col_box.pack_start(make_row(make_label("Below target  (0%)"),  self.start_btn), False, False, 0)
         col_box.pack_start(make_row(make_label("On target  (100%)"),   self.end_btn),   False, False, 0)
         col_box.pack_start(make_row(make_label("Above target"),        self.ahead_btn), False, False, 0)
         col_box.pack_start(make_row(make_label("Gradient curve"),      self.curve_combo), False, False, 0)
 
-        # ── Days ──────────────────────────────────────────────
-        days_frame, days_box = make_section("Days")
+        # ── Bars & badge ──────────────────────────────────────
+        bars_frame, bars_box = make_section("Bars & badge")
 
-        self.bonus_spin = Gtk.SpinButton.new_with_range(0, 30, 1)
-        self.bonus_spin.set_value(self.settings.get("bonusDays", 0))
+        self.bar_btn         = make_color_btn(self.settings["barColor"])
+        self.badge_btn       = make_color_btn(self.settings["badgeColor"])
+        self.badge_alert_btn = make_color_btn(self.settings["badgeAlertColor"])
 
-        self.gift_spin = Gtk.SpinButton.new_with_range(0, 30, 1)
-        self.gift_spin.set_value(self.settings.get("giftDays", 0))
+        self.warning_spin = Gtk.SpinButton.new_with_range(1, 240, 1)
+        self.warning_spin.set_value(int(self.settings["badgeWarningMinutes"]))
 
-        days_box.pack_start(make_row(make_label("Bonus days  (+7h each)"),    self.bonus_spin), False, False, 0)
-        days_box.pack_start(make_row(make_label("Gift days  (−7h required)"), self.gift_spin),  False, False, 0)
+        test_btn = Gtk.Button(label="Test blink")
+        test_btn.get_style_context().add_class("cancel")
+        test_btn.connect("clicked", self.on_blink_test)
+
+        bars_box.pack_start(make_row(make_label("Month bar"),          self.bar_btn),         False, False, 0)
+        bars_box.pack_start(make_row(make_label("Badge bar"),          self.badge_btn),       False, False, 0)
+        bars_box.pack_start(make_row(make_label("Badge alert"),        self.badge_alert_btn), False, False, 0)
+        bars_box.pack_start(make_row(make_label("Blink before (min)"), self.warning_spin, test_btn), False, False, 0)
 
         # ── Buttons ───────────────────────────────────────────
         btn_box = Gtk.Box(spacing=8)
@@ -266,57 +292,87 @@ class LogtimeSettings(Gtk.Window):
         cancel_btn.get_style_context().add_class("cancel")
         cancel_btn.connect("clicked", lambda _: self.destroy())
 
-        save_btn = Gtk.Button(label="Save & Refresh")
+        save_btn = Gtk.Button(label="Save")
         save_btn.get_style_context().add_class("save")
         save_btn.connect("clicked", self.on_save)
 
         btn_box.pack_start(cancel_btn, False, False, 0)
         btn_box.pack_start(save_btn,   False, False, 0)
 
-        for w in (api_frame, disp_frame, grat_frame, col_frame, days_frame, btn_box):
+        for w in (acc_frame, disp_frame, grat_frame, col_frame, bars_frame, btn_box):
             root.pack_start(w, False, False, 0)
 
         self.connect("destroy", Gtk.main_quit)
         self.show_all()
 
-    def on_save(self, _):
-        save_json(CREDS_FILE, {
-            "clientId":     self.id_entry.get_text().strip(),
-            "clientSecret": self.secret_entry.get_text().strip(),
-        })
-        save_json(SETTINGS_FILE, {
-            "bonusDays":      int(self.bonus_spin.get_value()),
-            "giftDays":       int(self.gift_spin.get_value()),
-            "displayFormat":  self.fmt_combo.get_active_id(),
-            "showMinutes":    self.minutes_check.get_active(),
-            "showCurrentDay": self.today_check.get_active(),
-            "showMoney":      self.money_check.get_active(),
-            "birthDate":      self.birth_entry.get_text().strip(),
-            "startColor":     rgba_to_hex(self.start_btn.get_rgba()),
-            "endColor":       rgba_to_hex(self.end_btn.get_rgba()),
-            "aheadColor":     rgba_to_hex(self.ahead_btn.get_rgba()),
-            "colorGradient":  self.curve_combo.get_active_id(),
-            "fontSize":       self.size_combo.get_active_id(),
-        })
+    def update_account_label(self):
+        logged_in = bool(load_json(SESSION_FILE, {"cookie": ""}).get("cookie"))
+        self.account_label.set_text("Logged in" if logged_in else "Not logged in")
+
+    def on_login(self, _):
+        os.makedirs(DATA_DIR, mode=0o700, exist_ok=True)
+        subprocess.Popen([LOGIN_BIN, SESSION_FILE, WEBKIT_DIR],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.destroy()
+
+    def on_logout(self, _):
+        # The daemon sees the session disappear and opens the login window
         try:
-            os.remove(TOKEN_CACHE)
+            os.remove(SESSION_FILE)
         except FileNotFoundError:
             pass
-        refresh_bar()
+        shutil.rmtree(WEBKIT_DIR, ignore_errors=True)
+        self.update_account_label()
+
+    def on_blink_test(self, _):
+        os.makedirs(DATA_DIR, mode=0o700, exist_ok=True)
+        with open(BLINK_TEST, "w") as f:
+            f.write(str(int(time.time() * 1000)))
+
+    def on_save(self, _):
+        # Keep keys this window doesn't edit (e.g. the GNOME extension's panelPosition)
+        data = load_json(SETTINGS_FILE, {})
+        data.update({
+            "displayFormat":       self.fmt_combo.get_active_id(),
+            "displayMode":         self.mode_combo.get_active_id(),
+            "fontSize":            self.size_combo.get_active_id(),
+            "showMinutes":         self.minutes_check.get_active(),
+            "showCurrentDay":      self.today_check.get_active(),
+            "showMoney":           self.money_check.get_active(),
+            "birthDate":           self.birth_entry.get_text().strip(),
+            "startColor":          rgba_to_hex(self.start_btn.get_rgba()),
+            "endColor":            rgba_to_hex(self.end_btn.get_rgba()),
+            "aheadColor":          rgba_to_hex(self.ahead_btn.get_rgba()),
+            "colorGradient":       self.curve_combo.get_active_id(),
+            "barColor":            rgba_to_hex(self.bar_btn.get_rgba()),
+            "badgeColor":          rgba_to_hex(self.badge_btn.get_rgba()),
+            "badgeAlertColor":     rgba_to_hex(self.badge_alert_btn.get_rgba()),
+            "badgeWarningMinutes": int(self.warning_spin.get_value()),
+        })
+        save_json(SETTINGS_FILE, data)
+        notify_daemon()
         self.destroy()
 
 
 if __name__ == "__main__":
-    # If already running, focus the existing window and exit
-    result = subprocess.run(
-        ["pgrep", "-f", "logtime-settings"],
-        capture_output=True, text=True
-    )
-    pids = [p for p in result.stdout.strip().splitlines() if p != str(os.getpid())]
-    if pids:
-        # Toggle: already open → close it
-        for pid in pids:
-            subprocess.run(["kill", pid])
+    # Toggle: if a settings window is already open, close it and exit
+    # (only python processes running this script, not editors/shells mentioning it)
+    open_pids = []
+    for pid in filter(str.isdigit, os.listdir("/proc")):
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as f:
+                args = [a.decode(errors="replace") for a in f.read().split(b"\0") if a]
+        except OSError:
+            continue
+        if (int(pid) != os.getpid() and len(args) >= 2 and "python" in os.path.basename(args[0])
+                and os.path.basename(args[1]) == "logtime-settings"):
+            open_pids.append(int(pid))
+    if open_pids:
+        for pid in open_pids:
+            try:
+                os.kill(pid, 15)
+            except OSError:
+                pass
         raise SystemExit(0)
 
     LogtimeSettings()

@@ -298,6 +298,7 @@ sudo pacman -S --needed --noconfirm \
     libwebp \
     webp-pixbuf-loader \
     python-gobject \
+    webkit2gtk \
     pacman-contrib
 
 # ── CLI tools ────────────────────────────────────────────────────────────────

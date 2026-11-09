@@ -106,7 +106,7 @@ info "Step 2/7 — Backing up existing configs..."
 BACKUP="$HOME/.config-backup-$STAMP"
 mkdir -p "$BACKUP"
 backed=0
-for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime Thunar; do
+for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch Thunar; do
     [ -d "$HOME/.config/$cfg" ] && mv "$HOME/.config/$cfg" "$BACKUP/" && backed=1
 done
 [ -f "$HOME/.gtkrc-2.0" ] && mv "$HOME/.gtkrc-2.0" "$BACKUP/" && backed=1
@@ -128,7 +128,7 @@ chmod +x "$HOME/.bspwminstaller/"*.sh
 info "Deployed: ~/.bspwminstaller"
 
 # Config directories
-for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch logtime Thunar; do
+for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch Thunar; do
     [ -d "$REPO/.config/$cfg" ] || { warn "$cfg not in repo — skipping"; continue; }
     cp -r "$REPO/.config/$cfg" "$HOME/.config/$cfg"
     info "Deployed: ~/.config/$cfg"

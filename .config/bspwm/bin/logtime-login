@@ -1,0 +1,94 @@
+#!/usr/bin/env python3
+"""
+logtime-login — attendance.42lyon.fr login window (Python port of LogtimeWidget connect/login.js)
+
+usage: logtime-login <session_file> <webkit_data_dir>
+Opens the 42 Intra OAuth flow of attendance.42lyon.fr and saves the session cookie
+to <session_file> as {"cookie": "...", "savedAt": "..."}. Exits 0 on success.
+"""
+
+import json, os, re, sys
+from datetime import datetime, timezone
+
+import gi
+gi.require_version("Gtk", "3.0")
+gi.require_version("Soup", "2.4")
+gi.require_version("WebKit2", "4.0")
+from gi.repository import Gtk, WebKit2
+
+BASE_URL = "https://attendance.42lyon.fr"
+OAUTH_STATE_COOKIE = "attendance-oauth"
+
+if len(sys.argv) != 3:
+    print("usage: logtime-login <session_file> <webkit_data_dir>", file=sys.stderr)
+    sys.exit(2)
+session_file, data_dir = sys.argv[1], sys.argv[2]
+
+# Software rendering: avoids blank pages / GBM errors on machines with broken GPU drivers
+os.environ.setdefault("WEBKIT_DISABLE_COMPOSITING_MODE", "1")
+os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
+
+exit_code = 1
+saving = False
+
+os.makedirs(data_dir, mode=0o700, exist_ok=True)
+data_manager = WebKit2.WebsiteDataManager(
+    base_data_directory=data_dir,
+    base_cache_directory=os.path.join(data_dir, "cache"),
+)
+context = WebKit2.WebContext.new_with_website_data_manager(data_manager)
+cookie_manager = context.get_cookie_manager()
+# Keep the intra session between logins so expired sessions renew without typing the password again
+cookie_manager.set_persistent_storage(os.path.join(data_dir, "cookies.sqlite"),
+                                      WebKit2.CookiePersistentStorage.SQLITE)
+
+web_view = WebKit2.WebView.new_with_context(context)
+web_view.get_settings().set_hardware_acceleration_policy(WebKit2.HardwareAccelerationPolicy.NEVER)
+
+window = Gtk.Window(title="Logtime Widget - Login to Attendance 42 Lyon")
+window.set_default_size(900, 750)
+window.add(web_view)
+window.connect("destroy", Gtk.main_quit)
+
+
+def is_logged_in_uri(uri):
+    if not uri or not uri.startswith(BASE_URL + "/"):
+        return False
+    path = re.split(r"[?#]", uri[len(BASE_URL):])[0]
+    return not re.match(r"^/(fr/)?login\b", path) and not path.startswith("/api/auth")
+
+
+def on_cookies(manager, result):
+    global exit_code, saving
+    try:
+        cookies = [c for c in manager.get_cookies_finish(result) if c.get_name() != OAUTH_STATE_COOKIE]
+        if not cookies:
+            saving = False
+            return
+        cookie = "; ".join(f"{c.get_name()}={c.get_value()}" for c in cookies)
+        os.makedirs(os.path.dirname(session_file), mode=0o700, exist_ok=True)
+        tmp = session_file + ".tmp"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            json.dump({"cookie": cookie,
+                       "savedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")}, f, indent=2)
+        os.replace(tmp, session_file)
+        exit_code = 0
+        window.destroy()
+    except Exception as e:
+        print(f"Failed to save session: {e}", file=sys.stderr)
+        saving = False
+
+
+def on_load_changed(view, event):
+    global saving
+    if event == WebKit2.LoadEvent.FINISHED and not saving and is_logged_in_uri(view.get_uri()):
+        saving = True
+        cookie_manager.get_cookies(BASE_URL + "/", None, on_cookies)
+
+
+web_view.connect("load-changed", on_load_changed)
+web_view.load_uri(BASE_URL + "/api/auth")
+window.show_all()
+Gtk.main()
+sys.exit(exit_code)

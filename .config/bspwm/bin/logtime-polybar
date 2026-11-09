@@ -7,238 +7,421 @@
 #  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
 #  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
 #
-#  logtime-polybar — 42 API time tracker for polybar
+#  logtime-polybar — 42 Lyon logtime for polybar
 #  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
 """
-Polybar logtime module for 42 API.
-Credentials: ~/.config/logtime/credentials.json  { "clientId": "...", "clientSecret": "..." }
-Settings:    ~/.config/logtime/settings.json
-Token cache: ~/.cache/logtime_token.json
+Polybar port of LogtimeWidget (https://github.com/SaruM4N3/LogtimeWidget).
+
+Reads the month from attendance.42lyon.fr/me (same done/needed hours as the site),
+shows a month progress bar and a countdown before the next badge.
+
+Files are shared with the GNOME extension:
+  ~/.local/share/LogtimeWidget/session.json   attendance cookie (written by logtime-login)
+  ~/.local/share/LogtimeWidget/settings.json  settings (edited by logtime-settings)
+  ~/.local/share/LogtimeWidget/webkit/        login window browser data (keeps the intra login)
+
+Usage:
+  logtime-polybar --daemon     polybar tail=true mode
+  logtime-polybar --refresh    tell the running daemon to refresh now (or log in)
+  logtime-polybar --login      open the login window
+  logtime-polybar --logout     forget the session
+  logtime-polybar              print once and exit
 """
 
-import json, math, os, subprocess, sys, time, urllib.request, urllib.parse
-from datetime import date, datetime, timedelta, timezone
+import json, math, os, shutil, signal, subprocess, sys, time, urllib.error, urllib.request
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
-CREDS_FILE      = os.path.expanduser("~/.config/logtime/credentials.json")
-CREDS_GNOME     = os.path.expanduser("~/.local/share/gnome-shell/extensions/LogtimeWidget@zsonie/utils/credentials.json")
-SETTINGS_FILE   = os.path.expanduser("~/.config/logtime/settings.json")
-TOKEN_CACHE     = os.path.expanduser("~/.cache/logtime_token.json")
-LOCATIONS_CACHE = os.path.expanduser("~/.cache/logtime_locations.json")
-LOCATIONS_TTL   = 300  # seconds before re-fetching
+DATA_DIR      = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "LogtimeWidget")
+SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
+SESSION_FILE  = os.path.join(DATA_DIR, "session.json")
+WEBKIT_DIR    = os.path.join(DATA_DIR, "webkit")
+BLINK_TEST    = os.path.join(DATA_DIR, "blink_test")
+LOGIN_BIN     = os.path.join(os.path.dirname(os.path.realpath(__file__)), "logtime-login")
+
+DATA_URL = "https://attendance.42lyon.fr/me/__data.json"
+REFRESH_SECONDS = 60
+BLINK_TEST_SECONDS = 5
+
+TZ = ZoneInfo("Europe/Paris")
+HOUR_MS = 3600 * 1000
+WORKDAY_MS = 7 * HOUR_MS
+CLOSURE_WINDOW_START = 8
+CLOSURE_WINDOW_END = 20
 
 DEFAULTS = {
-    "bonusDays":      0,
-    "giftDays":       0,
-    "displayFormat":  "ratio",
-    "showMinutes":    True,
-    "showCurrentDay": False,
-    "showMoney":      False,
-    "birthDate":      "",
-    "startColor":     "#ef4444",
-    "endColor":       "#4ade80",
-    "aheadColor":     "#00c8ff",
-    "colorGradient":  "exponential",
-    "fontSize":       "small",   # small | medium | large  →  T1 | T3 | T4
+    "showMinutes":         True,
+    "displayFormat":       "all",       # ratio | remaining | all
+    "startColor":          "#fff000",
+    "endColor":            "#47ff00",
+    "aheadColor":          "#00c8ff",
+    "showCurrentDay":      False,
+    "birthDate":           "",
+    "showMoney":           True,
+    "colorGradient":       "ease-out",
+    "displayMode":         "bar",       # text | bar | combined
+    "barColor":            "#47ff00",
+    "badgeColor":          "#facc15",
+    "badgeAlertColor":     "#ef4444",
+    "badgeWarningMinutes": 15,
+    "fontSize":            "small",     # polybar only: small | medium | large
 }
 
 # polybar font tag per size (1-indexed: font-0=T1, font-2=T3, font-3=T4)
 FONT_TAG = {"small": 1, "medium": 3, "large": 4}
+BAR_CELLS = 10
+BAR_CHAR = "━"
+BAR_EMPTY_COLOR = "#4b5263"
+MUTED = "#9ca3af"
+
+SESSION_EXPIRED = "expired"
 
 
-def load_json(path, default=None):
+# ── Files ─────────────────────────────────────────────────────
+
+def load_json(path):
     try:
         with open(path) as f:
-            data = json.load(f)
-            return {**default, **data} if default else data
+            return json.load(f)
     except Exception:
-        return dict(default) if default else None
+        return None
 
 
-def load_credentials():
-    for path in (CREDS_FILE, CREDS_GNOME):
-        d = load_json(path)
-        if d and d.get("clientId") and d.get("clientSecret"):
-            return d
+def load_settings():
+    data = load_json(SETTINGS_FILE) or {}
+    # Older GNOME versions: 'bar' display format, then a showBar toggle
+    if data.get("displayFormat") == "bar":
+        data["displayFormat"] = "ratio"
+        data["showBar"] = True
+    if not data.get("displayMode") and data.get("showBar") is not None:
+        data["displayMode"] = "combined" if data["showBar"] else "text"
+    cfg = dict(DEFAULTS)
+    for k in DEFAULTS:
+        if data.get(k) not in (None, ""):
+            cfg[k] = data[k]
+    return cfg
+
+
+def load_cookie():
+    return (load_json(SESSION_FILE) or {}).get("cookie", "")
+
+
+def mtime(path):
+    try:
+        return os.stat(path).st_mtime
+    except OSError:
+        return None
+
+
+def clear_session():
+    try:
+        os.remove(SESSION_FILE)
+    except FileNotFoundError:
+        pass
+    shutil.rmtree(WEBKIT_DIR, ignore_errors=True)
+
+
+def start_login():
+    """Opens the login window; returns the process (it writes SESSION_FILE on success)."""
+    os.makedirs(DATA_DIR, mode=0o700, exist_ok=True)
+    return subprocess.Popen([LOGIN_BIN, SESSION_FILE, WEBKIT_DIR],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+# ── attendance.42lyon.fr data ─────────────────────────────────
+
+def to_ms(value):
+    """Dates become epoch ms (like JS Date.getTime())."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return value
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp() * 1000
+
+
+def unflatten(values):
+    """Decodes the 'devalue' format SvelteKit uses for __data.json nodes."""
+    specials = {-1: None, -3: math.nan, -4: math.inf, -5: -math.inf, -6: 0.0}
+    hydrated = {}
+
+    def hydrate(index):
+        if index < 0:
+            return specials.get(index)
+        if index in hydrated:
+            return hydrated[index]
+        value = values[index]
+        if isinstance(value, list):
+            if value and isinstance(value[0], str):
+                kind = value[0]
+                if kind == "Date":
+                    result = to_ms(value[1])
+                elif kind in ("Set",):
+                    result = [hydrate(v) for v in value[1:]]
+                elif kind in ("Map", "null"):
+                    result = {}
+                    hydrated[index] = result
+                    for i in range(1, len(value), 2):
+                        result[hydrate(value[i])] = hydrate(value[i + 1])
+                elif kind == "BigInt":
+                    result = int(value[1])
+                elif kind == "RegExp":
+                    result = value[1]
+                else:
+                    result = hydrate(value[1])
+                hydrated[index] = result
+                return result
+            result = []
+            hydrated[index] = result
+            for n in value:
+                result.append(None if n == -2 else hydrate(n))
+            return result
+        if isinstance(value, dict):
+            result = {}
+            hydrated[index] = result
+            for k, v in value.items():
+                result[k] = hydrate(v)
+            return result
+        hydrated[index] = value
+        return value
+
+    return hydrate(0)
+
+
+def extract_attendance(page):
+    """The /me month node: {user, history, calendar, calendarUser, internships}."""
+    for node in page.get("nodes") or []:
+        if not node or node.get("type") != "data" or not isinstance(node.get("data"), list):
+            continue
+        data = unflatten(node["data"])
+        if isinstance(data, dict) and data.get("calendar") and data.get("history") and data.get("user"):
+            return data
     return None
 
 
-def get_token(client_id, client_secret):
-    cache = load_json(TOKEN_CACHE)
-    if cache and cache.get("expires_at", 0) > time.time() + 120:
-        return cache["token"]
-    data = urllib.parse.urlencode({
-        "grant_type":    "client_credentials",
-        "client_id":     client_id,
-        "client_secret": client_secret,
-    }).encode()
-    req = urllib.request.Request(
-        "https://api.intra.42.fr/oauth/token", data=data, method="POST",
-        headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0"},
-    )
+def fetch_attendance(cookie):
+    """Returns the attendance dict, SESSION_EXPIRED, or None on network/parse errors."""
+    req = urllib.request.Request(DATA_URL, headers={"Cookie": cookie, "User-Agent": "Mozilla/5.0"})
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            result = json.loads(resp.read())
-            token = result["access_token"]
-            os.makedirs(os.path.dirname(TOKEN_CACHE), exist_ok=True)
-            with open(TOKEN_CACHE, "w") as f:
-                json.dump({"token": token, "expires_at": time.time() + result.get("expires_in", 7200)}, f)
-            return token
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = resp.read().decode()
+    except urllib.error.HTTPError as e:
+        return SESSION_EXPIRED if e.code in (401, 403) else None
     except Exception:
         return None
+    try:
+        # SvelteKit may stream extra chunks on following lines; the page data is on the first one
+        page = json.loads(body.split("\n")[0])
+    except Exception:
+        return None
+    if page.get("type") == "redirect":
+        return SESSION_EXPIRED
+    return extract_attendance(page)
 
 
-def load_locations_cache():
-    cache = load_json(LOCATIONS_CACHE)
-    if not cache or cache.get("data") is None:
-        return None, False
-    if cache.get("fetched_at", 0) > time.time() - LOCATIONS_TTL:
-        return cache["data"], False  # fresh
-    return cache["data"], True       # stale but usable
+# ── Stats (ported from attendance.42lyon.fr AttendanceCompiler.compileStats) ──
+
+def paris_key(ms):
+    d = datetime.fromtimestamp(ms / 1000, TZ)
+    return d.year * 10000 + d.month * 100 + d.day
 
 
-def save_locations_cache(data):
-    os.makedirs(os.path.dirname(LOCATIONS_CACHE), exist_ok=True)
-    with open(LOCATIONS_CACHE, "w") as f:
-        json.dump({"fetched_at": time.time(), "data": data}, f)
+def utc_key(value):
+    d = datetime.fromtimestamp(to_ms(value) / 1000, timezone.utc)
+    return d.year * 10000 + d.month * 100 + d.day
 
 
-def fetch_locations(token, username):
-    results = []
-    page = 1
-    headers = {"Authorization": f"Bearer {token}", "User-Agent": "Mozilla/5.0"}
-    while True:
-        url = f"https://api.intra.42.fr/v2/users/{username}/locations?per_page=100&page={page}"
-        req = urllib.request.Request(url, headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                page_data = json.loads(resp.read())
-        except Exception:
-            return None
-        if not page_data:
-            break
-        results.extend(page_data)
-        if len(page_data) < 100:
-            break
-        page += 1
-    return results
+def paris_time(year, month, day, hour=0):
+    return datetime(year, month, day, hour, tzinfo=TZ).timestamp() * 1000
 
 
-def get_locations(token, username):
-    cached, is_stale = load_locations_cache()
-    if cached is not None and not is_stale:
-        return cached, False
-    if cached is not None and is_stale:
-        # Return stale data immediately, refresh in background to avoid blocking polybar
-        subprocess.Popen(
-            [sys.executable, __file__, "--refresh-cache"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            env={**os.environ, "_LOGTIME_TOKEN": token, "_LOGTIME_USER": username},
-        )
-        return cached, True
-    fresh = fetch_locations(token, username)
-    if fresh is not None:
-        save_locations_cache(fresh)
-        return fresh, False
-    return None, True
+def next_day_ms(year, month, day):
+    return (datetime(year, month, day, tzinfo=TZ).date() + timedelta(days=1))
 
 
-def calculate_easter(year):
-    a = year % 19;  b = year // 100;  c = year % 100
-    d = b // 4;     e = b % 4;        f = (b + 8) // 25
-    g = (b - f + 1) // 3
-    h = (19 * a + b - d - g + 15) % 30
-    i = c // 4;     k = c % 4
-    l = (32 + 2 * e + 2 * i - h - k) % 7
-    m = (a + 11 * h + 22 * l) // 451
-    month = (h + l - 7 * m + 114) // 31
-    day   = ((h + l - 7 * m + 114) % 31) + 1
-    return date(year, month, day) + timedelta(days=1)
+def clip(start, end, lo, hi):
+    if start is None or end is None:
+        return None
+    s, e = max(start, lo), min(end, hi)
+    return (s, e) if e > s else None
 
 
-def get_french_holidays(year):
-    e = calculate_easter(year)
-    return {date(year,1,1), date(year,5,1), date(year,5,8), date(year,7,14),
-            date(year,8,15), date(year,11,1), date(year,11,11), date(year,12,25),
-            e, e + timedelta(days=39), e + timedelta(days=49)}
-
-
-def working_days_in_month(year, month):
-    holidays = get_french_holidays(year)
-    days_in_month = (date(year, month + 1, 1) - timedelta(days=1)).day if month < 12 else 31
-    return sum(1 for d in range(1, days_in_month + 1)
-               if date(year, month, d).weekday() < 5 and date(year, month, d) not in holidays)
-
-
-def sum_seconds(locations, year, month, day=None):
-    now = datetime.now(timezone.utc)
-    local_tz = datetime.now().astimezone().tzinfo
-    total = 0.0
-    for s in locations:
-        raw = s.get("begin_at")
-        if not raw:
+def subtract(rng, taken):
+    """Parts of rng not already covered by taken."""
+    start, end = rng
+    pieces, cursor = [], start
+    for ts, te in sorted(taken):
+        s, e = max(ts, start), min(te, end)
+        if e <= s:
             continue
-        try:
-            begin_utc = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-            begin_local = begin_utc.astimezone(local_tz)
-            end_raw = s.get("end_at")
-            end_utc = datetime.fromisoformat(end_raw.replace("Z", "+00:00")) if end_raw else now
+        if s > cursor:
+            pieces.append((cursor, s))
+        cursor = max(cursor, e)
+        if cursor >= end:
+            break
+    if cursor < end:
+        pieces.append((cursor, end))
+    return pieces
 
-            if day is not None:
-                # Check if session overlaps the target day (handles sessions crossing midnight)
-                day_start = datetime(year, month, day, 0, 0, 0, tzinfo=local_tz).astimezone(timezone.utc)
-                day_end   = datetime(year, month, day, 23, 59, 59, 999999, tzinfo=local_tz).astimezone(timezone.utc)
-                if end_utc <= day_start or begin_utc >= day_end:
-                    continue
-                # Clamp to the target day boundaries
-                effective_begin = max(begin_utc, day_start)
-                effective_end   = min(end_utc, day_end)
-                total += (effective_end - effective_begin).total_seconds()
-            else:
-                if begin_local.year != year or begin_local.month != month:
-                    continue
-                total += (end_utc - begin_utc).total_seconds()
-        except Exception:
-            continue
+
+def day_attendance_ms(day_start, day_end, history, max_ping, with_locations, now):
+    """Presences, plus locations on 'with locations' days. Closures win, overlaps count once."""
+    groups = [(False, []), (True, []), (with_locations, [])]  # closures, presences, locations
+
+    for c in history.get("closures") or []:
+        r = clip(to_ms(c.get("beginAt")), to_ms(c.get("endAt")), day_start, day_end)
+        if r:
+            groups[0][1].append((r, True))
+
+    for p in history.get("presences") or []:
+        started, saved, ended = to_ms(p.get("beginAt")), to_ms(p.get("savedAt")), to_ms(p.get("endAt"))
+        end = ended if ended is not None else saved
+        r = clip(started, end, day_start, day_end)
+        if r:
+            groups[1][1].append((r, True))
+        # An open presence only counts up to its last ping; the next maxPingInterval is "unsaved"
+        if ended is None and saved is not None:
+            unsaved_end = saved + max_ping
+            if end < day_end and unsaved_end > day_start:
+                groups[1][1].append(((end, unsaved_end), False))
+
+    for loc in history.get("locations") or []:
+        ended = to_ms(loc.get("endAt")) if loc.get("endAt") else now
+        r = clip(to_ms(loc.get("beginAt")), ended, day_start, day_end)
+        if r:
+            groups[2][1].append((r, True))
+
+    taken, total = [], 0
+    for counted, ranges in groups:
+        for rng, range_counted in ranges:
+            for piece in subtract(rng, taken):
+                taken.append(piece)
+                if counted and range_counted:
+                    total += piece[1] - piece[0]
     return total
 
 
-def apply_curve(t, curve):
-    if   curve == "linear":      return t
-    elif curve == "ease-out":    return 1 - (1 - t) ** 2
-    elif curve == "cosine":      return math.sin(t * math.pi / 2)
-    elif curve == "sine":        return (1 - math.cos(t * math.pi)) / 2
-    elif curve == "smoothstep":  return t * t * (3 - 2 * t)
-    elif curve == "ease-in-out": return 4*t**3 if t < 0.5 else 1 - (-2*t+2)**3/2
-    elif curve == "quadratic":   return t ** 2
-    elif curve == "cubic":       return t ** 3
-    else:                        return 0 if t == 0 else 2 ** (10 * t - 10)  # exponential
+def build_days(page, now):
+    calendar, history, user = page["calendar"], page["history"], page["user"]
+    year, month = calendar["year"], calendar["monthIndex"] + 1
+    days_in_month = ((datetime(year + month // 12, month % 12 + 1, 1) - timedelta(days=1)).day)
+
+    workdays = {paris_key(to_ms(d)) for d in calendar.get("workdays") or []}
+    location_days = {paris_key(to_ms(d)) for d in calendar.get("withLocationsDays") or []}
+    internships = [(paris_key(to_ms(i["start_at"])), paris_key(to_ms(i["end_at"])))
+                   for i in page.get("internships") or []]
+    absences = [(utc_key(a["beginDate"]), utc_key(a["endDate"])) for a in history.get("absences") or []]
+    in_ranges = lambda key, ranges: any(lo <= key <= hi for lo, hi in ranges)
+    max_ping = user.get("maxPingInterval") or 0
+
+    days = []
+    for day in range(1, days_in_month + 1):
+        key = year * 10000 + month * 100 + day
+        day_start = paris_time(year, month, day)
+        nd = next_day_ms(year, month, day)
+        day_end = paris_time(nd.year, nd.month, nd.day) - 1
+        is_workday = key in workdays
+
+        closure_ms = 0
+        w_start = paris_time(year, month, day, CLOSURE_WINDOW_START)
+        w_end = paris_time(year, month, day, CLOSURE_WINDOW_END)
+        for c in history.get("closures") or []:
+            r = clip(to_ms(c.get("beginAt")), to_ms(c.get("endAt")), w_start, w_end)
+            if r:
+                closure_ms += r[1] - r[0]
+
+        days.append({
+            "key": key,
+            "isWorkday": is_workday,
+            "excused": in_ranges(key, internships) or in_ranges(key, absences),
+            "isClosureDay": is_workday and closure_ms >= WORKDAY_MS,
+            "attendanceMs": day_attendance_ms(day_start, day_end, history, max_ping, key in location_days, now),
+        })
+    return days
 
 
-def interpolate_color(pct, start, end, ahead, curve):
-    def parse(h): h = h.lstrip("#"); return int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
-    if pct >= 1.0:
-        r, g, b = parse(ahead)
+def compile_stats(page, days, remuneration):
+    def is_remunerated(key):
+        return remuneration is None or utc_key(remuneration["beginDate"]) <= key <= utc_key(remuneration["endDate"])
+
+    base = remunerated_days = closure_days = user_days = excused_days = 0
+    raw_done = 0
+    for d in days:
+        # Time done on excused days (internship, absence) doesn't count
+        if not d["excused"]:
+            raw_done += d["attendanceMs"]
+        if not d["isWorkday"]:
+            continue
+        rem = is_remunerated(d["key"])
+        base += 1
+        if rem:
+            remunerated_days += 1
+        if d["isClosureDay"]:
+            closure_days += 1
+        elif not d["excused"] and rem:
+            user_days += 1
+        if rem and (d["excused"] or d["isClosureDay"]):
+            excused_days += 1
+
+    after_excused = max(0, remunerated_days * WORKDAY_MS - excused_days * WORKDAY_MS)
+    reduction_days = max(0, min(page["calendar"].get("workdayReduction") or 0, base))
+    open_days = base - closure_days
+    reduction_raw = reduction_days * WORKDAY_MS * (0 if open_days == 0 else user_days / open_days)
+    reduction = reduction_raw - reduction_raw % HOUR_MS
+    after_reduction = max(0, after_excused - reduction)
+    capsules = sum(c["batch"]["valueMs"] for c in ((page.get("calendarUser") or {}).get("capsules") or []))
+    todo = max(0, after_reduction - capsules)
+    done = max(0, min(raw_done, todo))
+    return {
+        "doneMs": done,
+        "rawDoneMs": raw_done,
+        "todoMs": todo,
+        "percent": 100 if todo == 0 else math.floor(done / todo * 100),
+    }
+
+
+def calculate_stats(page, now):
+    """Like the site: one result per remuneration active this month, keeping the one with the most to do."""
+    days = build_days(page, now)
+    year, month = page["calendar"]["year"], page["calendar"]["monthIndex"] + 1
+    month_start = paris_time(year, month, 1)
+    month_end = paris_time(year + month // 12, month % 12 + 1, 1)
+    active = [r for r in page["user"].get("remunerationUsers") or []
+              if to_ms(r["beginDate"]) < month_end and to_ms(r["endDate"]) >= month_start]
+    if not active:
+        stats = compile_stats(page, days, None)
     else:
-        sr, sg, sb = parse(start)
-        er, eg, eb = parse(end)
-        t = apply_curve(max(0.0, min(1.0, pct)), curve)
-        r = sr + (er - sr) * t
-        g = sg + (eg - sg) * t
-        b = sb + (eb - sb) * t
-    return f"#{int(r):02x}{int(g):02x}{int(b):02x}"
+        stats = max((compile_stats(page, days, r) for r in active), key=lambda s: s["todoMs"])
+    today = next((d for d in days if d["key"] == paris_key(now)), None)
+    stats["todayMs"] = today["attendanceMs"] if today else 0
+    return stats
 
 
-def get_monthly_rate(birth_date):
-    if not birth_date:
-        return None
+def badge_status(page, now):
+    """Time left before the ongoing presence expires (last ping's ttl runs from savedAt)."""
+    max_ping = page["user"].get("maxPingInterval") or 0
+    opened = [p for p in page["history"].get("presences") or [] if not p.get("endAt")]
+    if not opened:
+        return {"active": False, "remainingMs": 0, "ttlMs": max_ping}
+    current = max(opened, key=lambda p: to_ms(p.get("beginAt")) or 0)
+    saved = to_ms(current.get("savedAt")) or 0
+    ping = next((p for p in current.get("pings") or [] if to_ms(p.get("timestamp")) == saved), None)
+    ttl = (ping or {}).get("ttlMs") or max_ping
+    remaining = max(0, saved + ttl - now)
+    return {"active": remaining > 0, "remainingMs": remaining, "ttlMs": ttl}
+
+
+# ── Formatting ────────────────────────────────────────────────
+
+def monthly_rate(birth_date):
+    """Barème Auvergne-Rhône-Alpes actualisé au 01/04/2025."""
     try:
-        parts = birth_date.split("-")
-        birth = date(int(parts[0]), int(parts[1]), int(parts[2]))
+        y, m, d = (int(x) for x in birth_date.split("-"))
+        birth = datetime(y, m, d).date()
     except Exception:
         return None
-    today = date.today()
+    today = datetime.now().date()
     age = today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
     if age >= 26: return 769.49
     if age >= 18: return 561.68
@@ -246,150 +429,278 @@ def get_monthly_rate(birth_date):
     return None
 
 
-def calculate_money(birth_date, total_hours, working_hours):
-    rate = get_monthly_rate(birth_date)
-    if rate is None:
-        return None
-    if working_hours <= 0:
-        return rate
-    # Calculate money per second: total earned money divided by seconds in month
-    # This makes it update smoothly every second when polybar refreshes
-    return min(total_hours / working_hours, 1.0) * rate
+def format_duration(ms, show_minutes):
+    total = int(ms // 60000)
+    return f"{total // 60}h{total % 60:02d}" if show_minutes else f"{total // 60}h"
 
 
-def format_hm(seconds, show_minutes):
-    h = int(seconds // 3600)
-    m = int((seconds % 3600) // 60)
-    return f"{h}h{m:02d}" if show_minutes else f"{h}h"
+def format_ratio(stats, show_minutes):
+    todo = stats["todoMs"]
+    todo_text = f"{int(todo // HOUR_MS)}h" if todo % HOUR_MS == 0 else format_duration(todo, True)
+    return f"{format_duration(stats['doneMs'], show_minutes)}/{todo_text}"
 
 
-def build_display(locations, cfg, today):
-    bonus      = cfg.get("bonusDays", 0)
-    gift       = cfg.get("giftDays", 0)
-    fmt        = cfg.get("displayFormat", "ratio")
-    show_min   = cfg.get("showMinutes", True)
-    show_day   = cfg.get("showCurrentDay", False)
-    show_money = cfg.get("showMoney", False)
-    birth_date = cfg.get("birthDate", "")
-
-    wd      = working_days_in_month(today.year, today.month)
-    req_h   = max(0, wd - min(gift, wd)) * 7
-    total_s = sum_seconds(locations, today.year, today.month) + bonus * 7 * 3600
-    total_h = int(total_s // 3600)
-    total_m = int((total_s % 3600) // 60)
-    rem_s   = req_h * 3600 - total_s
-    ahead   = rem_s < 0
-
-    ratio_str = f"{total_h}h{total_m:02d}/{req_h}h" if show_min else f"{total_h}h/{req_h}h"
-    rem_str   = (f"+{format_hm(abs(rem_s), show_min)} above!" if ahead
-                 else f"Remaining: {format_hm(abs(rem_s), show_min)}")
-
-    if   fmt == "remaining": text = rem_str
-    elif fmt == "all":       text = f"{ratio_str} | {rem_str}"
-    else:                    text = ratio_str
-
-    if show_day:
-        day_s = sum_seconds(locations, today.year, today.month, today.day)
-        text += f" | Today: {format_hm(day_s, show_min)}"
-
-    if show_money:
-        earned = calculate_money(birth_date, total_s / 3600, req_h)
-        if earned is not None:
-            text += f" | {earned:.3f}€"
-
-    pct   = (total_s / (req_h * 3600)) if req_h > 0 else 0.0
-    color = interpolate_color(pct,
-                               cfg.get("startColor",    "#ef4444"),
-                               cfg.get("endColor",      "#4ade80"),
-                               cfg.get("aheadColor",    "#00c8ff"),
-                               cfg.get("colorGradient", "exponential"))
-
-    font_n = FONT_TAG.get(cfg.get("fontSize", "small"), 1)
-    return f"%{{F{color}}}%{{T{font_n}}} {text}%{{T-}}%{{F-}}"
+def format_text(stats, cfg):
+    show_min = cfg["showMinutes"]
+    ratio = format_ratio(stats, show_min)
+    remaining = stats["todoMs"] - stats["rawDoneMs"]
+    remaining_text = (f"+{format_duration(-remaining, show_min)} above!" if remaining < 0
+                      else f"Remaining: {format_duration(remaining, show_min)}")
+    fmt = cfg["displayFormat"]
+    text = remaining_text if fmt == "remaining" else f"{ratio} | {remaining_text}" if fmt == "all" else ratio
+    if cfg["showCurrentDay"]:
+        text += f" | Today: {format_duration(stats['todayMs'], show_min)}"
+    if cfg["showMoney"]:
+        rate = monthly_rate(cfg["birthDate"])
+        if rate is not None:
+            earned = rate if stats["todoMs"] <= 0 else min(stats["doneMs"] / stats["todoMs"], 1.0) * rate
+            text += f" | {earned:.2f}€"
+    return text
 
 
-API_REFRESH = 120  # seconds between API/cache fetches
+def apply_curve(t, curve):
+    if curve == "linear":       return t
+    if curve == "ease-out":     return 1 - (1 - t) ** 2
+    if curve == "cosine":       return math.sin(t * math.pi / 2)
+    if curve == "sine":         return (1 - math.cos(t * math.pi)) / 2
+    if curve == "smoothstep":   return t * t * (3 - 2 * t)
+    if curve == "ease-in-out":  return 4 * t ** 3 if t < 0.5 else 1 - (-2 * t + 2) ** 3 / 2
+    if curve == "smootherstep": return t ** 3 * (t * (t * 6 - 15) + 10)
+    if curve == "quadratic":    return t ** 2
+    if curve == "cubic":        return t ** 3
+    if curve == "circular":     return 1 - math.sqrt(1 - t * t)
+    if curve == "bounce":
+        if t < 1 / 2.75:   return 7.5625 * t * t
+        if t < 2 / 2.75:   t -= 1.5 / 2.75;   return 7.5625 * t * t + 0.75
+        if t < 2.5 / 2.75: t -= 2.25 / 2.75;  return 7.5625 * t * t + 0.9375
+        t -= 2.625 / 2.75; return 7.5625 * t * t + 0.984375
+    return 0 if t == 0 else 2 ** (10 * t - 10)  # exponential
 
 
-def run_daemon():
-    """Persistent loop for polybar tail=true mode.
-    Outputs one line per second; hits the API at most every API_REFRESH seconds.
-    The display increments locally between fetches because sum_seconds() uses
-    datetime.now() for any open session."""
-    import signal
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+def interpolate_color(pct, cfg):
+    def parse(h):
+        h = h.lstrip("#")
+        return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    if pct >= 1.0:
+        r, g, b = parse(cfg["aheadColor"])
+    else:
+        (sr, sg, sb), (er, eg, eb) = parse(cfg["startColor"]), parse(cfg["endColor"])
+        t = apply_curve(max(0.0, min(1.0, pct)), cfg["colorGradient"])
+        r, g, b = sr + (er - sr) * t, sg + (eg - sg) * t, sb + (eb - sb) * t
+    return f"#{round(r):02x}{round(g):02x}{round(b):02x}"
 
-    locations  = None
-    cfg        = None
-    username   = os.environ.get("USER") or os.getlogin()
-    last_fetch = 0.0
 
-    while True:
+def colored(text, color):
+    return f"%{{F{color}}}{text}%{{F-}}"
+
+
+def bar(ratio, color):
+    fill = round(BAR_CELLS * max(0.0, min(1.0, ratio)))
+    out = colored(BAR_CHAR * fill, color) if fill else ""
+    return out + (colored(BAR_CHAR * (BAR_CELLS - fill), BAR_EMPTY_COLOR) if fill < BAR_CELLS else "")
+
+
+def render(page, cfg, now, blink_on, blink_test_until):
+    """Returns (polybar line, needs_blink). Layout like the GNOME panel:
+    [month bar] [ratio] [text] [badge bar] [countdown]"""
+    stats = calculate_stats(page, now)
+    pct = max(0.0, min(1.0, stats["percent"] / 100))
+    mode, fmt = cfg["displayMode"], cfg["displayFormat"]
+    show_bars = mode != "text"
+    show_month = show_bars and fmt != "remaining"
+    test_ms = blink_test_until * 1000 - now
+    # The blink test shows the badge bar even when the display format hides it
+    show_badge = test_ms > 0 or (show_bars and fmt != "ratio")
+
+    parts = []
+    if show_month:
+        parts.append(bar(pct, cfg["barColor"]))
+        parts.append(colored(format_ratio(stats, cfg["showMinutes"]), cfg["barColor"]))
+    if mode != "bar":
+        parts.append(colored(format_text(stats, cfg), interpolate_color(pct, cfg)))
+
+    blinking = False
+    if show_badge:
+        badge = badge_status(page, now)
+        ratio = badge["remainingMs"] / badge["ttlMs"] if badge["ttlMs"] > 0 else 0
+        warning = badge["active"] and badge["remainingMs"] <= cfg["badgeWarningMinutes"] * 60 * 1000
+        if warning or test_ms > 0:
+            remaining = badge["remainingMs"] if warning else test_ms
+            if not warning and not badge["active"]:
+                ratio = 1
+            seconds = math.ceil(remaining / 1000)
+            color = cfg["badgeAlertColor"] if blink_on else BAR_EMPTY_COLOR
+            parts.append(bar(ratio, color))
+            parts.append(colored(f"Badge! {seconds // 60}:{seconds % 60:02d}", color))
+            blinking = True
+        elif badge["active"]:
+            parts.append(bar(ratio, cfg["badgeColor"]))
+            parts.append(colored(format_duration(badge["remainingMs"], True), cfg["badgeColor"]))
+        else:
+            parts.append(bar(0, cfg["badgeColor"]))
+            parts.append(colored("No session", MUTED))
+
+    return wrap(" ".join(parts), cfg), blinking
+
+
+def wrap(content, cfg):
+    return f"%{{T{FONT_TAG.get(cfg['fontSize'], 1)}}} {content}%{{T-}}"
+
+
+def status(text, color, cfg):
+    return wrap(colored(text, color), cfg)
+
+
+# ── Daemon ────────────────────────────────────────────────────
+
+class Daemon:
+    def __init__(self):
+        self.page = None
+        self.state = "connecting"   # connecting | ok | login | logged_out | offline
+        self.cookie = ""
+        self.login_proc = None
+        self.last_fetch = 0.0
+        self.force = False
+        self.session_mtime = mtime(SESSION_FILE)
+        self.blink_mtime = mtime(BLINK_TEST)
+        self.blink_test_until = 0.0
+        self.blink_on = True
+
+    def request_refresh(self, *_):
+        self.force = True
+
+    def login(self):
+        if self.login_proc and self.login_proc.poll() is None:
+            return
+        self.page = None
+        self.state = "login"
+        try:
+            self.login_proc = start_login()
+        except Exception:
+            self.login_proc = None
+            self.state = "logged_out"
+
+    def refresh(self):
+        self.last_fetch = time.time()
+        self.cookie = load_cookie()
+        if not self.cookie:
+            self.login()
+            return
+        data = fetch_attendance(self.cookie)
+        if data == SESSION_EXPIRED:
+            self.login()
+        elif data is None:
+            if self.page is None:
+                self.state = "offline"
+        else:
+            self.page, self.state = data, "ok"
+
+    def tick(self):
         now = time.time()
 
-        if now - last_fetch >= API_REFRESH or locations is None:
-            creds = load_credentials()
-            if not creds:
-                print("No credentials — click to configure", flush=True)
-                time.sleep(API_REFRESH)
-                continue
+        # Login window closed: reconnect on success, otherwise wait for a click
+        if self.login_proc and self.login_proc.poll() is not None:
+            ok = self.login_proc.returncode == 0
+            self.login_proc = None
+            self.session_mtime = mtime(SESSION_FILE)
+            if ok:
+                self.refresh()
+            else:
+                self.state = "logged_out"
 
-            token = get_token(creds["clientId"], creds["clientSecret"])
-            if not token:
-                print("Auth failed", flush=True)
-                time.sleep(API_REFRESH)
-                continue
+        # Session saved by another login window (GNOME extension) or cleared from Settings
+        m = mtime(SESSION_FILE)
+        if m != self.session_mtime:
+            self.session_mtime = m
+            if self.login_proc is None:
+                self.state = "connecting"
+                self.page = None
+                self.refresh()
 
-            fetched, _ = get_locations(token, username)
-            if fetched is not None:
-                locations = fetched
-            cfg        = load_json(SETTINGS_FILE, DEFAULTS)
-            last_fetch = now
+        m = mtime(BLINK_TEST)
+        if m != self.blink_mtime:
+            self.blink_mtime = m
+            self.blink_test_until = now + BLINK_TEST_SECONDS
 
-        if locations is None:
-            print("API error", flush=True)
-        else:
-            print(build_display(locations, cfg, date.today()), flush=True)
+        if self.force:
+            self.force = False
+            if self.state in ("logged_out", "login") and self.login_proc is None:
+                self.login()
+            elif self.login_proc is None:
+                self.refresh()
+        elif self.state not in ("login", "logged_out") and now - self.last_fetch >= REFRESH_SECONDS:
+            self.refresh()
 
-        time.sleep(1)
+    def line(self, cfg):
+        if self.state == "ok" and self.page:
+            try:
+                text, blinking = render(self.page, cfg, time.time() * 1000, self.blink_on, self.blink_test_until)
+                return text, blinking
+            except Exception:
+                return status("Logtime: data error", "#ef4444", cfg), False
+        if self.state == "login":
+            return status("Log in to Attendance...", "#f59e0b", cfg), False
+        if self.state == "logged_out":
+            return status("Not logged in: right-click to reconnect", "#ef4444", cfg), False
+        if self.state == "offline":
+            return status("Logtime: offline", MUTED, cfg), False
+        return status("Connecting...", "#10b981", cfg), False
+
+    def run(self):
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+        signal.signal(signal.SIGUSR1, self.request_refresh)
+        self.refresh()
+        last = None
+        while True:
+            self.tick()
+            text, blinking = self.line(load_settings())
+            if text != last:
+                print(text, flush=True)
+                last = text
+            if blinking:
+                self.blink_on = not self.blink_on
+                time.sleep(0.5)
+            else:
+                self.blink_on = True
+                time.sleep(1)
+
+
+def signal_daemon():
+    """SIGUSR1 to running daemons; only python processes running this script with --daemon."""
+    me = os.getpid()
+    for pid in filter(str.isdigit, os.listdir("/proc")):
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as f:
+                args = [a.decode(errors="replace") for a in f.read().split(b"\0") if a]
+        except OSError:
+            continue
+        if (int(pid) != me and len(args) >= 3 and "python" in os.path.basename(args[0])
+                and os.path.basename(args[1]) == "logtime-polybar" and "--daemon" in args[2:]):
+            try:
+                os.kill(int(pid), signal.SIGUSR1)
+            except OSError:
+                pass
 
 
 def main():
-    # Background cache refresh mode — called by get_locations via Popen
-    if "--refresh-cache" in sys.argv:
-        token    = os.environ.get("_LOGTIME_TOKEN")
-        username = os.environ.get("_LOGTIME_USER")
-        if token and username:
-            fresh = fetch_locations(token, username)
-            if fresh is not None:
-                save_locations_cache(fresh)
-        sys.exit(0)
-
-    # Daemon mode for polybar tail=true — one process, local increment, API every 2 min
     if "--daemon" in sys.argv:
-        run_daemon()
-        return
-
-    # One-shot mode (legacy / manual test)
-    creds = load_credentials()
-    if not creds:
-        print("No credentials — click to configure")
-        sys.exit(0)
-
-    token = get_token(creds["clientId"], creds["clientSecret"])
-    if not token:
-        print("Auth failed")
-        sys.exit(0)
-
-    username          = os.environ.get("USER") or os.getlogin()
-    locations, stale  = get_locations(token, username)
-    if locations is None:
-        print("API error")
-        sys.exit(0)
-
-    cfg    = load_json(SETTINGS_FILE, DEFAULTS)
-    output = build_display(locations, cfg, date.today())
-    print(output)
+        Daemon().run()
+    elif "--refresh" in sys.argv:
+        signal_daemon()
+    elif "--login" in sys.argv:
+        start_login()
+    elif "--logout" in sys.argv:
+        clear_session()
+    else:
+        cfg = load_settings()
+        cookie = load_cookie()
+        data = fetch_attendance(cookie) if cookie else SESSION_EXPIRED
+        if data == SESSION_EXPIRED:
+            print("Not logged in: run logtime-polybar --login")
+        elif data is None:
+            print("Logtime: offline")
+        else:
+            print(render(data, cfg, time.time() * 1000, True, 0)[0])
 
 
 if __name__ == "__main__":
