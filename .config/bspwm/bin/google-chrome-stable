@@ -1,0 +1,11 @@
+#!/bin/sh
+# =============================================================
+#  google-chrome-stable — launcher for bspwm/junest environment
+#
+#  Chrome is the Ubuntu .deb (the same one GNOME launches). Inside
+#  junest, /usr/bin/google-chrome* point through /etc/alternatives to
+#  /opt/google/chrome, which only exist on the host, and the Ubuntu
+#  build expects Ubuntu libs anyway, so run it on the host via host-run.
+# =============================================================
+
+exec host-run -q google-chrome-stable "$@"

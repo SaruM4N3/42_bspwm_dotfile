@@ -1,0 +1,3 @@
+#!/bin/sh
+# Same as google-chrome-stable (see that wrapper)
+exec host-run -q google-chrome-stable "$@"

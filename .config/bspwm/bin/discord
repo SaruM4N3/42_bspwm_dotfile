@@ -9,6 +9,6 @@
 # =============================================================
 
 if command -v host-run >/dev/null 2>&1 && [ -p "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm_host_req" ]; then
-    exec host-run discord "$@"
+    exec host-run -q discord "$@"
 fi
 exec "$HOME/.config/discord/Discord" "$@"
