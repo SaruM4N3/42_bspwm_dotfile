@@ -19,8 +19,8 @@ super + F1
 ~Escape
     eww -c "${HOME}/.config/bspwm/eww" close csheet 2>/dev/null; true
 
-# Quit bspwm
-super + b
+# Quit bspwm (back to GNOME — GNOME's Super + Shift + B comes back here)
+super + shift + b
     Quit
 
 # Reload BSPWM
@@ -52,6 +52,10 @@ ctrl + shift + Escape
 # App launcher
 super + space
     OpenApps --menu
+
+# Switch to the next keyboard layout (GNOME input sources)
+super + shift + space
+    KeyBoardL --next
 
 # Theme Selector
 alt + @space

@@ -64,7 +64,7 @@ echo -e "    ${GRN}[1]${NC} Install junest + Arch dependencies inside it"
 echo -e "    ${GRN}[2]${NC} Backup existing configs to ~/.config-backup-$STAMP"
 echo -e "    ${GRN}[3]${NC} Deploy all dotfiles to their locations"
 echo -e "    ${GRN}[4]${NC} Install fonts, desktop entries, and bin scripts"
-echo -e "    ${GRN}[5]${NC} Register GNOME Super+B shortcut"
+echo -e "    ${GRN}[5]${NC} Register GNOME Super+Shift+B shortcut"
 echo -e "    ${GRN}[6]${NC} Install oh-my-zsh + custom plugins"
 echo -e "    ${GRN}[7]${NC} Patch ~/.zshrc with junest/bspwm swap"
 echo ""
@@ -248,9 +248,9 @@ info "Step 4/7 — Installing fonts, desktop entries, and bin scripts..."
 
 command -v xdg-user-dirs-update >/dev/null && xdg-user-dirs-update
 
-# ── Step 5: GNOME Super+B shortcut ───────────────────────────
+# ── Step 5: GNOME Super+Shift+B shortcut────────────────────────
 clear
-info "Step 5/7 — Registering GNOME keyboard shortcut (Super+B → bspwm)..."
+info "Step 5/7 — Registering GNOME keyboard shortcut (Super+Shift+B → bspwm)..."
 if command -v dconf >/dev/null 2>&1; then
     bash "$HOME/.bspwminstaller/add-gnome-shortcut.sh"
 else

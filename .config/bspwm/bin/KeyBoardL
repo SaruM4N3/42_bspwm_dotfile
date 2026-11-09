@@ -7,35 +7,87 @@
 #  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
 #  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
 #
-#  KeyBoardL - Choose current layout
+#  KeyBoardL - Choose / cycle the keyboard layout
 #  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
+#
+#  Layouts are the GNOME input sources (Settings > Keyboard), e.g. us and
+#  us+intl, so bspwm offers the same ones as GNOME.
+#
+#  KeyBoardL          rofi menu (polybar click, super + alt + k)
+#  KeyBoardL --next   switch to the next layout (super + shift + space)
 
-# Get the current layout
-CURRENT=$(setxkbmap -query | awk '/layout/ {print $2}')
+EVDEV=/usr/share/X11/xkb/rules/evdev.lst
 
-# Layouts. You can add yours.
-LAYOUTS="US English|us"
+# "us" / "us+intl" lines from GNOME's input sources, us as fallback
+layout_codes() {
+    sources=$(gsettings get org.gnome.desktop.input-sources sources 2>/dev/null ||
+              dconf read /org/gnome/desktop/input-sources/sources 2>/dev/null)
+    codes=$(printf '%s' "$sources" | grep -o "('xkb', '[^']*')" | sed "s/('xkb', '\([^']*\)')/\1/")
+    [ -n "$codes" ] && printf '%s\n' "$codes" || echo us
+}
 
-# Show rofi menu
+# Human name of a layout code, from the X keyboard database
+layout_name() {
+    layout=${1%%+*}
+    variant=$(printf '%s' "$1" | sed -n 's/^[^+]*+//p')
+    if [ -n "$variant" ]; then
+        name=$(awk -v v="$variant" -v l="$layout:" '/^! variant/{s=1;next} /^!/{s=0} s && $1==v && $2==l {$1=$2=""; sub(/^  */,""); print; exit}' "$EVDEV" 2>/dev/null)
+    else
+        name=$(awk -v l="$layout" '/^! layout/{s=1;next} /^!/{s=0} s && $1==l {$1=""; sub(/^ */,""); print; exit}' "$EVDEV" 2>/dev/null)
+    fi
+    printf '%s\n' "${name:-$1}"
+}
+
+# Active layout as a code (first group): us, us+intl...
+current_code() {
+    setxkbmap -query | awk '
+        /^layout:/  { split($2, l, ","); layout = l[1] }
+        /^variant:/ { split($2, v, ","); variant = v[1] }
+        END { print layout (variant != "" ? "+" variant : "") }'
+}
+
+apply_code() {
+    layout=${1%%+*}
+    variant=$(printf '%s' "$1" | sed -n 's/^[^+]*+//p')
+    setxkbmap -layout "$layout" -variant "$variant"
+}
+
+CURRENT=$(current_code)
+
+case "$1" in
+    --next)
+        codes=$(layout_codes)
+        next=$(printf '%s\n' "$codes" | awk -v cur="$CURRENT" '
+            NR == 1 { first = $0 }
+            found   { print; done = 1; exit }
+            $0 == cur { found = 1 }
+            END     { if (!done) print first }')
+        apply_code "$next"
+        dunstify -u low -r 7042 -i input-keyboard "Keyboard" "$(layout_name "$next")" 2>/dev/null
+        exit 0
+        ;;
+esac
+
+# Rofi menu: one line per layout, current one in the message
 show_rofi_menu() {
-    printf '%s\n' "$LAYOUTS" | cut -d'|' -f1 | rofi \
+    for code in $(layout_codes); do
+        layout_name "$code"
+    done | rofi \
         -dmenu \
         -p "Keyboard Layout" \
-        -mesg "Current layout --> $CURRENT" \
+        -mesg "Current layout --> $(layout_name "$CURRENT")" \
         -markup-rows \
         -theme "$HOME/.config/bspwm/config/rofi-themes/Keyboard.rasi" \
         ${POLY_ROFI_POS:+-theme-str "$POLY_ROFI_POS"}
 }
 
-# Select and apply the layout
 selected=$(show_rofi_menu)
 if [ -n "$selected" ]; then
-    layout_code=$(printf '%s\n' "$LAYOUTS" | awk -F'|' -v sel="$selected" '$1 == sel {print $2}')
-    if [ -n "$layout_code" ]; then
-        set -f
-        set -- $layout_code
-        set +f
-        setxkbmap "$@"
-    fi
+    for code in $(layout_codes); do
+        if [ "$(layout_name "$code")" = "$selected" ]; then
+            apply_code "$code"
+            break
+        fi
+    done
 fi

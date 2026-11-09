@@ -1,5 +1,6 @@
 #!/bin/bash
-# Adds a GNOME custom keyboard shortcut for launching bspwm.
+# Adds a GNOME custom keyboard shortcut for launching bspwm (Super+Shift+B;
+# the same keys quit bspwm back to GNOME, see sxhkdrc).
 # Usage: ./add-gnome-shortcut.sh
 
 BASE="/org/gnome/settings-daemon/plugins/media-keys"
@@ -8,7 +9,7 @@ NEW_DIR="$BASE/custom-keybindings/$NEW_KEY/"
 
 NAME="launchbspwm"
 COMMAND="$HOME/.bspwminstaller/bspwm.sh"
-BINDING="<Super>b"
+BINDING="<Shift><Super>b"
 
 # Read current list
 current=$(dconf read "$BASE/custom-keybindings")
