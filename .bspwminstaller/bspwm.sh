@@ -1,8 +1,8 @@
 #!/bin/bash
 
 kill $(ps aux | grep ft_ld | grep -v grep | awk '{print $2}')
-[ /tmp/time.so -nt "$HOME/.bspwminstaller/locker/time.c" ] || gcc -shared -fPIC -o /tmp/time.so "$HOME/.bspwminstaller/locker/time.c" -ldl
-LD_PRELOAD=/tmp/time.so /usr/local/bin/ft_lock -d 2>/dev/null || true  # daemon may already be running; that's fine
+[ /tmp/lockbg.so -nt "$HOME/.bspwminstaller/locker/lockbg.c" ] || gcc -shared -fPIC -o /tmp/lockbg.so "$HOME/.bspwminstaller/locker/lockbg.c" -ldl
+LD_PRELOAD=/tmp/lockbg.so /usr/local/bin/ft_lock -d 2>/dev/null || true  # daemon may already be running; that's fine
 
 # Init LOGDIR
 BSPLOGDIR=$HOME/.BspwmLogs
@@ -44,7 +44,7 @@ _LOCK_ACK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm_lock_ack"
 rm -f "$_LOCK_REQ" "$_LOCK_ACK"
 mkfifo "$_LOCK_REQ" "$_LOCK_ACK"
 while IFS= read -r _ < "$_LOCK_REQ"; do
-    LD_PRELOAD=/tmp/time.so /usr/local/bin/ft_lock
+    LD_PRELOAD=/tmp/lockbg.so /usr/local/bin/ft_lock
     echo done > "$_LOCK_ACK"
 done &
 _LOCK_WATCHER_PID=$!

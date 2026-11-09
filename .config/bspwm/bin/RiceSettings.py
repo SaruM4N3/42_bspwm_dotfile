@@ -5,7 +5,7 @@
 
 import gi, re, subprocess, os, math
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, Gdk, Pango, GLib
+from gi.repository import Gtk, Gdk, Pango, GLib, GdkPixbuf
 
 RICE          = "SaruM4N3"
 RICE_DIR      = os.path.expanduser(f"~/.config/bspwm/rices/{RICE}")
@@ -1342,6 +1342,86 @@ def wallpaper_page(cfg):
     ])
 
 
+# ── Lock screen ───────────────────────────────────────────────────────────────
+# ft_lock (42) shows ~/.config/bspwm/lock-wallpaper.jpg instead of its own
+# background when it exists (LD_PRELOAD .bspwminstaller/locker/lockbg.c).
+LOCK_WALL     = os.path.expanduser("~/.config/bspwm/lock-wallpaper.jpg")
+LOCK_WALL_SRC = os.path.expanduser("~/.config/bspwm/lock-wallpaper.src")
+FT_LOCK_BKG   = "/usr/share/42/ft_lock_bkg.jpg"
+
+def lock_page(cfg):
+    try:
+        with open(LOCK_WALL_SRC) as f: src = f.read().strip()
+    except OSError:
+        src = ""
+    entry = make_entry(src, 240)
+
+    preview = Gtk.Image()
+    def show_preview():
+        path = LOCK_WALL if os.path.exists(LOCK_WALL) else FT_LOCK_BKG
+        try:
+            preview.set_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale(path, 320, 180, True))
+        except Exception:
+            preview.clear()
+        state.set_text("Custom image" if os.path.exists(LOCK_WALL) else "42 default image")
+    state = Gtk.Label(xalign=0)
+
+    browse = browse_btn()
+    def on_browse(_b):
+        dlg = Gtk.FileChooserDialog(title="Select Image", transient_for=entry.get_toplevel(),
+                                    action=Gtk.FileChooserAction.OPEN)
+        dlg.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OPEN, Gtk.ResponseType.OK)
+        ff = Gtk.FileFilter(); ff.set_name("Images")
+        for p in ("*.png","*.jpg","*.jpeg","*.webp","*.gif","*.bmp"): ff.add_pattern(p)
+        dlg.add_filter(ff)
+        cur = entry.get_text()
+        if cur and os.path.isdir(os.path.dirname(cur)): dlg.set_current_folder(os.path.dirname(cur))
+        else: dlg.set_current_folder(os.path.expanduser("~/Pictures"))
+        if dlg.run() == Gtk.ResponseType.OK: entry.set_text(dlg.get_filename())
+        dlg.destroy()
+    browse.connect("clicked", on_browse)
+    path_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, valign=Gtk.Align.CENTER)
+    path_box.pack_start(entry, True, True, 0); path_box.pack_start(browse, False, False, 0)
+
+    apply = apply_btn("Apply")
+    def do_apply(btn):
+        src = entry.get_text().strip()
+        if not src or not os.path.isfile(src):
+            raise ValueError("Pick an existing image file first.")
+        # ft_lock loads a JPEG: convert whatever was picked (first frame for gifs)
+        tmp = LOCK_WALL + ".tmp.jpg"
+        for tool in (["magick"], ["convert"]):
+            r = subprocess.run(tool + [src + "[0]", "-auto-orient", "-quality", "92", tmp],
+                               env=child_env(), capture_output=True, text=True)
+            if r.returncode == 0: break
+        else:
+            raise RuntimeError(f"Image conversion failed: {r.stderr.strip()[:200]}")
+        os.replace(tmp, LOCK_WALL)
+        with open(LOCK_WALL_SRC, "w") as f: f.write(src + "\n")
+        show_preview(); flash_btn(btn, "✓ Applied!"); notify("Lock screen wallpaper set.")
+    apply.connect("clicked", safe_apply(do_apply))
+
+    reset = apply_btn("Reset")
+    def do_reset(btn):
+        for p in (LOCK_WALL, LOCK_WALL_SRC):
+            try: os.remove(p)
+            except FileNotFoundError: pass
+        entry.set_text(""); show_preview()
+        flash_btn(btn, "✓ Reset!"); notify("Lock screen back to the 42 default.")
+    reset.connect("clicked", safe_apply(do_reset))
+
+    show_preview()
+    return page_wrap("Lock", "Background of the 42 lock screen (ft_lock).", [
+        make_group("Lock Screen Wallpaper", [
+            make_row("Image", path_box, "PNG, JPG, WebP, GIF (first frame)…"),
+            make_row("Current", state),
+            make_row("Preview", preview),
+            make_row("Use this image", apply),
+            make_row("Back to 42's default image", reset),
+        ]),
+    ])
+
+
 def gtk_page(cfg):
     theme  = make_entry(cfg.get("gtk_theme",""),  200)
     icons  = make_entry(cfg.get("gtk_icons",""),  200)
@@ -1576,6 +1656,7 @@ PAGES = [
     ("◈", "Wallpaper", wallpaper_page),
     ("◉", "GTK",       gtk_page),
     ("▶", "Terminal",  terminal_page),
+    ("◐", "Lock",      lock_page),
     ("⌨", "Keybinds",  keybinds_page),
 ]
 
