@@ -45,8 +45,8 @@ super + {_,alt + }Return
 super + ctrl + Return
     OpenApps --btop
 
-# App launcher (super tap via xcape → F13)
-@F13
+# App launcher
+super + space
     OpenApps --menu
 
 # Theme Selector

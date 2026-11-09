@@ -84,16 +84,11 @@ run() {
 # Set system vars for polybar
 "$HOME"/.config/bspwm/bin/SetSysVars
 
-# Super tap → F13 (grabbed by sxhkd as @F13 for the app launcher)
-# xmodmap must run BEFORE sxhkd so keycode 93 = F13 is in the keymap
-# when sxhkd initialises and grabs keycodes.
-xmodmap -e "keycode 93 = F13" 2>/dev/null || true
-
-# Launch sxhkd daemon (after xmodmap so it grabs keycode 93 / F13)
+# Launch sxhkd daemon
 run sxhkd -c "${HOME}"/.config/bspwm/config/sxhkdrc
 
-# xcape synthesises F13 on bare Super_L tap (150ms quick-press window)
-pkill -x xcape 2>/dev/null; xcape -t 150 -e 'Super_L=F13'
+# Stop any xcape left over from the old Super-tap launcher binding
+pkill -x xcape 2>/dev/null
 
 # Restore config files from session save, fallback to original backup
 SESSION_DIR="$HOME/.config/bspwm/config/.session"
