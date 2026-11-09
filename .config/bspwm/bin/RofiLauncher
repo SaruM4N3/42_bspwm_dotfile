@@ -71,8 +71,8 @@ launch_launcher () {
 
     case $rc in
         0)
-            # Normal launch
-            [ -n "$result" ] && gio launch "$result" 2>/dev/null &
+            # Normal launch — app-launch runs Ubuntu (GNOME) apps on the host
+            [ -n "$result" ] && app-launch "$result" 2>/dev/null &
             ;;
         10)
             # Right-click / shift+Delete — remove or hide the app

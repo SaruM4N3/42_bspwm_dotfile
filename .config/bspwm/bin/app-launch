@@ -1,0 +1,67 @@
+#!/bin/bash
+# =============================================================
+#  app-launch — start a .desktop app from bspwm (junest/bwrap)
+#
+#  Apps installed on the Ubuntu host (GNOME apps: .deb in /opt,
+#  /etc/alternatives links, Electron builds needing Ubuntu libs...)
+#  often can't start inside junest. Rule: if the app's program comes
+#  from an Arch package in junest, or lives in $HOME (user scripts and
+#  the bspwm wrappers) or /tmp (unityhub/steam tmp installs), launch it
+#  here; otherwise launch it on the host through host-run, like GNOME.
+#
+#  Usage: app-launch <file.desktop>          launch it
+#         app-launch --where <file.desktop>  print "junest" or "host"
+# =============================================================
+
+where_only=0
+if [ "$1" = "--where" ]; then
+    where_only=1
+    shift
+fi
+desktop="$1"
+[ -f "$desktop" ] || { echo "app-launch: no such file: $desktop" >&2; exit 1; }
+
+# Program of the main Exec= line (skips "env" and VAR=value prefixes)
+exec_bin() {
+    local line
+    line=$(awk '/^\[/{main=($0=="[Desktop Entry]")} main && /^Exec=/{sub(/^Exec=/,""); print; exit}' "$1")
+    set -- $line
+    [ "$1" = "env" ] && shift
+    while [ $# -gt 0 ] && [[ "$1" == *=* ]]; do shift; done
+    local bin="${1//\"/}"
+    printf '%s' "$bin"
+}
+
+where() {
+    local bin path real
+    # Unity Hub and the other /tmp installs (unityhub-tmp-install, steam-tmp-install)
+    # are set up to run inside junest
+    case "$(basename -- "$1")" in
+        unityhub*) echo junest; return ;;
+    esac
+    bin=$(exec_bin "$1")
+    [ -n "$bin" ] || { echo host; return; }
+    if [[ "$bin" == /* ]]; then path="$bin"; else path=$(command -v -- "$bin"); fi
+    # Not visible inside junest (host-only path, broken alternatives link...)
+    [ -n "$path" ] && [ -e "$path" ] || { echo host; return; }
+    case "$path" in
+        "$HOME"/*|/tmp/*) echo junest; return ;;
+    esac
+    real=$(readlink -f -- "$path")
+    if pacman -Qqo -- "$real" >/dev/null 2>&1 || pacman -Qqo -- "$path" >/dev/null 2>&1; then
+        echo junest
+    else
+        echo host
+    fi
+}
+
+target=$(where "$desktop")
+if [ "$where_only" -eq 1 ]; then
+    echo "$target"
+    exit 0
+fi
+
+if [ "$target" = host ] && [ -p "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm_host_req" ]; then
+    exec host-run -q gio launch "$desktop"
+fi
+exec gio launch "$desktop"
