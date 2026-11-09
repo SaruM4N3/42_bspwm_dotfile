@@ -151,6 +151,20 @@ pkill -x picom 2>/dev/null; sleep 0.2
 # Load current theme (Bar, picom config, wallpaper, bspwm rules, dunst, etc.)
 "${HOME}"/.config/bspwm/bin/ThemeLaunch
 
+# First bspwm session on a new machine: hide the default launcher apps listed in
+# config/hidden-apps (bspwm launcher only, GNOME untouched). Runs once, so apps
+# shown again from Rice Settings > Apps stay shown.
+_HIDDEN_DONE="$HOME/.config/bspwm/.hidden-apps-applied"
+if [ ! -e "$_HIDDEN_DONE" ] && [ -f "$HOME/.config/bspwm/config/hidden-apps" ]; then
+    (
+        grep -v -e '^#' -e '^[[:space:]]*$' "$HOME/.config/bspwm/config/hidden-apps" |
+            while read -r _app; do
+                "$HOME/.config/bspwm/bin/app-visibility" hide "$_app" >/dev/null 2>&1
+            done
+        touch "$_HIDDEN_DONE"
+    ) &
+fi
+
 # Launch mpd
 pgrep -x mpd >/dev/null || mpd "${HOME}"/.config/mpd/mpd.conf
 

@@ -1,0 +1,25 @@
+# Apps hidden from the bspwm launcher on a new install (applied once, at the first
+# bspwm session, by bspwmrc through app-visibility). One desktop id per line.
+# Change them afterwards in Rice Settings > Apps; GNOME is never affected.
+android-studio.desktop
+avahi-discover.desktop
+bssh.desktop
+bvnc.desktop
+foot-server.desktop
+footclient.desktop
+gimp.desktop
+jgmenu.desktop
+org.freedesktop.IBus.Setup.desktop
+org.gnome.Cheese.desktop
+parsecd.desktop
+postman.desktop
+pycharm.desktop
+qv4l2.desktop
+qvidcap.desktop
+rofi-theme-selector.desktop
+rofi.desktop
+urxvt.desktop
+urxvtc.desktop
+xcolor.desktop
+yad-icon-browser.desktop
+zfetch.desktop

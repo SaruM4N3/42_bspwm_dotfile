@@ -53,7 +53,7 @@ SHADOW_C="#000000"
 P_CORNER_R="23"			# Corner radius (0 = disabled)
 P_BLUR="false"			# Blur true|false
 P_ANIMATIONS="@"		# (@ = enable) (# = disable)
-P_TERM_OPACITY="0.60"	# Terminal transparency. Range: 0.1 - 1.0 (1.0 = disabled)
+P_TERM_OPACITY="0.85"	# Terminal transparency. Range: 0.1 - 1.0 (1.0 = disabled)
 
 # Dunst
 dunst_offset='(28, 65)'
@@ -103,4 +103,4 @@ ENGINE="Animated"
 
 CUSTOM_DIR="/home/zsonie/Pictures/wallpapers"
 DEFAULT_WALL="/home/zsonie/.config/bspwm/rices/SaruM4N3/walls/wall-01.webp"
-ANIMATED_WALL="/home/zsonie/Pictures/AnimatedWallpaper/frog-sleeping-near-the-waterfall-moewalls-com.mp4"
+ANIMATED_WALL="/home/zsonie/Pictures/AnimatedWallpaper/couple-frogs-snow-day-moewalls-com.mp4"

@@ -5,3 +5,4 @@ Icon=~/.local/share/applications/zombie.svg
 Terminal=false
 Exec=OpenApps --fetch
 #Exec=termite --hold -e zfetch
+NotShowIn=bspwm;
