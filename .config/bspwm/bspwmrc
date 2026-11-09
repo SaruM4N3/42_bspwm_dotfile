@@ -32,6 +32,12 @@ export GL_SHIM="$HOME/.config/bspwm/gl-host"
 export LD_LIBRARY_PATH="$GL_SHIM${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
 
+# NVIDIA PCs: bspwm.sh symlinks the host's NVIDIA libs (must match the kernel module
+# exactly) into BSPWM_HOST_NVLIB. Must come before /usr/lib, which holds Arch's
+# mismatched libGLX_nvidia → GLX BadValue (kitty/picom die) and Xorg segfault on exit.
+[ -n "$BSPWM_HOST_NVLIB" ] && [ -d "$BSPWM_HOST_NVLIB" ] && \
+    export LD_LIBRARY_PATH="$BSPWM_HOST_NVLIB:$LD_LIBRARY_PATH"
+
 export XDG_CURRENT_DESKTOP='bspwm'
 ## Fix java applications
 export _JAVA_AWT_WM_NONREPARENTING=1

@@ -118,9 +118,34 @@ mkdir -p "$HOME/.junest/.overlay-work"
 # Recreate Steam library dir — /tmp is wiped on reboot but Steam expects this path
 mkdir -p /tmp/SteamLibrary/steamapps
 
+# NVIDIA machines (e.g. Lenovo ThinkCentre, PRIME: Xorg runs on the nvidia driver).
+# The NVIDIA userspace libs MUST match the host kernel module version exactly; junest's
+# Arch nvidia-utils never does, so every GL/Vulkan client fails (GLX BadValue).
+# Fix: expose only the host's NVIDIA libs (symlinks into Ubuntu's /usr, visible through
+# the overlay lower layer) via LD_LIBRARY_PATH, for the junest session only.
+# No-op on machines without the nvidia kernel module.
+_JUNEST_LDPATH="$LD_LIBRARY_PATH"
+_HOST_LIBDIR=/usr/lib/x86_64-linux-gnu
+if [ -r /proc/driver/nvidia/version ] && [ -e "$_HOST_LIBDIR/libGLX_nvidia.so.0" ]; then
+    _NVLIB="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm-host-nvidia"
+    rm -rf "$_NVLIB" && mkdir -p "$_NVLIB"
+    for _f in "$_HOST_LIBDIR"/lib{GLX,EGL,GLESv1_CM,GLESv2}_nvidia.so.* \
+              "$_HOST_LIBDIR"/libnvidia-*.so.* "$_HOST_LIBDIR"/libcuda*.so.* \
+              "$_HOST_LIBDIR"/libnvoptix.so.*; do
+        [ -e "$_f" ] && ln -sf "$_f" "$_NVLIB/"
+    done
+    _JUNEST_LDPATH="$_NVLIB${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    # bspwmrc prepends /usr/lib (Arch, has its own libGLX_nvidia 595.71) — it re-prepends this
+    # dir last so the host libs keep priority.
+    export BSPWM_HOST_NVLIB="$_NVLIB"
+    echo "nvidia: using host driver libs $(grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' /proc/driver/nvidia/version | head -1)" >> "$LOG"
+    unset _f _NVLIB
+fi
+unset _HOST_LIBDIR
+
 # launch bspwm via junest (proot with fakeroot for sudo/pacman support)
 echo "launching bspwm at $(date '+%T.%3N'), gnome-shell: $(pgrep -x gnome-shell || echo none)" >> "$LOG"
-"$HOME/.local/share/junest/bin/junest" -b \
+LD_LIBRARY_PATH="$_JUNEST_LDPATH" "$HOME/.local/share/junest/bin/junest" -b \
 "--bind /sgoinfre /sgoinfre \
 --bind /goinfre /goinfre \
 --bind /dev/shm /dev/shm \
