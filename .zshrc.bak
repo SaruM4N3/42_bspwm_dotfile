@@ -222,7 +222,8 @@ alias conf_fzf-tab='micro /usr/share/zsh/plugins/fzf-tab-git/fzf-tab.zsh'
 alias conf_topbar='micro "$HOME/.config/bspwm/rices/$(cat "$HOME/.config/bspwm/.rice")/config.ini"'
 alias conf_micro="micro $HOME/.config/micro/settings.json"
 
-alias steaminstall="$HOME/.local/bin/steam-installer.sh"
+alias steam-tmp-install="$HOME/.local/bin/steam-installer.sh"
+alias unityhub-tmp-install="$HOME/.local/bin/install_unityhub.sh"
 
 #  ┌─┐┬┌┬┐  ┌─┐┬  ┬┌─┐┌─┐┌─┐┌─┐
 #  │ ┬│ │   ├─┤│  │├─┤└─┐├┤ └─┐

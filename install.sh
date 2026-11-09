@@ -253,6 +253,10 @@ unset -f _swap_zshrc
 # Junest bin — only reached in GNOME (not inside bspwm)
 export PATH="$HOME/.local/share/junest/bin:$PATH"
 export PATH="$PATH:$HOME/.junest/usr/bin_wrappers"
+
+# /tmp installers (Steam, Unity Hub)
+alias steam-tmp-install="$HOME/.local/bin/steam-installer.sh"
+alias unityhub-tmp-install="$HOME/.local/bin/install_unityhub.sh"
 EOF
     info "Junest swap added to ~/.zshrc"
 else
