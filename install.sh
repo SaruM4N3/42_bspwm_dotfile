@@ -152,6 +152,46 @@ grep -rl "/home/zsonie" "$HOME/.config/bspwm" "$HOME/.bspwminstaller" "$HOME/.Xr
     | xargs -r sed -i "s|/home/zsonie|$HOME|g"
 info "Hardcoded paths rewritten to: $HOME"
 
+# Installer choices (saved by install_prerequisites_pacman.sh in step 1):
+# applied to the deployed copies only, the repo stays untouched.
+CHOICES="$HOME/.cache/bspwm-install-choices"
+if [ -f "$CHOICES" ]; then
+    # shellcheck disable=SC1090
+    . "$CHOICES"
+    BSPWM_CFG="$HOME/.config/bspwm"
+    [ -n "$TERM_BIN" ]    && echo "$TERM_BIN"    > "$BSPWM_CFG/config/.term"
+    [ -n "$ACTIVE_RICE" ] && echo "$ACTIVE_RICE" > "$BSPWM_CFG/.rice"
+    OPENAPPS="$BSPWM_CFG/bin/OpenApps"
+    for sxhkd in "$BSPWM_CFG/config/sxhkdrc" "$BSPWM_CFG/config/.session/sxhkdrc"; do
+        [ -f "$sxhkd" ] || continue
+        # super+w is "brave --password-store=basic": replace the whole line (flag is brave-only)
+        [ -n "$BROWSER_BIN" ] && [ "$BROWSER_BIN" != brave ] && sed -i "s|^\tbrave\( .*\)\?$|\t$BROWSER_BIN|" "$sxhkd"
+        if [ "$EDITOR_GUI" = "1" ]; then
+            sed -i "s|^\tcode \.$|\t$EDITOR_BIN .|" "$sxhkd"
+        elif [ -n "$EDITOR_BIN" ]; then
+            sed -i "s|^\tcode \.$|\tTerm --$EDITOR_BIN|" "$sxhkd"
+        fi
+    done
+    if [ -f "$OPENAPPS" ]; then
+        [ -n "$BROWSER_BIN" ] && sed -i "/--browser)/,/;;/{s|^\t\t[a-z].*$|\t\t$BROWSER_BIN|}" "$OPENAPPS"
+        if [ "$EDITOR_GUI" = "1" ]; then
+            sed -i "/--editor)/,/;;/{s|^\t\t[a-zA-Z].*$|\t\t$EDITOR_BIN|}" "$OPENAPPS"
+        elif [ -n "$EDITOR_BIN" ]; then
+            sed -i "/--editor)/,/;;/{s|^\t\t[a-zA-Z].*$|\t\tTerm --$EDITOR_BIN|}" "$OPENAPPS"
+        fi
+    fi
+    if [ -f "$HOME/.zshrc.bak" ]; then
+        [ -n "$EDITOR_BIN" ]  && sed -i "s|^export EDITOR=.*|export EDITOR='$EDITOR_BIN'|" "$HOME/.zshrc.bak"
+        [ -n "$BROWSER_BIN" ] && sed -i "s|^export BROWSER=.*|export BROWSER='$BROWSER_BIN'|" "$HOME/.zshrc.bak"
+    fi
+    YAZI_CFG="$HOME/.config/yazi/yazi.toml"
+    [ -f "$YAZI_CFG" ] && [ -n "$EDITOR_BIN" ] && sed -i "s|\${EDITOR:-[a-z]*}|\${EDITOR:-$EDITOR_BIN}|" "$YAZI_CFG"
+    info "Choices applied: terminal=$TERM_BIN rice=$ACTIVE_RICE browser=$BROWSER_BIN editor=$EDITOR_BIN"
+    rm -f "$CHOICES"
+else
+    warn "No installer choices found — keeping the repo defaults (terminal, rice, browser, editor)."
+fi
+
 # GL shim: symlinks to host Ubuntu mesa so all bspwm apps get hardware OpenGL.
 # Arch mesa (any version) can't negotiate GLX visuals with Ubuntu's Xorg server.
 # Ubuntu mesa 23.2.1 supports DRM 3.42 (kernel 5.15) natively.

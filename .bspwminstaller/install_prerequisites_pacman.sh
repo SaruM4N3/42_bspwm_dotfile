@@ -253,14 +253,6 @@ sudo pacman -S --needed --noconfirm \
     kitty \
     jgmenu
 
-# Write chosen terminal to .term config
-echo "$TERM_BIN" > "$DOTFILES_DIR/.config/bspwm/config/.term"
-info "Default terminal set to $TERM_BIN in .term"
-
-# Write active rice (first selected) to .rice
-echo "${SELECTED_RICES[0]}" > "$DOTFILES_DIR/.config/bspwm/.rice"
-info "Active rice set to ${SELECTED_RICES[0]} in .rice"
-
 # ── File manager ─────────────────────────────────────────────────────────────
 info "Installing file manager..."
 sudo pacman -S --needed --noconfirm \
@@ -395,46 +387,19 @@ fi
 info "Installing browser: $BROWSER_PKG..."
 sudo pacman -S --needed --noconfirm "$BROWSER_PKG"
 
-# Patch sxhkdrc (super+w) and OpenApps (--browser) with chosen browser
-for sxhkd in \
-    "$DOTFILES_DIR/.config/bspwm/config/sxhkdrc" \
-    "$DOTFILES_DIR/.config/bspwm/config/.session/sxhkdrc"; do
-    # super+w is "brave --password-store=basic": replace the whole line (flag is brave-only)
-    [ -f "$sxhkd" ] && [ "$BROWSER_BIN" != brave ] && sed -i "s|^\tbrave\( .*\)\?$|\t$BROWSER_BIN|" "$sxhkd"
-done
-OPENAPPS="$DOTFILES_DIR/.config/bspwm/bin/OpenApps"
-[ -f "$OPENAPPS" ] && sed -i "/--browser)/,/;;/{s|^\t\t[a-z].*$|\t\t$BROWSER_BIN|}" "$OPENAPPS"
-info "sxhkdrc (super+w) and OpenApps --browser patched to use $BROWSER_BIN."
-
-# Patch editor references in sxhkdrc, OpenApps and .zshrc.bak
-OPENAPPS="$DOTFILES_DIR/.config/bspwm/bin/OpenApps"
-for sxhkd in \
-    "$DOTFILES_DIR/.config/bspwm/config/sxhkdrc" \
-    "$DOTFILES_DIR/.config/bspwm/config/.session/sxhkdrc"; do
-    [ -f "$sxhkd" ] || continue
-    if [ "$EDITOR_GUI" = "1" ]; then
-        sed -i "s|^\tcode \.$|\t$EDITOR_BIN .|" "$sxhkd"
-    else
-        sed -i "s|^\tcode \.$|\tTerm --$EDITOR_BIN|" "$sxhkd"
-    fi
-done
-if [ -f "$OPENAPPS" ]; then
-    if [ "$EDITOR_GUI" = "1" ]; then
-        sed -i "/--editor)/,/;;/{s|^\t\t[a-zA-Z].*$|\t\t$EDITOR_BIN|}" "$OPENAPPS"
-    else
-        sed -i "/--editor)/,/;;/{s|^\t\t[a-zA-Z].*$|\t\tTerm --$EDITOR_BIN|}" "$OPENAPPS"
-    fi
-fi
-ZSHRC_BAK="$DOTFILES_DIR/.zshrc.bak"
-if [ -f "$ZSHRC_BAK" ]; then
-    sed -i "s|^export EDITOR=.*|export EDITOR='$EDITOR_BIN'|" "$ZSHRC_BAK"
-    sed -i "s|^export BROWSER=.*|export BROWSER='$BROWSER_BIN'|" "$ZSHRC_BAK"
-    info ".zshrc.bak EDITOR=$EDITOR_BIN and BROWSER=$BROWSER_BIN patched."
-fi
-# Patch yazi fallback editor
-YAZI_CFG="$DOTFILES_DIR/.config/yazi/yazi.toml"
-[ -f "$YAZI_CFG" ] && sed -i "s|\${EDITOR:-[a-z]*}|\${EDITOR:-$EDITOR_BIN}|" "$YAZI_CFG"
-info "sxhkdrc, OpenApps, .zshrc.bak and yazi.toml patched for editor=$EDITOR_BIN browser=$BROWSER_BIN."
+# ── Save the choices — install.sh applies them to the deployed files ─────────
+# (terminal → .term, rice → .rice, browser/editor → sxhkdrc, OpenApps,
+# .zshrc.bak, yazi.toml). The repo itself is never modified.
+CHOICES="$HOME/.cache/bspwm-install-choices"
+mkdir -p "$(dirname "$CHOICES")"
+{
+    printf 'TERM_BIN=%q\n'    "$TERM_BIN"
+    printf 'ACTIVE_RICE=%q\n' "${SELECTED_RICES[0]}"
+    printf 'BROWSER_BIN=%q\n' "$BROWSER_BIN"
+    printf 'EDITOR_BIN=%q\n'  "$EDITOR_BIN"
+    printf 'EDITOR_GUI=%q\n'  "$EDITOR_GUI"
+} > "$CHOICES"
+info "Choices saved to $CHOICES (terminal=$TERM_BIN rice=${SELECTED_RICES[0]} browser=$BROWSER_BIN editor=$EDITOR_BIN)."
 
 # ── Default cursor theme (required by 05-gtk.sh on first boot) ───────────────
 info "Creating ~/.icons/default/index.theme..."
