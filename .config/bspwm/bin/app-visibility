@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+"""
+app-visibility — show / hide .desktop apps in the bspwm app launcher (rofi drun)
+
+Hiding uses the desktop-entry standard key NotShowIn=bspwm; (bspwmrc sets
+XDG_CURRENT_DESKTOP=bspwm), so an app hidden here disappears from the bspwm
+launcher only and stays in GNOME's menu.
+
+  - user app (~/.local/share/applications): NotShowIn edited in place
+  - system app (/usr/share/applications...): a copy is put in
+    ~/.local/share/applications with NotShowIn=bspwm; and a marker key,
+    deleted again when the app is shown
+
+Usage: app-visibility list               TSV: state  id  name
+       app-visibility hide <id|path>
+       app-visibility show <id|path>
+Used by RiceSettings (Apps page) and RofiLauncher (ctrl+x).
+"""
+
+import os, shutil, sys
+
+DESKTOP = "bspwm"
+MARKER = "X-RiceSettings-Hidden"
+GROUP = "[Desktop Entry]"
+
+
+def user_dir():
+    return os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "applications")
+
+
+def system_dirs():
+    dirs = os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share"
+    return [os.path.join(d, "applications") for d in dirs.split(":") if d]
+
+
+def scan(directory):
+    """{desktop id: path} for a directory (sub-dirs give ids like kde4-foo.desktop)."""
+    found = {}
+    for root, _dirs, files in os.walk(directory):
+        for f in files:
+            if f.endswith(".desktop"):
+                path = os.path.join(root, f)
+                found[os.path.relpath(path, directory).replace("/", "-")] = path
+    return found
+
+
+def read_entry(path):
+    """Keys of the [Desktop Entry] group (first value wins)."""
+    keys, in_group = {}, False
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("["):
+                    in_group = line == GROUP
+                elif in_group and "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    keys.setdefault(k.strip(), v.strip())
+    except OSError:
+        pass
+    return keys
+
+
+def is_true(v):
+    return (v or "").lower() == "true"
+
+
+def split_list(v):
+    return [x for x in (v or "").split(";") if x]
+
+
+def listed_anywhere(entry):
+    """False for entries no menu ever shows (NoDisplay, Hidden, links, other desktops only)."""
+    if entry.get("Type", "Application") != "Application":
+        return False
+    if is_true(entry.get("NoDisplay")) or is_true(entry.get("Hidden")):
+        return False
+    only = split_list(entry.get("OnlyShowIn"))
+    return not only or DESKTOP in only
+
+
+def try_exec_ok(entry):
+    """Like rofi: an entry whose TryExec program can't be found is not listed."""
+    t = entry.get("TryExec")
+    if not t:
+        return True
+    return os.access(t, os.X_OK) if os.sep in t else shutil.which(t) is not None
+
+
+def hidden_here(entry):
+    return DESKTOP in split_list(entry.get("NotShowIn")) or is_true(entry.get("Hidden")) or is_true(entry.get("NoDisplay"))
+
+
+def apps():
+    """[{id, name, icon, comment, path, hidden}] for every app the bspwm launcher can list."""
+    system = {}
+    for d in reversed(system_dirs()):     # first dir in XDG_DATA_DIRS wins
+        system.update(scan(d))
+    user = scan(user_dir())
+    result = []
+    for app_id in sorted(set(system) | set(user)):
+        path = user.get(app_id) or system[app_id]
+        entry = read_entry(path)
+        # Old launcher ctrl+x stubs: "[Desktop Entry]\nHidden=true" over a system app
+        stub = app_id in user and is_true(entry.get("Hidden")) and len(entry) <= 2
+        if stub and app_id not in system:
+            continue
+        # Decide listability on the original entry, ignoring our own hiding
+        base = read_entry(system[app_id]) if app_id in system and (MARKER in entry or stub) else entry
+        if not base:
+            continue
+        probe = dict(base)
+        probe["NotShowIn"] = ";".join(x for x in split_list(base.get("NotShowIn")) if x != DESKTOP)
+        if not listed_anywhere(probe) or not try_exec_ok(entry):
+            continue
+        result.append({
+            "id": app_id,
+            "name": entry.get("Name") or app_id[:-8],
+            "icon": entry.get("Icon", ""),
+            "comment": entry.get("Comment") or entry.get("GenericName", ""),
+            "path": path,
+            "hidden": hidden_here(entry),
+        })
+    return result
+
+
+def resolve(arg):
+    """id or path -> (id, effective path)."""
+    if os.sep in arg:
+        app_id = os.path.basename(arg)
+        for d in [user_dir()] + system_dirs():
+            if arg.startswith(d.rstrip("/") + "/"):
+                app_id = os.path.relpath(arg, d).replace("/", "-")
+                break
+    else:
+        app_id = arg
+    user_path = os.path.join(user_dir(), app_id)
+    if os.path.exists(user_path):
+        return app_id, user_path
+    for d in system_dirs():
+        p = os.path.join(d, app_id)
+        if os.path.exists(p):
+            return app_id, p
+    for d in system_dirs():   # ids of entries in sub-directories (kde4-foo.desktop)
+        hit = scan(d).get(app_id)
+        if hit:
+            return app_id, hit
+    raise SystemExit(f"app-visibility: unknown app: {arg}")
+
+
+def edit_group(lines, set_keys=(), drop_keys=()):
+    """Set/remove keys inside [Desktop Entry] only, keeping every other line."""
+    out, in_group, done = [], False, set()
+    # A file without a final newline would get the new key glued to its last line
+    lines = [l if l.endswith("\n") else l + "\n" for l in lines]
+    for line in lines:
+        s = line.strip()
+        if s.startswith("["):
+            if in_group:
+                out += [f"{k}={v}\n" for k, v in set_keys if k not in done]
+                done |= {k for k, _ in set_keys}
+            in_group = s == GROUP
+            out.append(line)
+            continue
+        if in_group and "=" in s:
+            k = s.split("=", 1)[0].strip()
+            if k in drop_keys:
+                continue
+            for sk, sv in set_keys:
+                if k == sk:
+                    line, _ = f"{sk}={sv}\n", done.add(sk)
+        out.append(line)
+    if in_group:
+        out += [f"{k}={v}\n" for k, v in set_keys if k not in done]
+    return out
+
+
+def write(path, lines):
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+    os.replace(tmp, path)
+
+
+def hide(arg):
+    app_id, path = resolve(arg)
+    with open(path, encoding="utf-8", errors="replace") as f:
+        lines = f.readlines()
+    entry = read_entry(path)
+    nsi = split_list(entry.get("NotShowIn"))
+    if DESKTOP not in nsi:
+        nsi.append(DESKTOP)
+    keys = [("NotShowIn", ";".join(nsi) + ";")]
+    target = path
+    if not path.startswith(user_dir().rstrip("/") + "/"):
+        keys.append((MARKER, "true"))
+        os.makedirs(user_dir(), exist_ok=True)
+        target = os.path.join(user_dir(), app_id)
+    write(target, edit_group(lines, keys))
+
+
+def show(arg):
+    app_id, path = resolve(arg)
+    if not path.startswith(user_dir().rstrip("/") + "/"):
+        return  # system entry: already shown
+    entry = read_entry(path)
+    with open(path, encoding="utf-8", errors="replace") as f:
+        lines = f.readlines()
+    # Our own copy of a system app, or an old "Hidden=true" stub from the launcher
+    if MARKER in entry or (is_true(entry.get("Hidden")) and len(entry) <= 2):
+        os.remove(path)
+        return
+    nsi = [x for x in split_list(entry.get("NotShowIn")) if x != DESKTOP]
+    if nsi:
+        write(path, edit_group(lines, [("NotShowIn", ";".join(nsi) + ";")]))
+    else:
+        write(path, edit_group(lines, drop_keys=("NotShowIn",)))
+
+
+def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "list":
+        for a in apps():
+            print(f"{'hidden' if a['hidden'] else 'shown'}\t{a['id']}\t{a['name']}")
+    elif len(sys.argv) == 3 and sys.argv[1] in ("hide", "show"):
+        (hide if sys.argv[1] == "hide" else show)(sys.argv[2])
+    else:
+        print(__doc__.strip(), file=sys.stderr)
+        sys.exit(2)
+
+
+if __name__ == "__main__":
+    main()

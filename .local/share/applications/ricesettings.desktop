@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Rice Settings
+GenericName=Rice Settings
+Comment=Windows, bar, wallpaper, terminal, lock screen and launcher apps of the bspwm rice
+Exec=RiceSettings
+Icon=preferences-desktop-theme
+Terminal=false
+StartupNotify=true
+Categories=GTK;Settings;DesktopSettings;
+Keywords=rice;theme;bspwm;polybar;picom;wallpaper;settings;appearance;
+OnlyShowIn=bspwm;

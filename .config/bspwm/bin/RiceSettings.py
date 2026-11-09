@@ -1445,6 +1445,113 @@ def lock_page(cfg):
     ])
 
 
+# ── Apps (launcher entries) ───────────────────────────────────────────────────
+# Show/hide .desktop apps in the bspwm launcher only (NotShowIn=bspwm;), through
+# the shared bin/app-visibility helper (also used by the launcher's ctrl+x).
+
+def load_app_visibility():
+    import importlib.machinery, importlib.util
+    path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "app-visibility")
+    loader = importlib.machinery.SourceFileLoader("app_visibility", path)
+    spec = importlib.util.spec_from_loader("app_visibility", loader)
+    mod = importlib.util.module_from_spec(spec)
+    loader.exec_module(mod)
+    return mod
+
+def app_icon(icon, size=24):
+    img = Gtk.Image()
+    try:
+        if icon and os.path.isabs(icon) and os.path.exists(icon):
+            img.set_from_pixbuf(GdkPixbuf.Pixbuf.new_from_file_at_scale(icon, size, size, True))
+        else:
+            img.set_from_icon_name(icon or "application-x-executable", Gtk.IconSize.LARGE_TOOLBAR)
+            img.set_pixel_size(size)
+    except Exception:
+        img.set_from_icon_name("application-x-executable", Gtk.IconSize.LARGE_TOOLBAR)
+        img.set_pixel_size(size)
+    return img
+
+def apps_page(cfg):
+    av = load_app_visibility()
+    apps = av.apps()
+
+    search = Gtk.SearchEntry(placeholder_text="Search apps…", valign=Gtk.Align.CENTER)
+    search.set_size_request(240, -1)
+    hidden_only = make_switch(False)
+    counter = Gtk.Label(xalign=1)
+
+    lb = Gtk.ListBox()
+    lb.set_selection_mode(Gtk.SelectionMode.NONE)
+    lb.get_style_context().add_class("card-list")
+    card = Gtk.Frame(); card.set_shadow_type(Gtk.ShadowType.NONE)
+    card.get_style_context().add_class("card"); card.add(lb)
+
+    switches = []
+    def update_counter():
+        n_hidden = sum(1 for a in apps if a["hidden"])
+        counter.set_text(f"{len(apps)} apps · {n_hidden} hidden")
+
+    for app in apps:
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        row.set_margin_top(8); row.set_margin_bottom(8)
+        row.set_margin_start(16); row.set_margin_end(16)
+        row.pack_start(app_icon(app["icon"]), False, False, 0)
+        texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        name = Gtk.Label(label=app["name"], xalign=0); name.get_style_context().add_class("row-lbl")
+        sub = Gtk.Label(label=app["comment"] or app["id"], xalign=0, ellipsize=Pango.EllipsizeMode.END)
+        sub.get_style_context().add_class("row-sub"); sub.set_max_width_chars(60)
+        texts.pack_start(name, False, False, 0); texts.pack_start(sub, False, False, 0)
+        row.pack_start(texts, True, True, 0)
+        sw = make_switch(not app["hidden"])
+        sw.set_tooltip_text("Shown in the bspwm launcher (GNOME is not affected)")
+        row.pack_end(sw, False, False, 0)
+        row.app = app
+        lb.add(row)
+        switches.append((sw, app))
+
+        def on_toggle(w, _p, app=app):
+            if getattr(w, "_reverting", False):
+                return
+            try:
+                (av.show if w.get_active() else av.hide)(app["path"])
+                app["hidden"] = not w.get_active()
+            except BaseException as e:
+                w._reverting = True; w.set_active(not w.get_active()); w._reverting = False
+                notify(f"Could not change {app['name']}: {e}", "normal")
+            update_counter(); lb.invalidate_filter()
+        sw.connect("notify::active", on_toggle)
+
+    def row_filter(lbrow):
+        app = lbrow.get_child().app
+        q = search.get_text().strip().lower()
+        if hidden_only.get_active() and not app["hidden"]:
+            return False
+        return not q or any(q in (app[k] or "").lower() for k in ("name", "id", "comment"))
+    lb.set_filter_func(row_filter)
+    search.connect("search-changed", lambda *_: lb.invalidate_filter())
+    hidden_only.connect("notify::active", lambda *_: lb.invalidate_filter())
+
+    show_all = apply_btn("Show all")
+    def do_show_all(btn):
+        for sw, app in switches:
+            if app["hidden"]:
+                sw.set_active(True)
+        flash_btn(btn, "✓ Done!")
+    show_all.connect("clicked", safe_apply(do_show_all))
+
+    update_counter()
+    tools = make_group("Launcher apps", [
+        make_row("Search", search),
+        make_row("Hidden apps only", hidden_only),
+        make_row("Show every hidden app again", show_all),
+        make_row("Total", counter),
+    ])
+    lst = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+    lst.pack_start(card, False, False, 0)
+    return page_wrap("Apps", "Choose which apps appear in the launcher (super + space). Hiding only affects bspwm, GNOME keeps them.",
+                     [tools, lst])
+
+
 def gtk_page(cfg):
     theme  = make_entry(cfg.get("gtk_theme",""),  200)
     icons  = make_entry(cfg.get("gtk_icons",""),  200)
@@ -1680,6 +1787,7 @@ PAGES = [
     ("◉", "GTK",       gtk_page),
     ("▶", "Terminal",  terminal_page),
     ("◐", "Lock",      lock_page),
+    ("▦", "Apps",      apps_page),
     ("⌨", "Keybinds",  keybinds_page),
 ]
 

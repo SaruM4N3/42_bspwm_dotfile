@@ -60,7 +60,7 @@ launch_launcher () {
     ROFI_THEME="$styleDir/style_$current_style.rasi"
 
     # -format 'f' outputs the full .desktop file path instead of the app name.
-    # Ctrl+Delete = custom-1 (exit 10) → remove/hide the app.
+    # ctrl+x = custom-1 (exit 10) → hide the app (see app-visibility).
     result=$(rofi -show drun \
         -theme "$ROFI_THEME" \
         -kb-cancel "Escape,Super+space" \
@@ -75,31 +75,16 @@ launch_launcher () {
             [ -n "$result" ] && app-launch "$result" 2>/dev/null &
             ;;
         10)
-            # Right-click / shift+Delete — remove or hide the app
+            # ctrl+x — hide the app from the bspwm launcher only (GNOME keeps it).
+            # Shown again from Rice Settings > Apps.
             [ -z "$result" ] && return
             app_name=$(grep -m1 "^Name=" "$result" 2>/dev/null | cut -d= -f2)
             [ -z "$app_name" ] && app_name=$(basename "$result" .desktop)
-
-            if echo "$result" | grep -q "$HOME"; then
-                # User app (~/.local/share/applications) — delete it
-                confirm=$(printf "Yes\nNo" | rofi -dmenu \
-                    -theme "$ROFI_THEME" \
-                    -p "Remove '$app_name' from launcher?")
-                if [ "$confirm" = "Yes" ]; then
-                    rm "$result"
-                    dunstify -u low "Removed" "'$app_name' removed from launcher."
-                fi
-            else
-                # System app — hide with a local override instead of deleting
-                confirm=$(printf "Yes\nNo" | rofi -dmenu \
-                    -theme "$ROFI_THEME" \
-                    -p "Hide '$app_name' from launcher?")
-                if [ "$confirm" = "Yes" ]; then
-                    mkdir -p "$HOME/.local/share/applications"
-                    printf '[Desktop Entry]\nHidden=true\n' \
-                        > "$HOME/.local/share/applications/$(basename "$result")"
-                    dunstify -u low "Hidden" "'$app_name' hidden from launcher."
-                fi
+            confirm=$(printf "Yes\nNo" | rofi -dmenu \
+                -theme "$ROFI_THEME" \
+                -p "Hide '$app_name' from launcher?")
+            if [ "$confirm" = "Yes" ] && app-visibility hide "$result"; then
+                dunstify -u low "Hidden" "'$app_name' hidden from the launcher (Rice Settings > Apps to show it again)."
             fi
             ;;
     esac
