@@ -384,7 +384,8 @@ sudo pacman -S --needed --noconfirm "$BROWSER_PKG"
 for sxhkd in \
     "$DOTFILES_DIR/.config/bspwm/config/sxhkdrc" \
     "$DOTFILES_DIR/.config/bspwm/config/.session/sxhkdrc"; do
-    [ -f "$sxhkd" ] && sed -i "s|^\tbrave$|\t$BROWSER_BIN|" "$sxhkd"
+    # super+w is "brave --password-store=basic": replace the whole line (flag is brave-only)
+    [ -f "$sxhkd" ] && [ "$BROWSER_BIN" != brave ] && sed -i "s|^\tbrave\( .*\)\?$|\t$BROWSER_BIN|" "$sxhkd"
 done
 OPENAPPS="$DOTFILES_DIR/.config/bspwm/bin/OpenApps"
 [ -f "$OPENAPPS" ] && sed -i "/--browser)/,/;;/{s|^\t\t[a-z].*$|\t\t$BROWSER_BIN|}" "$OPENAPPS"

@@ -249,7 +249,7 @@ alias brave='brave --password-store=basic'
 alias discord='/usr/share/discord/Discord'
 
 # Keep Vagrant box cache off the small /home quota
-export VAGRANT_HOME="/goinfre/zsonie/.vagrant.d"
+export VAGRANT_HOME="/goinfre/$USER/.vagrant.d"
 echo -en '\033c'
 
 alias brave-socks='brave --proxy-server="socks5://127.0.0.1:1080" --host-resolver-rules="MAP * ~NOTFOUND , EXCLUDE 127.0.0.1"'

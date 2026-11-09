@@ -23,6 +23,8 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STAMP=$(date +"%Y%m%d-%H%M%S")
 
 [ "$(id -u)" = 0 ] && error "Do not run as root."
+# Inside junest (bspwm session) ~/.zshrc.bak holds the GNOME config and would be overwritten
+[ -n "$JUNEST_ENV" ] && error "Run this from a GNOME terminal, not from inside bspwm/junest."
 
 # ── Args ──────────────────────────────────────────────────────
 FRESH=0
@@ -136,9 +138,10 @@ done
 for f in .zshrc.bak .gtkrc-2.0 .Xresources; do
     [ -f "$REPO/$f" ] && cp "$REPO/$f" "$HOME/$f" && info "Deployed: ~/$f"
 done
+[ -f "$REPO/.config/brave-flags.conf" ] && cp "$REPO/.config/brave-flags.conf" "$HOME/.config/" && info "Deployed: ~/.config/brave-flags.conf"
 
 # Rewrite any hardcoded paths to match the installing user
-grep -rl "/home/zsonie" "$HOME/.config/bspwm" "$HOME/.bspwminstaller" "$HOME/.Xresources" 2>/dev/null \
+grep -rl "/home/zsonie" "$HOME/.config/bspwm" "$HOME/.bspwminstaller" "$HOME/.Xresources" "$HOME/.zshrc.bak" 2>/dev/null \
     | xargs -r sed -i "s|/home/zsonie|$HOME|g"
 info "Hardcoded paths rewritten to: $HOME"
 
