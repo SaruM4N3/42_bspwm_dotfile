@@ -14,8 +14,8 @@
 # Current Rice
 read -r RICE < "$HOME"/.config/bspwm/.rice
 
-# Guard: refuse to source an empty theme-config.bash — it means RiceEditor
-# crashed mid-write. Restore from git if possible, otherwise abort.
+# Guard: refuse to source an empty theme-config.bash — it means a settings
+# tool crashed mid-write. Restore from git if possible, otherwise abort.
 THEME_CFG="$HOME/.config/bspwm/rices/$RICE/theme-config.bash"
 if [ ! -s "$THEME_CFG" ]; then
     # Try to restore from git index

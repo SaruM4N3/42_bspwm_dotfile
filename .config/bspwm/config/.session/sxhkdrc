@@ -87,9 +87,9 @@ super + {y,v,m}
 super + {p,t}
     OpenApps --{soundcontrol,telegram}
 
-# Rice Editor App
+# Rice Settings (same as super + shift + s)
 super + r
-    RiceEditor
+    RiceSettings
 
 # ----- Rofi Applets ----- #
 

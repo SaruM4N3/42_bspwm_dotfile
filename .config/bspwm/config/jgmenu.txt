@@ -27,7 +27,7 @@ Animated Wall,SmartWallSelect,video-x-generic
 Cycle AnimWall,CycleAnimWall,video-x-generic
 
 ^tag(wm)
-Rice Editor,RiceEditor,preferences-desktop-theme
+Rice Settings,RiceSettings,preferences-desktop-theme
 Keybinds,OpenApps --KeyHelp,preferences-desktop-keyboard-shortcuts
 Restart WM,bspc wm -r,system-reboot
 Soft Reload,SoftReload,system-reboot

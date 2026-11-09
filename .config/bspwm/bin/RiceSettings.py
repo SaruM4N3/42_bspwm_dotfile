@@ -843,6 +843,29 @@ def page_wrap(title, subtitle, groups):
     scroll.add(outer)
     return scroll
 
+def font_picker(entry, size_spin=None):
+    """Entry + "Choose…" button opening the GTK font chooser, preselected on the
+    current font. Fills the family name, and the size spin if given."""
+    btn = browse_btn("Choose…")
+    def on_click(_b):
+        dlg = Gtk.FontChooserDialog(title="Select Font", transient_for=entry.get_toplevel())
+        cur = entry.get_text().strip()
+        if cur:
+            size = int(size_spin.get_value()) if size_spin else 11
+            dlg.set_font(f"{cur} {size}")
+        if dlg.run() == Gtk.ResponseType.OK:
+            family = dlg.get_font_family()
+            if family:
+                entry.set_text(family.get_name())
+            if size_spin and dlg.get_font_size() > 0:
+                size_spin.set_value(round(dlg.get_font_size() / Pango.SCALE))
+        dlg.destroy()
+    btn.connect("clicked", on_click)
+    box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6, valign=Gtk.Align.CENTER)
+    box.pack_start(entry, True, True, 0)
+    box.pack_start(btn, False, False, 0)
+    return box
+
 def make_path_row(label, entry, action, sub=None, parent_win=None):
     """Row with an entry + Browse button for file/folder paths."""
     bb = browse_btn()
@@ -1508,7 +1531,7 @@ def terminal_page(cfg):
 
     return page_wrap("Terminal", "Font, colors and scrollback for all terminals.", [
         make_group("Font", [
-            make_row("Font Name", font),
+            make_row("Font Name", font_picker(font, size), "Pick from installed fonts or type a name"),
             make_row("Font Size", size),
         ]),
         make_group("Kitty  ( ~/.config/kitty/kitty.conf )", [
