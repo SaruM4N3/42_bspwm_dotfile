@@ -207,7 +207,7 @@ alias ll='eza --icons=always --color=always -la'
 #  ┌─┐┬ ┬┌┬┐┌─┐  ┌─┐┌┬┐┌─┐┬─┐┌┬┐
 #  ├─┤│ │ │ │ │  └─┐ │ ├─┤├┬┘ │
 #  ┴ ┴└─┘ ┴ └─┘  └─┘ ┴ ┴ ┴┴└─ ┴
-#$HOME/.local/bin/colorscript -r
+$HOME/.local/bin/colorscript -r
 #disable-fzf-tab
 export PATH=$HOME/.config/bspwm/bin:~/.local/share/junest/bin:$PATH
 export PATH=$PATH:~/.junest/usr/bin_wrappers
@@ -221,6 +221,8 @@ alias conf_picomanim="micro ~/.config/bspwm/config/picom-animations.conf"
 alias conf_fzf-tab='micro /usr/share/zsh/plugins/fzf-tab-git/fzf-tab.zsh'
 alias conf_topbar='micro "$HOME/.config/bspwm/rices/$(cat "$HOME/.config/bspwm/.rice")/config.ini"'
 alias conf_micro="micro $HOME/.config/micro/settings.json"
+
+alias steaminstall="$HOME/.local/bin/steam-installer.sh"
 
 #  ┌─┐┬┌┬┐  ┌─┐┬  ┬┌─┐┌─┐┌─┐┌─┐
 #  │ ┬│ │   ├─┤│  │├─┤└─┐├┤ └─┐
@@ -248,3 +250,9 @@ alias discord='/usr/share/discord/Discord'
 
 # Keep Vagrant box cache off the small /home quota
 export VAGRANT_HOME="/goinfre/zsonie/.vagrant.d"
+echo -en '\033c'
+
+alias brave-socks='brave --proxy-server="socks5://127.0.0.1:1080" --host-resolver-rules="MAP * ~NOTFOUND , EXCLUDE 127.0.0.1"'
+alias unityhub='"/tmp/unityhub/root/usr/lib/unityhub/unityhub-bin" --no-sandbox' # unityhub-tmp
+alias unity='"/tmp/unityhub/bin/unity"' # unityhub-tmp
+alias wg-trans="./.ft_transcendence/wiresocks-setup.sh .ft_transcendence/zsonie.conf"
