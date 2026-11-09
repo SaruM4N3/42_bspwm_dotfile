@@ -16,6 +16,8 @@ BSPLOGDIR=$HOME/.BspwmLogs
 mkdir -p "$BSPLOGDIR"
 LOG=$BSPLOGDIR/lock.log
 echo "--- $(date) ---" >> $LOG
+# Which machine locked (iMac / Dell / Lenovo...) to tell sessions apart in this shared log
+echo "MACHINE=$(hostname) | $(cat /sys/class/dmi/id/sys_vendor 2>/dev/null) $(cat /sys/class/dmi/id/product_name 2>/dev/null) $(cat /sys/class/dmi/id/product_version 2>/dev/null)" >> $LOG
 
 # Refresh KRB5CCNAME in case ticket file was renewed/replaced since login
 KRB5_TICKET=$(find /tmp -maxdepth 1 -name "krb5cc_$(id -u)_*" 2>/dev/null | head -1)
