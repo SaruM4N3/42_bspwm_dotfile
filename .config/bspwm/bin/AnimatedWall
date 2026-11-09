@@ -11,8 +11,52 @@
 #  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 
+# mpv decode/output options per machine (DMI vendor). Each 42 machine has a
+# different GPU, so each gets its own profile; test a change with
+#   AnimatedWall --start <video>  and check mpv CPU in btop.
+#   ANIMWALL_PROFILE=mac|dell|lenovo|safe overrides the detection.
+machine_profile() {
+    [ -n "$ANIMWALL_PROFILE" ] && { echo "$ANIMWALL_PROFILE"; return; }
+    case "$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null)" in
+        "Apple Inc."*) echo mac ;;
+        "Dell Inc."*)  echo dell ;;
+        LENOVO*)       echo lenovo ;;
+        *)             echo safe ;;
+    esac
+}
+
+# Safe fallback: CPU decoding + XV output, works everywhere (no Mesa/DRI needed)
+SAFE_OPTS="--hwdec=no -vo xv --vd-lavc-threads=0"
+
+mpv_opts() {
+    case "$1" in
+        # iMac18,3 (Radeon RX 570/580): VA-API decode + GPU output through the
+        # Ubuntu mesa/VA drivers set up in bspwmrc (GL_SHIM, LIBVA_DRIVERS_PATH).
+        # 4K H.264 wallpaper: ~6% CPU instead of ~59% with the safe profile.
+        mac)    echo "--hwdec=vaapi --vo=gpu" ;;
+        # Dell / Lenovo: not tested on their GPU yet — keep the safe profile
+        # until tested (e.g. try "--hwdec=vaapi --vo=gpu" or "--hwdec=nvdec --vo=gpu").
+        dell)   echo "$SAFE_OPTS" ;;
+        lenovo) echo "$SAFE_OPTS" ;;
+        *)      echo "$SAFE_OPTS" ;;
+    esac
+}
+
+launch_wall() { # geometry aspect video opts...
+    geometry="$1" videoaspect="$2" video="$3"; shift 3
+    xwinwrap -g "$geometry" -un -fdt -ni -b -nf \
+        -- mpv $* --no-audio --no-border --no-config \
+        --no-window-dragging --no-input-default-bindings --no-osd-bar \
+        --no-sub --loop -wid WID --cache=yes \
+        --video-aspect-override="$videoaspect" \
+        "$video" > /dev/null 2>&1 &
+    echo $!
+}
+
 start() {
     video_path="$1"
+    profile=$(machine_profile)
+    opts=$(mpv_opts "$profile")
 
     case "$video_path" in
         *.mp4|*.mkv|*.gif) ;;
@@ -55,14 +99,15 @@ start() {
         esac
 
         # INFO: for each screen, launch the video with the appropriate aspect ratio
-        # Use XV output — bypasses Mesa/DRI entirely (Arch mesa-tkg-git requires DRM 3.54,
-        # host kernel only has 3.42, so all GPU-backed vo backends fail).
-        xwinwrap -g "$geometry" -un -fdt -ni -b -nf \
-            -- mpv --hwdec=no -vo xv --no-audio --no-border --no-config \
-            --no-window-dragging --no-input-default-bindings --no-osd-bar \
-            --no-sub --loop -wid WID --cache=yes --vd-lavc-threads=0 \
-            --video-aspect-override="$videoaspect" \
-            "$video_path" > /dev/null 2>&1 &
+        pid=$(launch_wall "$geometry" "$videoaspect" "$video_path" $opts)
+        # If the machine profile's GPU path dies on startup, fall back to the safe one
+        if [ "$opts" != "$SAFE_OPTS" ]; then
+            sleep 2
+            if ! kill -0 "$pid" 2>/dev/null; then
+                echo "[!] AnimatedWall: profile '$profile' failed, using safe options" >&2
+                launch_wall "$geometry" "$videoaspect" "$video_path" $SAFE_OPTS >/dev/null
+            fi
+        fi
     done
 }
 
