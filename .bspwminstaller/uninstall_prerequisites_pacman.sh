@@ -257,9 +257,13 @@ rm -rf "$HOME/.bspwminstaller"
 
 # ── Desktop entries ────────────────────────────────────────────────────────────
 info "Removing deployed desktop entries..."
-for f in riceditor.desktop zfetch.desktop zombie.svg; do
+for f in riceditor.desktop ricesettings.desktop zfetch.desktop zombie.svg; do
     [ -f "$HOME/.local/share/applications/$f" ] && rm -f "$HOME/.local/share/applications/$f" && info "  removed: $f"
 done
+# Copies of system apps made by Rice Settings > Apps / launcher ctrl+x to hide them
+# in bspwm (marked X-RiceSettings-Hidden): removing them restores the system entry.
+grep -l '^X-RiceSettings-Hidden=true' "$HOME/.local/share/applications/"*.desktop 2>/dev/null |
+    while read -r f; do rm -f "$f" && info "  removed hidden-app copy: $(basename "$f")"; done
 
 # ── Asciiart ──────────────────────────────────────────────────────────────────
 info "Removing ~/.local/share/asciiart/..."
@@ -267,7 +271,7 @@ rm -rf "$HOME/.local/share/asciiart"
 
 # ── Local bin ─────────────────────────────────────────────────────────────────
 info "Removing deployed local bin scripts..."
-for f in colorscript sysfetch; do
+for f in colorscript sysfetch steam-installer.sh install_unityhub.sh; do
     [ -f "$HOME/.local/bin/$f" ] && rm -f "$HOME/.local/bin/$f" && info "  removed: ~/.local/bin/$f"
 done
 

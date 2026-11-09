@@ -240,6 +240,8 @@ sudo pacman -S --needed --noconfirm \
     xorg-xrdb \
     xorg-xsetroot \
     xorg-xwininfo \
+    xorg-xinput \
+    xorg-setxkbmap \
     xdotool \
     xdo \
     wmctrl
@@ -465,5 +467,5 @@ info "Cache cleaned."
 echo ""
 info "All prerequisites installed."
 warn "Note: This config was built for a 42 school junest environment."
-warn "      ft_lock (/host/usr/share/42/ft_lock) is 42-specific and won't exist elsewhere."
+warn "      ft_lock (/usr/share/42/ft_lock) is 42-specific and won't exist elsewhere."
 warn "      The lock button in the eww profilecard will need to be changed for non-42 use."

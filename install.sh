@@ -134,6 +134,13 @@ for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi bto
     info "Deployed: ~/.config/$cfg"
 done
 
+# Per-user state kept in ~/.config/bspwm (moved to the backup above): the lock
+# screen wallpaper chosen in Rice Settings and the "default hidden apps already
+# applied" marker, so a reinstall doesn't undo them.
+for f in lock-wallpaper.jpg lock-wallpaper.src .hidden-apps-applied; do
+    [ -e "$BACKUP/bspwm/$f" ] && cp -p "$BACKUP/bspwm/$f" "$HOME/.config/bspwm/$f" && info "Kept: ~/.config/bspwm/$f"
+done
+
 # Home dotfiles (.zshrc.bak is the bspwm zshrc — swapped in at login, user's .zshrc untouched)
 for f in .zshrc.bak .gtkrc-2.0 .Xresources; do
     [ -f "$REPO/$f" ] && cp "$REPO/$f" "$HOME/$f" && info "Deployed: ~/$f"
@@ -271,6 +278,6 @@ echo ""
 echo -e "  ${YEL}Next step:${NC} launch bspwm via"
 echo -e "     ${BLU}~/.bspwminstaller/bspwm.sh${NC}"
 echo ""
-warn "Note: ft_lock (/host/usr/share/42/ft_lock) is 42-school specific."
+warn "Note: ft_lock (/usr/share/42/ft_lock) is 42-school specific."
 warn "      Update the lock button in eww/profilecard if running elsewhere."
 echo ""
