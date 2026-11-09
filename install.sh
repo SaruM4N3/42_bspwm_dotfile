@@ -237,14 +237,13 @@ if [ -f "$HOME/.zshrc" ] && ! grep -q 'JUNEST_ENV' "$HOME/.zshrc"; then
 
 # Swap to bspwm zshrc when running inside junest, then reload.
 _swap_zshrc() {
-    [ -f "$HOME/.zshrc" ] && [ -f "$HOME/.zshrc.bak" ] || return
+    [ -f "$HOME/.zshrc" ] && [ -f "$HOME/.zshrc.bak" ] || return 1
     mv "$HOME/.zshrc" "$HOME/.zshrc.tmp"
     mv "$HOME/.zshrc.bak" "$HOME/.zshrc"
     mv "$HOME/.zshrc.tmp" "$HOME/.zshrc.bak"
 }
 if [[ -n "$JUNEST_ENV" ]]; then
-    _swap_zshrc
-    exec zsh
+    _swap_zshrc && exec zsh
 fi
 unset -f _swap_zshrc
 
