@@ -247,7 +247,6 @@ alias MonkeyLauncher='/home/zsonie/.local/bin/MonkeyLauncher'
 alias monkeylauncher-cli='/home/zsonie/.local/bin/MonkeyLauncherCLI'
 alias gcl='git clone'
 alias brave='brave --password-store=basic'
-alias discord='/usr/share/discord/Discord'
 
 # Keep Vagrant box cache off the small /home quota
 export VAGRANT_HOME="/goinfre/$USER/.vagrant.d"

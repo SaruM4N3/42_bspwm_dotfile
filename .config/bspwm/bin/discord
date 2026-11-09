@@ -2,10 +2,13 @@
 # =============================================================
 #  discord — launcher for bspwm/junest environment
 #
-#  mesa is pinned to 24.3.4 (IgnorePkg in junest pacman.conf).
-#  Mesa 25.x+ requires DRM 3.54 (kernel 6.6+); host is 5.15 (DRM 3.42).
-#  With mesa 24.3.4, the amdgpu DRI driver initialises correctly,
-#  so no --disable-gpu workaround is needed.
+#  Discord is the Ubuntu .deb (/usr/bin/discord on the host, the same
+#  one GNOME launches). Inside junest, /usr/bin/discord is hidden by an
+#  overlay whiteout left by an old Arch package, and the Ubuntu Electron
+#  build expects Ubuntu libs anyway, so run it on the host via host-run.
 # =============================================================
 
-exec /usr/bin/discord "$@"
+if command -v host-run >/dev/null 2>&1 && [ -p "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm_host_req" ]; then
+    exec host-run discord "$@"
+fi
+exec "$HOME/.config/discord/Discord" "$@"
