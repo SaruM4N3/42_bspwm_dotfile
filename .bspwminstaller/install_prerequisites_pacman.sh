@@ -187,6 +187,17 @@ add_gh0stzk_repo() {
     info "gh0stzk-dotfiles repo added."
 }
 
+# Skip the JetBrains Mono font variants the config never uses (Nerd Font Propo
+# and the NL / no-ligature families): ~150 MB less, kept out on updates too.
+set_font_noextract() {
+    if grep -q '^NoExtract.*JetBrainsMonoNL' /etc/pacman.conf 2>/dev/null; then
+        info "Font NoExtract rule already configured."
+        return
+    fi
+    info "Adding NoExtract rule for unused JetBrains Mono variants..."
+    sudo sed -i '/^\[options\]/a # Unused JetBrains Mono Nerd Font variants (Propo, NL) — ~150 MB saved\nNoExtract   = usr/share/fonts/TTF/JetBrainsMonoNerdFontPropo-* usr/share/fonts/TTF/JetBrainsMonoNL*' /etc/pacman.conf
+}
+
 # ── Interactive setup (ask before any installs) ───────────────────────────────
 ask_editor
 ask_browser
@@ -209,6 +220,7 @@ info "Installing base-devel and git..."
 sudo pacman -S --needed --noconfirm base-devel git
 
 # ── Chaotic-AUR + gh0stzk custom repo ────────────────────────────────────────
+set_font_noextract
 add_chaotic_repo
 add_gh0stzk_repo
 
