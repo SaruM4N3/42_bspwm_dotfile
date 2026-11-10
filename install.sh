@@ -25,23 +25,70 @@ STAMP=$(date +"%Y%m%d-%H%M%S")
 [ "$(id -u)" = 0 ] && error "Do not run as root."
 # Inside junest (bspwm session) ~/.zshrc.bak holds the GNOME config and would be overwritten
 [ -n "$JUNEST_ENV" ] && error "Run this from a GNOME terminal, not from inside bspwm/junest."
+# While bspwm runs, ~/.zshrc and ~/.zshrc.bak are swapped and ~/.config/bspwm is in use
+pgrep -x bspwm >/dev/null && error "bspwm is running: quit it first (back to GNOME), then run this again."
 
 # ── Args ──────────────────────────────────────────────────────
 FRESH=0
 WIPE_JUNEST=0
-case "$1" in
-    --fresh|-f) FRESH=1 ;;
-    -h|--help)
-        echo "Usage: $0 [--fresh|-f]"
-        echo "  --fresh, -f   Force a clean reinstall: wipe oh-my-zsh and"
-        echo "                ~/.bspwminstaller before redeploying (and"
-        echo "                optionally the junest Arch environment too),"
-        echo "                instead of upgrading in place."
-        exit 0
-        ;;
-esac
+UPDATE=0
+PULLED=0
+for arg in "$@"; do
+    case "$arg" in
+        --fresh|-f)  FRESH=1 ;;
+        --update|-u) UPDATE=1 ;;
+        --pulled)    PULLED=1 ;;     # internal: set when re-run after git pull
+        -h|--help)
+            echo "Usage: $0 [--update|-u | --fresh|-f]"
+            echo "  --update, -u  Update an existing install: new dotfiles and scripts,"
+            echo "                your settings kept, only missing packages installed"
+            echo "                (no junest setup, no package questions)."
+            echo "  --fresh, -f   Force a clean reinstall: wipe oh-my-zsh and"
+            echo "                ~/.bspwminstaller before redeploying (and"
+            echo "                optionally the junest Arch environment too),"
+            echo "                instead of upgrading in place."
+            exit 0
+            ;;
+        *) error "Unknown option: $arg (see --help)" ;;
+    esac
+done
+[ "$FRESH" -eq 1 ] && [ "$UPDATE" -eq 1 ] && error "--update and --fresh cannot be used together."
+
+JUNEST_BIN="$HOME/.local/share/junest/bin/junest"
+INSTALLED=0
+[ -d "$HOME/.config/bspwm" ] && [ -f "$HOME/.junest/usr/bin/pacman" ] && [ -x "$JUNEST_BIN" ] && INSTALLED=1
+[ "$UPDATE" -eq 1 ] && [ "$INSTALLED" -eq 0 ] && error "No existing install found (junest + ~/.config/bspwm): run $0 without --update."
+
+# Choices of the last full install (terminal, rice, browser, editor), reused by updates
+SAVED_CHOICES="$HOME/.local/state/bspwm/install-choices"
 
 # ── Welcome ───────────────────────────────────────────────────
+if [ "$INSTALLED" -eq 1 ] && [ "$FRESH" -eq 0 ] && [ "$UPDATE" -eq 0 ]; then
+    echo ""
+    echo -e "${BLD}${BLU}[?]${NC} bspwm is already installed. What do you want to do?"
+    echo -e "    ${GRN}1)${NC} Update: new version of the dotfiles, your settings kept ${BLD}[default]${NC}"
+    echo -e "    ${GRN}2)${NC} Full install (packages, junest, all the questions)"
+    printf "%b" "    Choice [1]: "
+    read -r mode
+    case "$mode" in 2) UPDATE=0 ;; *) UPDATE=1 ;; esac
+fi
+
+# Update: get the latest version of the repo first, then run the new install.sh
+if [ "$UPDATE" -eq 1 ] && [ "$PULLED" -eq 0 ] && git -C "$REPO" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
+    echo ""
+    printf "%b" "${BLD}${BLU}[?]${NC} Download the latest version from GitHub first (git pull)? [Y/n]: "
+    read -r gp
+    case "$gp" in
+        [Nn]) ;;
+        *)
+            if git -C "$REPO" pull --ff-only; then
+                exec bash "$REPO/install.sh" --update --pulled
+            fi
+            warn "git pull failed (local changes or no network?): updating from the local copy."
+            ;;
+    esac
+fi
+
 clear
 echo -e "${BLD}${GRN}"
 cat << 'EOF'
@@ -55,10 +102,21 @@ EOF
 echo -e "${NC}"
 if [ "$FRESH" -eq 1 ]; then
     echo -e "${BLD}  bspwm dotfiles — 42 school / junest edition  ${RED}[FRESH REINSTALL]${NC}"
+elif [ "$UPDATE" -eq 1 ]; then
+    echo -e "${BLD}  bspwm dotfiles — 42 school / junest edition  ${BLU}[UPDATE]${NC}"
 else
     echo -e "${BLD}  bspwm dotfiles — 42 school / junest edition${NC}"
 fi
 echo ""
+if [ "$UPDATE" -eq 1 ]; then
+echo -e "  This update will:"
+echo -e "    ${GRN}[1]${NC} Install only the packages a newer version needs (no upgrade)"
+echo -e "    ${GRN}[2]${NC} Backup existing configs to ~/.config-backup-$STAMP"
+echo -e "    ${GRN}[3]${NC} Deploy the new dotfiles and scripts, ${BLD}keeping your settings${NC}"
+echo -e "    ${GRN}[4-7]${NC} Refresh fonts, desktop entries, bin scripts, shortcut, zshrc block"
+echo ""
+warn "Your Rice Settings, keybinds, picom, wallpaper and choices stay as they are."
+else
 echo -e "  This script will:"
 echo -e "    ${GRN}[1]${NC} Install junest + Arch dependencies inside it"
 echo -e "    ${GRN}[2]${NC} Backup existing configs to ~/.config-backup-$STAMP"
@@ -69,6 +127,7 @@ echo -e "    ${GRN}[6]${NC} Install oh-my-zsh + custom plugins"
 echo -e "    ${GRN}[7]${NC} Patch ~/.zshrc with junest/bspwm swap"
 echo ""
 warn "Existing configs will be backed up before anything is overwritten."
+fi
 
 if [ "$FRESH" -eq 1 ]; then
     echo ""
@@ -84,6 +143,10 @@ fi
 # ── zsh config ────────────────────────────────────────────────
 # mine: inside bspwm the shell uses this repo's zshrc (swapped in by bspwm.sh),
 #       GNOME keeps the user's ~/.zshrc. keep: the user's ~/.zshrc everywhere.
+if [ "$UPDATE" -eq 1 ]; then
+    # Same mode as the install being updated: "keep" removed ~/.zshrc.bak
+    if [ -f "$HOME/.zshrc.bak" ]; then ZSHRC_MODE=mine; else ZSHRC_MODE=keep; fi
+else
 echo ""
 echo -e "${BLD}${BLU}[?]${NC} zsh config inside bspwm:"
 echo -e "    ${GRN}1)${NC} Use mine in bspwm (prompt, fzf-tab, aliases), yours stays in GNOME ${BLD}[default]${NC}"
@@ -91,10 +154,13 @@ echo -e "    ${GRN}2)${NC} Keep your own ~/.zshrc everywhere"
 printf "%b" "    Choice [1]: "
 read -r zc
 case "$zc" in 2) ZSHRC_MODE=keep ;; *) ZSHRC_MODE=mine ;; esac
+fi
 
 # ── Reinstall: keep the user's settings? ──────────────────────
 KEEP_SETTINGS=0
-if [ -d "$HOME/.config/bspwm" ]; then
+if [ "$UPDATE" -eq 1 ]; then
+    KEEP_SETTINGS=1
+elif [ -d "$HOME/.config/bspwm" ]; then
     echo ""
     echo -e "${BLD}${BLU}[?]${NC} An existing bspwm config was found."
     echo -e "    Keep your settings (Rice Settings, keybinds, picom, wallpaper, mouse...)?"
@@ -112,7 +178,9 @@ case "$yn" in [Yy]) ;; *) echo "Cancelled."; exit 0 ;; esac
 # ── Free space check ──────────────────────────────────────────
 # junest + packages ≈ 6.5 GB on a first install, the rest (configs, fonts,
 # wallpapers) ≈ 0.5 GB. A full home quota would stop pacman half-way.
-if [ -d "$HOME/.junest/usr" ] && [ "$WIPE_JUNEST" -eq 0 ]; then
+if [ "$UPDATE" -eq 1 ]; then
+    NEED_GB=1
+elif [ -d "$HOME/.junest/usr" ] && [ "$WIPE_JUNEST" -eq 0 ]; then
     NEED_GB=1
 else
     NEED_GB=7
@@ -138,8 +206,41 @@ fi
 
 # ── Step 1: junest setup ──────────────────────────────────────
 clear
-info "Step 1/7 — Installing junest and packages..."
-bash "$REPO/.bspwminstaller/install_junest.sh"
+if [ "$UPDATE" -eq 1 ]; then
+    info "Step 1/7 — Checking for packages added by the new version..."
+    # Package names of the full install (literal ones only: the browser, editor
+    # and icon packs come from the install questions and are already there).
+    PKGS=$(awk '
+        /sudo pacman -S --needed --noconfirm/ { grab = 1; sub(/.*--noconfirm/, "") }
+        grab {
+            cont = ($0 ~ /\\[ \t]*$/); line = $0; gsub(/\\/, " ", line)
+            n = split(line, w, /[ \t]+/)
+            for (i = 1; i <= n; i++) {
+                if (w[i] == "") continue
+                if (w[i] !~ /^[a-z0-9][a-z0-9+._-]*$/) break
+                print w[i]
+            }
+            if (!cont) grab = 0
+        }' "$REPO/.bspwminstaller/install_prerequisites_pacman.sh" | sort -u)
+    # pacman -T prints the ones that are not installed
+    # shellcheck disable=SC2086
+    # (only names from the list: junest may print its own messages)
+    MISSING=$("$JUNEST_BIN" -- pacman -T $PKGS 2>/dev/null | grep -Fx -f <(printf '%s\n' $PKGS) | tr '\n' ' ' || true)
+    MISSING="${MISSING% }"
+    if [ -z "$MISSING" ]; then
+        info "All packages already installed."
+    else
+        info "Installing: $MISSING"
+        # No -Syu here (slow, and it can break the pinned mesa): if the package
+        # database is too old for these, a full install is needed.
+        # shellcheck disable=SC2086
+        "$JUNEST_BIN" -- sudo pacman -S --needed --noconfirm $MISSING ||
+            warn "Could not install: $MISSING. Run $0 (full install) to update the package database."
+    fi
+else
+    info "Step 1/7 — Installing junest and packages..."
+    bash "$REPO/.bspwminstaller/install_junest.sh"
+fi
 
 # ── Step 2: Backup ────────────────────────────────────────────
 clear
@@ -251,12 +352,34 @@ info "Hardcoded paths rewritten to: $HOME"
 # Installer choices (saved by install_prerequisites_pacman.sh in step 1):
 # applied to the deployed copies only, the repo stays untouched.
 CHOICES="$HOME/.cache/bspwm-install-choices"
+if [ "$UPDATE" -eq 1 ] && [ ! -f "$SAVED_CHOICES" ] && [ -f "$BACKUP/bspwm/bin/OpenApps" ]; then
+    # Installed before the choices were saved: read them back from the old files
+    case_line() { sed -n "/$1)/,/;;/{/$1)/d;/;;/d;s/^[[:space:]]*//;p}" "$2" | head -1; }
+    _b=$(case_line --browser "$BACKUP/bspwm/bin/OpenApps")
+    _e=$(case_line --editor  "$BACKUP/bspwm/bin/OpenApps")
+    mkdir -p "$(dirname "$SAVED_CHOICES")"
+    {
+        printf 'BROWSER_BIN=%q\n' "$_b"
+        case "$_e" in
+            "Term --"*) printf 'EDITOR_BIN=%q\nEDITOR_GUI=0\n' "${_e#Term --}" ;;
+            ?*)         printf 'EDITOR_BIN=%q\nEDITOR_GUI=1\n' "$_e" ;;
+        esac
+    } > "$SAVED_CHOICES"
+    unset _b _e
+    info "Choices read from your previous install: $(tr '\n' ' ' < "$SAVED_CHOICES")"
+fi
+if [ "$UPDATE" -eq 1 ] && [ -f "$SAVED_CHOICES" ]; then
+    mkdir -p "$(dirname "$CHOICES")" && cp "$SAVED_CHOICES" "$CHOICES"
+fi
 if [ -f "$CHOICES" ]; then
     # shellcheck disable=SC1090
     . "$CHOICES"
     BSPWM_CFG="$HOME/.config/bspwm"
-    [ -n "$TERM_BIN" ]    && echo "$TERM_BIN"    > "$BSPWM_CFG/config/.term"
-    [ -n "$ACTIVE_RICE" ] && echo "$ACTIVE_RICE" > "$BSPWM_CFG/.rice"
+    # Update: terminal and rice come from the kept settings (Rice Settings may have changed them)
+    if [ "$UPDATE" -eq 0 ]; then
+        [ -n "$TERM_BIN" ]    && echo "$TERM_BIN"    > "$BSPWM_CFG/config/.term"
+        [ -n "$ACTIVE_RICE" ] && echo "$ACTIVE_RICE" > "$BSPWM_CFG/.rice"
+    fi
     OPENAPPS="$BSPWM_CFG/bin/OpenApps"
     for sxhkd in "$BSPWM_CFG/config/sxhkdrc" "$BSPWM_CFG/config/.session/sxhkdrc"; do
         [ -f "$sxhkd" ] || continue
@@ -276,14 +399,25 @@ if [ -f "$CHOICES" ]; then
             sed -i "/--editor)/,/;;/{s|^\t\t[a-zA-Z].*$|\t\tTerm --$EDITOR_BIN|}" "$OPENAPPS"
         fi
     fi
-    if [ -f "$HOME/.zshrc.bak" ]; then
+    if [ "$UPDATE" -eq 1 ] && [ -f "$HOME/.zshrc.bak" ] && [ -f "$BACKUP/.zshrc.bak" ]; then
+        # Keep the EDITOR / BROWSER of the bspwm zshrc being replaced
+        for v in EDITOR BROWSER; do
+            old=$(grep -m1 "^export $v=" "$BACKUP/.zshrc.bak" || true)
+            [ -n "$old" ] && sed -i "s|^export $v=.*|$(printf '%s' "$old" | sed 's/[|&\\]/\\&/g')|" "$HOME/.zshrc.bak"
+        done
+    elif [ -f "$HOME/.zshrc.bak" ]; then
         [ -n "$EDITOR_BIN" ]  && sed -i "s|^export EDITOR=.*|export EDITOR='$EDITOR_BIN'|" "$HOME/.zshrc.bak"
         [ -n "$BROWSER_BIN" ] && sed -i "s|^export BROWSER=.*|export BROWSER='$BROWSER_BIN'|" "$HOME/.zshrc.bak"
     fi
     YAZI_CFG="$HOME/.config/yazi/yazi.toml"
     [ -f "$YAZI_CFG" ] && [ -n "$EDITOR_BIN" ] && sed -i "s|\${EDITOR:-[a-z]*}|\${EDITOR:-$EDITOR_BIN}|" "$YAZI_CFG"
-    info "Choices applied: terminal=$TERM_BIN rice=$ACTIVE_RICE browser=$BROWSER_BIN editor=$EDITOR_BIN"
-    rm -f "$CHOICES"
+    if [ "$UPDATE" -eq 1 ]; then
+        info "Choices applied: browser=$BROWSER_BIN editor=$EDITOR_BIN"
+    else
+        info "Choices applied: terminal=$TERM_BIN rice=$ACTIVE_RICE browser=$BROWSER_BIN editor=$EDITOR_BIN"
+    fi
+    mkdir -p "$(dirname "$SAVED_CHOICES")"
+    mv -f "$CHOICES" "$SAVED_CHOICES"      # kept for the next --update
 else
     warn "No installer choices found — keeping the repo defaults (terminal, rice, browser, editor)."
 fi
@@ -431,7 +565,13 @@ info "~/.zshrc patched (mode: $ZSHRC_MODE)."
 # ── Done ──────────────────────────────────────────────────────
 clear
 echo ""
-echo -e "${BLD}${GRN}  ✓ Installation complete!${NC}"
+if [ "$UPDATE" -eq 1 ]; then
+    echo -e "${BLD}${GRN}  ✓ Update complete!${NC}"
+    [ -f "$HOME/.config/bspwm/config/sxhkdrc.new" ] &&
+        echo -e "  ${YEL}New keybinds:${NC} compare with ~/.config/bspwm/config/sxhkdrc.new"
+else
+    echo -e "${BLD}${GRN}  ✓ Installation complete!${NC}"
+fi
 echo ""
 echo -e "  ${YEL}Next step:${NC} launch bspwm via"
 echo -e "     ${BLU}~/.bspwminstaller/bspwm.sh${NC}"

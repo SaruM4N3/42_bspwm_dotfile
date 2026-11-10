@@ -23,6 +23,14 @@ It is no longer a direct copy of the original project: most parts were adapted, 
 
 Use the provided `install.sh` script to install the setup.
 
+## Update
+
+Already installed? Quit bspwm (back to GNOME), then run `./install.sh --update`
+(or plain `./install.sh` and pick "Update"). It pulls the latest version,
+deploys the new dotfiles and scripts, keeps your settings (Rice Settings,
+keybinds, picom, wallpaper, browser/editor choices) and installs only the
+packages the new version adds. No junest setup, no package upgrade.
+
 ## Uninstall
 
 Use the provided `uninstall_all.sh` script to remove the installed configuration and related files.
