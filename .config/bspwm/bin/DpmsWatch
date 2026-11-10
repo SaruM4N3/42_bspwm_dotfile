@@ -1,0 +1,54 @@
+#!/bin/sh
+# =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
+#  DpmsWatch - restart picom around DPMS blanking (NVIDIA only)
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
+# =============================================================
+#
+# On the NVIDIA PRIME Lenovos, picom (GLX + vsync) hangs when the monitor
+# comes back from DPMS off (lock screen -> black screen -> wake): the screen
+# stays frozen on its last, half drawn frame. Stop picom while the monitor is
+# off and start a fresh one when it is back on.
+
+[ -e /proc/driver/nvidia/version ] || exit 0
+
+# One instance per X display
+LOCKF="${XDG_RUNTIME_DIR:-/tmp}/dpmswatch${DISPLAY}.pid"
+if [ -f "$LOCKF" ] && kill -0 "$(cat "$LOCKF")" 2>/dev/null; then
+    exit 0
+fi
+echo $$ > "$LOCKF"
+
+LOG="$HOME/.BspwmLogs/lock.log"
+PICOM_CONF="$HOME/.config/bspwm/config/picom.conf"
+
+monitor_state() {
+    xset q 2>/dev/null | sed -n 's/^ *Monitor is \(.*\)$/\1/p'
+}
+
+prev=$(monitor_state)
+picom_was_running=0
+while sleep 1; do
+    cur=$(monitor_state)
+    [ -z "$cur" ] && continue          # X gone or xset failed
+    [ "$cur" = "$prev" ] && continue
+    if [ "$cur" != "On" ] && [ "$prev" = "On" ]; then
+        if pgrep -x picom >/dev/null; then
+            picom_was_running=1
+            pkill -x picom
+            echo "DpmsWatch $(date '+%T'): monitor $cur, picom stopped" >> "$LOG"
+        fi
+    elif [ "$cur" = "On" ] && [ "$picom_was_running" = 1 ]; then
+        sleep 1                        # let the driver finish the modeset
+        pgrep -x picom >/dev/null || picom --config "$PICOM_CONF" >/dev/null 2>&1 &
+        picom_was_running=0
+        echo "DpmsWatch $(date '+%T'): monitor On, picom restarted" >> "$LOG"
+    fi
+    prev=$cur
+done

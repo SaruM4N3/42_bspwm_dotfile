@@ -54,6 +54,10 @@ if [ -f "$WALL_RESUME" ]; then
     WALL_PATH=$(cat "$WALL_RESUME")
     echo "waiting for 10 key inputs before restoring wall..." >> $LOG
     xinput test-xi2 --root 2>/dev/null | awk '/KeyPress/{if(++n>=10)exit}'
+    # Keys pressed to wake a blanked screen count too: wait until the monitor is
+    # back on (and DpmsWatch restarted picom on NVIDIA) before starting mpv.
+    while xset q 2>/dev/null | grep -q "Monitor is \(Off\|Standby\|Suspend\)"; do sleep 1; done
+    sleep 2
     echo "restarting animated wall: $WALL_PATH" >> $LOG
     "$HOME/.config/bspwm/bin/AnimatedWall" --start "$WALL_PATH"
     rm -f "$WALL_RESUME"

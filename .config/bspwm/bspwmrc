@@ -176,6 +176,9 @@ pkill -x gsd-power 2>/dev/null
 pkill -x picom 2>/dev/null
 picom --config "${HOME}"/.config/bspwm/config/picom.conf &
 
+# NVIDIA only: picom hangs after DPMS off/on (lock -> black screen), restart it
+"${HOME}"/.config/bspwm/bin/DpmsWatch &
+
 # Animated wallpaper is restored by ThemeLaunch → 06-wallpaper.sh (ENGINE=Animated)
 
 # Launch ft_lock daemon
