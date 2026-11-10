@@ -20,11 +20,17 @@ pick_random_wall() {
             WallSync &
             ;;
         "Animated")
-            _last="$HOME/.config/bspwm/config/.animwall_last"
-            _wall=$([ -f "$_last" ] && cat "$_last" || echo "$ANIMATED_WALL")
-            xsetroot -solid "${bg:-#1A1B26}"
-            AnimatedWall --stop --start "$_wall"
-            WallSync --animated &
+            if GamerMode --is-on; then
+                # Gamer mode (polybar button): still wallpaper instead of mpv
+                AnimatedWall --stop
+                feh --no-fehbg --bg-fill "$DEFAULT_WALL"
+            else
+                _last="$HOME/.config/bspwm/config/.animwall_last"
+                _wall=$([ -f "$_last" ] && cat "$_last" || echo "$ANIMATED_WALL")
+                xsetroot -solid "${bg:-#1A1B26}"
+                AnimatedWall --stop --start "$_wall"
+                WallSync --animated &
+            fi
             ;;
         "Slideshow")
             (

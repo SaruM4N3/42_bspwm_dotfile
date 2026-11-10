@@ -1,0 +1,82 @@
+#!/bin/sh
+# =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
+#  GamerMode - swap the animated wallpaper (mpv) for a still one
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
+# =============================================================
+#
+#  GamerMode            toggle (polybar gamermode module)
+#  GamerMode --on|--off
+#  GamerMode --status   polybar label
+#  GamerMode --is-on    exit 0 if on (06-wallpaper.sh, at startup)
+#
+#  The still wallpaper is the rice's DEFAULT_WALL. The mode is kept in
+#  $STATE, so it survives bspwm restarts; starting an animated wallpaper
+#  by hand (AnimatedWall --start) turns it off.
+
+STATE="${XDG_STATE_HOME:-$HOME/.local/state}/bspwm/gamer-mode"
+RICE=$(cat "$HOME/.config/bspwm/.rice" 2>/dev/null)
+RICE_DIR="$HOME/.config/bspwm/rices/$RICE"
+CFG="$RICE_DIR/theme-config.bash"
+
+cfg() { grep "^$1=" "$CFG" 2>/dev/null | head -n1 | cut -d'"' -f2; }
+
+# Polybar color from the rice's [color] section
+bar_color() {
+    awk -v k="$1" '/^\[color\]/{s=1;next} /^\[/{s=0} s && $1==k {print $3; exit}' \
+        "$RICE_DIR/config.ini" 2>/dev/null
+}
+
+is_on() { [ -f "$STATE" ]; }
+
+refresh_bar() { polybar-msg action gamermode hook 0 >/dev/null 2>&1; }
+
+still_wall() {
+    wall=$(cfg DEFAULT_WALL)
+    [ -f "$wall" ] || wall=$(find "$RICE_DIR/walls" -type f \( -iname '*.jpg' -o \
+        -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) 2>/dev/null | sort | head -n1)
+    printf '%s\n' "$wall"
+}
+
+turn_on() {
+    mkdir -p "${STATE%/*}" && : > "$STATE"
+    if [ "$(cfg ENGINE)" = "Animated" ]; then
+        AnimatedWall --stop
+        wall=$(still_wall)
+        [ -n "$wall" ] && feh --no-fehbg --bg-fill "$wall"
+    fi
+    refresh_bar
+    dunstify -u low -r 7043 -i input-gaming "Gamer mode" "On: still wallpaper, mpv stopped" 2>/dev/null
+}
+
+turn_off() {
+    rm -f "$STATE"
+    if [ "$(cfg ENGINE)" = "Animated" ]; then
+        last="$HOME/.config/bspwm/config/.animwall_last"
+        wall=$([ -f "$last" ] && cat "$last" || cfg ANIMATED_WALL)
+        [ -n "$wall" ] && AnimatedWall --stop --start "$wall" &
+    fi
+    refresh_bar
+    dunstify -u low -r 7043 -i input-gaming "Gamer mode" "Off: animated wallpaper back" 2>/dev/null
+}
+
+case "$1" in
+    --status)
+        if is_on; then
+            printf '%%{F%s}󰊗%%{F-}\n' "$(bar_color green)"
+        else
+            printf '%%{F%s}󰊗%%{F-}\n' "$(bar_color fg)"
+        fi
+        ;;
+    --is-on) is_on ;;
+    --on)    turn_on ;;
+    --off)   turn_off ;;
+    ""|--toggle) if is_on; then turn_off; else turn_on; fi ;;
+    *) echo "Usage: GamerMode [--toggle|--on|--off|--status|--is-on]" >&2; exit 1 ;;
+esac

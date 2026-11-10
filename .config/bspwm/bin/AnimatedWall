@@ -59,6 +59,12 @@ launch_wall() { # geometry aspect video opts...
 
 start() {
     video_path="$1"
+    # Starting an animated wallpaper ends gamer mode (GamerMode)
+    _gm="${XDG_STATE_HOME:-$HOME/.local/state}/bspwm/gamer-mode"
+    if [ -f "$_gm" ]; then
+        rm -f "$_gm"
+        polybar-msg action gamermode hook 0 >/dev/null 2>&1
+    fi
     profile=$(machine_profile)
     opts=$(mpv_opts "$profile")
 
