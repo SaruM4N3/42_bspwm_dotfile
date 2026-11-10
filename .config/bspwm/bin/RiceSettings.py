@@ -1105,9 +1105,10 @@ def window_page(cfg):
         anim_set_duration("geometry", f"{d_geom.get_value():.2f}")
         run_module("01-picom.sh")
         # Wait for 01-picom.sh to finish writing picom.conf, then restart picom
-        # detached so it survives this window closing
+        # detached so it survives this window closing (not in gamer mode: picom off)
         subprocess.Popen(["bash","-c",
-            "sleep 0.3; pkill -x picom; while pgrep -x picom >/dev/null; do sleep 0.1; done;"
+            "sleep 0.3; ~/.config/bspwm/bin/GamerMode --is-on && exit 0;"
+            " pkill -x picom; while pgrep -x picom >/dev/null; do sleep 0.1; done;"
             " picom --config ~/.config/bspwm/config/picom.conf >/dev/null 2>&1 &"],
             env=child_env(), start_new_session=True)
         flash_btn(btn, "✓ Applied!"); notify("Picom applied.")

@@ -24,11 +24,14 @@ reload() {
     # and damage state mid-session, causing border color and resize glitch regressions.
     pkill -x picom 2>/dev/null || true
     sleep 0.1
-    GL_SHIM="${HOME}/.config/bspwm/gl-host"
-    LD_LIBRARY_PATH="${GL_SHIM}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
-    LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri \
-    picom --config "${HOME}/.config/bspwm/config/picom.conf" &
-    sleep 0.15
+    # Gamer mode keeps picom off
+    if ! "${HOME}/.config/bspwm/bin/GamerMode" --is-on; then
+        GL_SHIM="${HOME}/.config/bspwm/gl-host"
+        LD_LIBRARY_PATH="${GL_SHIM}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
+        LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri \
+        picom --config "${HOME}/.config/bspwm/config/picom.conf" &
+        sleep 0.15
+    fi
 
     # Reload bars polybar or eww
     if pgrep -x polybar >/dev/null; then
