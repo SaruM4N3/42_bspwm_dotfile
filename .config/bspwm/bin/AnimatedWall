@@ -63,7 +63,7 @@ start() {
     _gm="${XDG_STATE_HOME:-$HOME/.local/state}/bspwm/gamer-mode"
     if [ -f "$_gm" ]; then
         rm -f "$_gm"
-        polybar-msg action gamermode hook 0 >/dev/null 2>&1
+        "$HOME"/.config/bspwm/bin/GamerMode --refresh-bar
     fi
     profile=$(machine_profile)
     opts=$(mpv_opts "$profile")

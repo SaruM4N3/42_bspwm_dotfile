@@ -48,7 +48,18 @@ picom_start() {
     setsid -f picom --config "$PICOM_CONF" >/dev/null 2>&1
 }
 
-refresh_bar() { polybar-msg action gamermode hook 0 >/dev/null 2>&1; }
+# Send the hook only to the bars that have the gamermode module: a plain
+# `polybar-msg action` goes to every bar, and each one without the module logs
+# "No module named 'gamermode'" (6 lines per toggle with the 7 saru bars).
+refresh_bar() {
+    _ini="$RICE_DIR/bar-generated.ini"
+    [ -f "$_ini" ] || _ini="$RICE_DIR/config.ini"
+    for _bar in $(awk '/^\[bar\//{b=substr($0,6,length($0)-6)} /^modules-/ && /(^|[ =])gamermode( |$)/{print b}' "$_ini" | sort -u); do
+        for _pid in $(pgrep -f "^polybar .*-q $_bar( |$)"); do
+            polybar-msg -p "$_pid" action gamermode hook 0 >/dev/null 2>&1
+        done
+    done
+}
 
 still_wall() {
     wall=$(cfg DEFAULT_WALL)
@@ -92,6 +103,7 @@ case "$1" in
     --is-on) is_on ;;
     --on)    turn_on ;;
     --off)   turn_off ;;
+    --refresh-bar) refresh_bar ;;
     ""|--toggle) if is_on; then turn_off; else turn_on; fi ;;
-    *) echo "Usage: GamerMode [--toggle|--on|--off|--status|--is-on]" >&2; exit 1 ;;
+    *) echo "Usage: GamerMode [--toggle|--on|--off|--status|--is-on|--refresh-bar]" >&2; exit 1 ;;
 esac
