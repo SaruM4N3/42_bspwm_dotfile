@@ -39,6 +39,14 @@ fi
 
 # ── 3. Run prerequisites inside junest (proot mode — sudo works) ─────────────
 info "Running package installation inside junest..."
-"$JUNEST_BIN" -- bash "$SCRIPT_DIR/install_prerequisites_pacman.sh"
+# junest only sees $HOME: a repo cloned elsewhere (e.g. /goinfre, to spare the
+# home quota) must be bound in, or the script and the rices can't be found.
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+case "$REPO_DIR/" in
+    "$HOME"/*) JUNEST_ARGS=() ;;
+    *)         JUNEST_ARGS=(-b "--bind $REPO_DIR $REPO_DIR")
+               info "Repo is outside \$HOME — binding $REPO_DIR into junest." ;;
+esac
+"$JUNEST_BIN" "${JUNEST_ARGS[@]}" -- bash "$SCRIPT_DIR/install_prerequisites_pacman.sh"
 
 info "All packages installed."
