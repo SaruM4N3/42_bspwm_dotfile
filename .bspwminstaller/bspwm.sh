@@ -147,6 +147,12 @@ if [ -r /proc/driver/nvidia/version ] && [ -e "$_HOST_LIBDIR/libGLX_nvidia.so.0"
               "$_HOST_LIBDIR"/libnvcuvid.so.* "$_HOST_LIBDIR"/libnvoptix.so.*; do
         [ -e "$_f" ] && ln -sf "$_f" "$_NVLIB/"
     done
+    # Unversioned dev names too (libfoo.so): some apps dlopen those, e.g. btop's
+    # libnvidia-ml.so, and Arch's copy of that link points to its own driver.
+    for _f in "$_NVLIB"/*.so.*; do
+        _f="$_HOST_LIBDIR/${_f##*/}"; _f="${_f%%.so.*}.so"
+        [ -e "$_f" ] && ln -sf "$_f" "$_NVLIB/"
+    done
     # VDPAU drivers are dlopen'ed from /usr/lib/vdpau (Arch's), not via LD_LIBRARY_PATH
     for _f in "$_HOST_LIBDIR"/vdpau/libvdpau_nvidia.so*; do
         [ -e "$_f" ] && ln -sf "$_f" "$_NVLIB/"
