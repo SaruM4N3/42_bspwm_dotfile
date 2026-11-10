@@ -698,6 +698,12 @@ combobox button:hover { background: rgba(255,255,255,0.1); }
 }
 
 separator { background: rgba(255,255,255,0.055); }
+
+/* Logs page */
+.log-view, .log-view text {
+    background-color: transparent; color: rgba(253,253,253,0.82);
+    font-family: "JetBrainsMono Nerd Font Mono", monospace; font-size: 11px;
+}
 scrollbar { background: transparent; border: none; padding: 0; }
 scrollbar slider {
     background: rgba(255,255,255,0.1); border-radius: 4px;
@@ -1676,11 +1682,14 @@ def gtk_page(cfg):
 
 
 def terminal_page(cfg):
-    """Terminal page: own color section + font + scrollback settings."""
+    """Terminal page: font + kitty scrollback + shell settings.
+    Colors are not set here: kitty takes them from ~/.config/kitty/current-theme.conf."""
 
     # ── Font ──────────────────────────────────────────────────────────────────
-    font = make_entry(cfg.get("term_font_name",""), 220)
-    size = make_spin(cfg.get("term_font_size","11"), 6, 32)
+    # kitty.conf is the source of truth (kitty is the terminal in use); the theme
+    # vars are kept in sync for alacritty/st.
+    font = make_entry(kitty_get("font_family", cfg.get("term_font_name", "")), 220)
+    size = make_spin(kitty_get("font_size", cfg.get("term_font_size", "11")), 6, 32)
 
     # ── Kitty settings ────────────────────────────────────────────────────
     history    = make_spin(kitty_get("scrollback_lines", "10000"), 0, 100000, 1000)
@@ -1701,38 +1710,32 @@ def terminal_page(cfg):
         notify("Shell settings applied. Restart terminal to take effect.")
     shell_btn.connect("clicked", safe_apply(apply_shell))
 
-    # ── Terminal Colors ────────────────────────────────────────────────────
-    # Same vars as Colors page — but applied only to terminals
-    tc = {}
-    def trow(key, label):
-        sw = ColorSwatch(cfg.get(key, "#000000"))
-        tc[key] = sw
-        return make_row(label, sw)
-
     # ── Buttons ───────────────────────────────────────────────────────────
     btn = apply_btn("Apply Terminal")
     def apply(btn):
         # Font
         cfg.set("term_font_name", font.get_text())
         cfg.set("term_font_size", str(int(size.get_value())))
-        # Colors
-        for k, sw in tc.items():
-            cfg.set(k, sw.get_hex())
         cfg.save()
         # Kitty settings
+        kitty_set("font_family",             font.get_text())
+        kitty_set("font_size",               str(int(size.get_value())))
         kitty_set("scrollback_lines",        str(int(history.get_value())))
         kitty_set("scrollbar",               sb_mode.get_active_text())
         kitty_set("scrollbar_handle_opacity", f"{sb_opacity.get_value():.2f}")
         kitty_set("scrollbar_width",          f"{sb_width.get_value():.1f}")
         kitty_set("scrollbar_hover_width",    f"{sb_hover.get_value():.1f}")
         # Run terminal modules
-        for m in ("03-alacritty.sh","04-st.sh","14-kitty.sh"):
+        for m in ("03-alacritty.sh","04-st.sh"):
             run_module(m)
+        # Open kitty windows reload kitty.conf on SIGUSR1
+        subprocess.run(["pkill", "-USR1", "-x", "kitty"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         flash_btn(btn, "✓ Applied!")
         notify("Terminal settings applied.")
     btn.connect("clicked", safe_apply(apply))
 
-    return page_wrap("Terminal", "Font, colors and scrollback for all terminals.", [
+    return page_wrap("Terminal", "Font, scrollback and shell settings.", [
         make_group("Font", [
             make_row("Font Name", font_picker(font, size), "Pick from installed fonts or type a name"),
             make_row("Font Size", size),
@@ -1749,23 +1752,7 @@ def terminal_page(cfg):
             make_row("Disable fzf-tab Completion", fzf_tab,  "Disable fuzzy tab-completion (fzf-tab)"),
             make_row("Apply shell settings",       shell_btn),
         ]),
-        make_group("Colors — Background / Foreground", [
-            trow("bg",           "Background"),
-            trow("fg",           "Foreground"),
-            trow("accent_color", "Accent"),
-        ]),
-        make_group("Colors — Normal Palette", [
-            trow("black","Black"), trow("red","Red"), trow("green","Green"),
-            trow("yellow","Yellow"), trow("blue","Blue"), trow("magenta","Magenta"),
-            trow("cyan","Cyan"), trow("white","White"),
-        ]),
-        make_group("Colors — Bright Palette", [
-            trow("blackb","Bright Black"), trow("redb","Bright Red"),
-            trow("greenb","Bright Green"), trow("yellowb","Bright Yellow"),
-            trow("blueb","Bright Blue"), trow("magentab","Bright Magenta"),
-            trow("cyanb","Bright Cyan"), trow("whiteb","Bright White"),
-        ]),
-        make_group("", [make_row("Apply font + colors + scrollback to all terminals", btn)]),
+        make_group("", [make_row("Apply font + scrollback to the terminals", btn)]),
     ])
 
 
@@ -1873,6 +1860,164 @@ def keybinds_page(_cfg):
         [note, groups_vbox, btn_box],
     )
 
+# ── Logs ──────────────────────────────────────────────────────────────────────
+# Read-only viewer for the bspwm session logs. Files are found again on every
+# refresh, so logs created after the window opened show up too.
+
+LOG_DIR      = os.path.expanduser("~/.BspwmLogs")
+EWW_LOG_DIR  = os.path.expanduser("~/.cache/eww")
+LOG_MAX_READ = 256 * 1024   # show the end of big logs only (lock.log grows a lot)
+LOG_NAMES    = {
+    "startup_times.log": "Startup times (bspwmrc)",
+    "bspwm_launch.log":  "bspwm launch (bspwm.sh)",
+    "lock.log":          "Lock screen",
+}
+
+def list_logs():
+    import glob
+    out = []
+    known = list(LOG_NAMES)
+    others = sorted(os.path.basename(f) for f in glob.glob(os.path.join(LOG_DIR, "*.log"))
+                    if os.path.basename(f) not in LOG_NAMES)
+    for name in known + others:
+        path = os.path.join(LOG_DIR, name)
+        if os.path.isfile(path):
+            out.append((LOG_NAMES.get(name, name), path))
+    ewws = sorted(glob.glob(os.path.join(EWW_LOG_DIR, "*.log")),
+                  key=os.path.getmtime, reverse=True)
+    if ewws:
+        out.append(("eww daemon", ewws[0]))
+    return out
+
+def read_log_tail(path):
+    """Return (text, info) with the last LOG_MAX_READ bytes of the file."""
+    import time
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as f:
+            if size > LOG_MAX_READ:
+                f.seek(size - LOG_MAX_READ)
+                f.readline()              # drop the cut first line
+            data = f.read().decode("utf-8", "replace")
+        mtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(os.path.getmtime(path)))
+        cut = f"  ·  last {LOG_MAX_READ // 1024} KB shown" if size > LOG_MAX_READ else ""
+        info = f"{path}  ·  {size / 1024:.1f} KB  ·  modified {mtime}{cut}"
+        return (data or "(empty)"), info
+    except OSError as e:
+        return "", f"{path}: {e.strerror}"
+
+def logs_page(_cfg):
+    outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+    outer.get_style_context().add_class("content-bg")
+    outer.set_hexpand(True); outer.set_vexpand(True)
+    inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+    inner.set_margin_top(30); inner.set_margin_bottom(30)
+    inner.set_margin_start(30); inner.set_margin_end(30)
+    outer.pack_start(inner, True, True, 0)
+
+    t = Gtk.Label(label="Logs", xalign=0)
+    t.get_style_context().add_class("page-title")
+    inner.pack_start(t, False, False, 0)
+    st = Gtk.Label(label="bspwm session logs (read only).", xalign=0)
+    st.get_style_context().add_class("page-sub")
+    st.set_margin_bottom(22)
+    inner.pack_start(st, False, False, 0)
+
+    combo = Gtk.ComboBoxText(valign=Gtk.Align.CENTER)
+    refresh = apply_btn("Refresh")
+    copy = browse_btn("Copy")
+    follow = make_switch(False)
+    follow.set_tooltip_text("Reload the log every 2 seconds")
+
+    controls = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+    controls.pack_start(combo, False, False, 0)
+    controls.pack_start(refresh, False, False, 0)
+    controls.pack_start(copy, False, False, 0)
+    lbl = Gtk.Label(label="Auto-refresh")
+    lbl.get_style_context().add_class("row-sub")
+    controls.pack_end(follow, False, False, 0)
+    controls.pack_end(lbl, False, False, 0)
+    inner.pack_start(controls, False, False, 0)
+
+    info = Gtk.Label(xalign=0, selectable=True)
+    info.get_style_context().add_class("row-sub")
+    info.set_ellipsize(Pango.EllipsizeMode.START)
+    info.set_margin_top(10); info.set_margin_bottom(8)
+    inner.pack_start(info, False, False, 0)
+
+    view = Gtk.TextView(editable=False, cursor_visible=False, monospace=True)
+    view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+    view.get_style_context().add_class("log-view")
+    view.set_left_margin(12); view.set_right_margin(12)
+    view.set_top_margin(10); view.set_bottom_margin(10)
+    sc = Gtk.ScrolledWindow()
+    sc.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    sc.set_vexpand(True)
+    sc.get_style_context().add_class("card")
+    sc.add(view)
+    inner.pack_start(sc, True, True, 0)
+
+    state = {"logs": [], "text": None}
+
+    def fill_combo():
+        cur = combo.get_active_text()
+        state["logs"] = list_logs()
+        combo.remove_all()
+        for label, _ in state["logs"]:
+            combo.append_text(label)
+        labels = [l for l, _ in state["logs"]]
+        combo.set_active(labels.index(cur) if cur in labels else 0)
+
+    def load(*_):
+        i = combo.get_active()
+        if i < 0 or i >= len(state["logs"]):
+            view.get_buffer().set_text("No logs in " + LOG_DIR + " yet.")
+            info.set_text(""); return
+        text, meta = read_log_tail(state["logs"][i][1])
+        info.set_text(meta)
+        if text == state["text"]:
+            return                        # unchanged: keep the scroll position
+        adj = sc.get_vadjustment()
+        at_end = adj.get_value() >= adj.get_upper() - adj.get_page_size() - 4
+        first = state["text"] is None
+        state["text"] = text
+        buf = view.get_buffer()
+        buf.set_text(text)
+        if at_end or first:               # follow the end like `tail -f`
+            GLib.idle_add(lambda: adj.set_value(adj.get_upper()) and False)
+
+    def on_combo(_c):
+        state["text"] = None              # new file: jump to its end
+        load()
+    combo.connect("changed", on_combo)
+
+    def on_refresh(_b):
+        fill_combo()                      # also picks up new log files
+        load()
+    refresh.connect("clicked", on_refresh)
+
+    def on_copy(btn):
+        cb = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+        cb.set_text(state["text"] or "", -1)
+        cb.store()
+        flash_btn(btn, "✓ Copied!")
+    copy.connect("clicked", on_copy)
+
+    def tick():
+        if not follow.get_active():
+            state["timer"] = None
+            return False
+        load()
+        return True
+    def on_follow(w, _p):
+        if w.get_active() and not state.get("timer"):
+            state["timer"] = GLib.timeout_add_seconds(2, tick)
+    follow.connect("notify::active", on_follow)
+
+    fill_combo()
+    return outer
+
+
 # ── Sidebar nav ───────────────────────────────────────────────────────────────
 
 PAGES = [
@@ -1886,6 +2031,7 @@ PAGES = [
     ("▦", "Apps",      apps_page),
     ("⚙", "System",    system_page),
     ("⌨", "Keybinds",  keybinds_page),
+    ("≡", "Logs",      logs_page),
 ]
 
 def nav_button(icon, label):
