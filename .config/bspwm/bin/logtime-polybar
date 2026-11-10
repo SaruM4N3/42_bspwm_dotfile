@@ -649,6 +649,13 @@ class Daemon:
     def run(self):
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
         signal.signal(signal.SIGUSR1, self.request_refresh)
+        # attendance.42lyon.fr only exists for 42 Lyon: elsewhere stay empty (no
+        # login window) until a right-click (SIGUSR1) asks for it.
+        if not at_42_lyon():
+            print("", flush=True)
+            while not self.force:
+                time.sleep(1)
+            self.force = False
         self.refresh()
         last = None
         while True:
@@ -663,6 +670,19 @@ class Daemon:
             else:
                 self.blink_on = True
                 time.sleep(1)
+
+
+def at_42_lyon():
+    """42 Lyon machine (hostname *.42lyon.fr), an existing attendance session,
+    or LOGTIME_FORCE=1."""
+    import socket
+    if os.environ.get("LOGTIME_FORCE") == "1" or load_cookie():
+        return True
+    try:
+        names = {socket.gethostname(), socket.getfqdn()}
+    except OSError:
+        names = set()
+    return any(n.endswith("42lyon.fr") for n in names)
 
 
 def signal_daemon():

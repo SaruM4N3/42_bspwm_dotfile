@@ -143,11 +143,18 @@ if [ -r /proc/driver/nvidia/version ] && [ -e "$_HOST_LIBDIR/libGLX_nvidia.so.0"
 fi
 unset _HOST_LIBDIR
 
+# 42 storage (/sgoinfre, /goinfre): bound only when the machine has them, a
+# bind of a missing path would stop bspwm from starting outside 42.
+_BINDS=""
+for _d in /sgoinfre /goinfre; do
+    [ -d "$_d" ] && _BINDS="$_BINDS--bind $_d $_d "
+done
+unset _d
+
 # launch bspwm via junest (proot with fakeroot for sudo/pacman support)
 echo "launching bspwm at $(date '+%T.%3N'), gnome-shell: $(pgrep -x gnome-shell || echo none)" >> "$LOG"
 LD_LIBRARY_PATH="$_JUNEST_LDPATH" "$HOME/.local/share/junest/bin/junest" -b \
-"--bind /sgoinfre /sgoinfre \
---bind /goinfre /goinfre \
+"$_BINDS\
 --bind /dev/shm /dev/shm \
 --bind /run /run \
 --overlay-src /usr \

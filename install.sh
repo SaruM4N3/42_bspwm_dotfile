@@ -86,6 +86,24 @@ printf "%b" "${BLD}${BLU}[?]${NC} Continue? [y/N]: "
 read -r yn
 case "$yn" in [Yy]) ;; *) echo "Cancelled."; exit 0 ;; esac
 
+# ── Free space check ──────────────────────────────────────────
+# junest + packages ≈ 6.5 GB on a first install, the rest (configs, fonts,
+# wallpapers) ≈ 0.5 GB. A full home quota would stop pacman half-way.
+if [ -d "$HOME/.junest/usr" ] && [ "$WIPE_JUNEST" -eq 0 ]; then
+    NEED_GB=1
+else
+    NEED_GB=7
+fi
+FREE_GB=$(df --output=avail -BG "$HOME" 2>/dev/null | tail -1 | tr -dc '0-9')
+if [ -n "$FREE_GB" ] && [ "$FREE_GB" -lt "$NEED_GB" ]; then
+    warn "Only ${FREE_GB} GB free in $HOME — about ${NEED_GB} GB are needed."
+    printf "%b" "${BLD}${BLU}[?]${NC} Continue anyway? [y/N]: "
+    read -r ans
+    case "$ans" in [Yy]) ;; *) echo "Cancelled — free some space first (du -sh ~/* ~/.[!.]* | sort -h)."; exit 0 ;; esac
+else
+    info "Free space: ${FREE_GB:-?} GB (needs ~${NEED_GB} GB)."
+fi
+
 if [ "$FRESH" -eq 1 ]; then
     info "Fresh reinstall — wiping previous installer state..."
     rm -rf "$HOME/.oh-my-zsh"
@@ -251,7 +269,9 @@ command -v xdg-user-dirs-update >/dev/null && xdg-user-dirs-update
 # ── Step 5: GNOME Super+Shift+B shortcut────────────────────────
 clear
 info "Step 5/7 — Registering GNOME keyboard shortcut (Super+Shift+B → bspwm)..."
-if command -v dconf >/dev/null 2>&1; then
+if [ -n "$BSPWM_SKIP_GNOME_SHORTCUT" ]; then
+    warn "BSPWM_SKIP_GNOME_SHORTCUT set — skipping the GNOME shortcut."
+elif command -v dconf >/dev/null 2>&1; then
     bash "$HOME/.bspwminstaller/add-gnome-shortcut.sh"
 else
     warn "dconf not found — skipping GNOME shortcut."
