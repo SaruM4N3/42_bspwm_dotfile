@@ -41,4 +41,6 @@ MODULE_DIR="$HOME/.config/bspwm/config/modules"
 # Load all the files in dir
 for module in "$MODULE_DIR"/*.sh; do
     . "$module"
+    # Per-module startup timing, only when started by bspwmrc (which sets these)
+    [ -n "$_TLOG" ] && echo "$(( ($(date +%s%N) - _T0) / 1000000 )) ms    theme: ${module##*/}" >> "$_TLOG"
 done

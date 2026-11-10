@@ -16,7 +16,7 @@ LD_PRELOAD=/tmp/lockbg.so /usr/local/bin/ft_lock -d 2>/dev/null || true  # daemo
 BSPLOGDIR=$HOME/.BspwmLogs
 mkdir -p "$BSPLOGDIR"
 LOG=$BSPLOGDIR/bspwm_launch.log
-echo "--- $(date) ---" > "$LOG"
+echo "--- $(date) --- start $(date +%T.%3N)" > "$LOG"
 
 # Export only the vars needed from the GNOME session (whitelist to avoid polluting junest)
 _GNOME_PID=$(pgrep gnome-software | head -1)
@@ -95,17 +95,23 @@ BINARY_PIDS=$(pgrep -f "gnome-session-binary")
 kill -STOP $MONITOR_PID
 for pid in $BINARY_PIDS; do kill -STOP $pid; done
 
+_SHELL_PIDS=$(pgrep -x gnome-shell)
 killall -9 gnome-shell 2>/dev/null
 
-# Wait for gnome-shell to fully release the X WM selection before bspwm grabs it.
+# Wait for the killed gnome-shell to fully release the X WM selection before bspwm grabs it.
 # Without this, bspwm races with Mutter and prints "Another window manager is already running."
+# Wait on the killed PIDs only: systemd (Restart=always) respawns a new gnome-shell right
+# away, which never exits, so waiting for "no gnome-shell" always ran into the 10 s
+# deadline. The respawned one stays stuck at startup (gnome-session is SIGSTOPped) and
+# does not take the WM slot.
 _deadline=$(( $(date +%s) + 10 ))
-while pgrep -x gnome-shell > /dev/null 2>&1; do
-    [ "$(date +%s)" -ge "$_deadline" ] && break
-    sleep 0.1
+for _pid in $_SHELL_PIDS; do
+    while kill -0 "$_pid" 2>/dev/null; do
+        [ "$(date +%s)" -ge "$_deadline" ] && break 2
+        sleep 0.05
+    done
 done
-# sleep 0.3
-unset _deadline
+unset _deadline _pid _SHELL_PIDS
 
 
 # Swap ~/.zshrc <-> ~/.zshrc.bak before entering bspwm

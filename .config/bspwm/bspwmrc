@@ -39,6 +39,13 @@ export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
     export LD_LIBRARY_PATH="$BSPWM_HOST_NVLIB:$LD_LIBRARY_PATH"
 
 export XDG_CURRENT_DESKTOP='bspwm'
+
+# Startup timing: ms since bspwmrc started, per step -> ~/.BspwmLogs/startup_times.log
+_T0=$(date +%s%N)
+_TLOG="$HOME/.BspwmLogs/startup_times.log"
+export _T0 _TLOG
+mkdir -p "${_TLOG%/*}"; echo "--- $(date '+%F %T.%3N') ---" > "$_TLOG"
+_t() { echo "$(( ($(date +%s%N) - _T0) / 1000000 )) ms  $1" >> "$_TLOG"; }
 ## Fix java applications
 export _JAVA_AWT_WM_NONREPARENTING=1
 
@@ -47,6 +54,7 @@ export _JAVA_AWT_WM_NONREPARENTING=1
 #  ╚╩╝╚═╝╩╚═╩ ╩╚═╝╩  ╩ ╩╚═╝╚═╝╚═╝
 
 MonitorSetup
+_t "MonitorSetup"
 
 #  ╔╗ ╔═╗╔═╗╦ ╦╔╦╗  ╔═╗╔═╗╔╗╔╔═╗╦╔═╗
 #  ╠╩╗╚═╗╠═╝║║║║║║  ║  ║ ║║║║╠╣ ║║ ╦
@@ -81,8 +89,17 @@ run() {
   fi
 }
 
+# Wait (max ~3 s) for every process with this exact name to be gone
+wait_gone() {
+  _n=0
+  while pgrep -x "$1" >/dev/null && [ "$_n" -lt 40 ]; do
+    sleep 0.05; _n=$((_n + 1))
+  done
+}
+
 # Set system vars for polybar
 "$HOME"/.config/bspwm/bin/SetSysVars
+_t "SetSysVars"
 
 # Launch sxhkd daemon
 run sxhkd -c "${HOME}"/.config/bspwm/config/sxhkdrc
@@ -117,10 +134,12 @@ if [ -d "$MICRO_SESSION" ]; then
 fi
 # dunstrc: always restore from backup (module truncates global section each run)
 cp "$BACKUP_DIR/dunstrc" "$CONFIG_DIR/dunstrc"
+_t "config restore"
 
 # Launch dunst
 mkdir -p /run/user/$(id -u)/dunst /run/user/$(id -u)/clipcat /run/user/$(id -u)/ft_lock
 pkill -x dunst 2>/dev/null; dunst -config "${HOME}"/.config/bspwm/config/dunstrc &
+_t "dunst"
 
 # Generate cheatsheet font scale before eww starts so fresh CSS is baked in
 _cs_h=$(xrandr --current | awk '/\*/{match($0,/[0-9]+x([0-9]+)/,a); if(a[2]+0>m) m=a[2]+0} END{print m}')
@@ -139,17 +158,25 @@ cat > "${HOME}/.config/bspwm/eww/cheatsheet/_cs_scale.scss" << EOF
 .category-preselection, .category-others { font-size: ${_cs_cat}; }
 .column { min-width: ${_cs_col}; }
 EOF
+_t "cheatsheet scale (xrandr)"
 
 # Restart eww daemon BEFORE ThemeLaunch so Bar.bash and widgets start with fresh CSS
-pkill -x eww 2>/dev/null; sleep 0.3
+pkill -x eww 2>/dev/null; wait_gone eww
 eww -c "${HOME}"/.config/bspwm/eww daemon &
-sleep 0.5  # give eww time to initialize before ThemeLaunch opens widgets
+# Wait until the daemon answers before ThemeLaunch opens widgets. Each failed ping
+# already retries for ~1 s on its own, so 5 tries is a ~5 s cap.
+_n=0
+until eww -c "${HOME}"/.config/bspwm/eww ping >/dev/null 2>&1 || [ "$_n" -ge 5 ]; do
+    _n=$((_n + 1))
+done
+_t "eww daemon"
 
 # Kill picom before ThemeLaunch so 01-picom.sh writes config with no race
-pkill -x picom 2>/dev/null; sleep 0.2
+pkill -x picom 2>/dev/null; wait_gone picom
 
 # Load current theme (Bar, picom config, wallpaper, bspwm rules, dunst, etc.)
 "${HOME}"/.config/bspwm/bin/ThemeLaunch
+_t "ThemeLaunch"
 
 # First bspwm session on a new machine: hide the default launcher apps listed in
 # config/hidden-apps (bspwm launcher only, GNOME untouched). Runs once, so apps
@@ -167,6 +194,7 @@ fi
 
 # Launch mpd
 pgrep -x mpd >/dev/null || mpd "${HOME}"/.config/mpd/mpd.conf
+_t "mpd"
 
 # Kill gsd-power to prevent auto-brightness via iio-sensor-proxy
 pkill -x gsd-power 2>/dev/null
@@ -177,6 +205,7 @@ pkill -x picom 2>/dev/null
 # No compositor in gamer mode (GamerMode starts it again when turned off)
 "${HOME}"/.config/bspwm/bin/GamerMode --is-on ||
     picom --config "${HOME}"/.config/bspwm/config/picom.conf &
+_t "picom"
 
 # NVIDIA only: picom hangs after DPMS off/on (lock -> black screen), restart it
 "${HOME}"/.config/bspwm/bin/DpmsWatch &
@@ -188,6 +217,7 @@ pkill -x picom 2>/dev/null
 
 # Load Xresources (urxvt colors, scrollbar config)
 [ -f "$HOME/.Xresources" ] && xrdb -merge "$HOME/.Xresources"
+_t "xrdb"
 
 # Launch xsettingsd
 run xsettingsd --config="${HOME}"/.config/bspwm/config/xsettingsd >/dev/null 2>&1
@@ -203,6 +233,7 @@ run clipcatd
 
 # Launch polkit
 run lxpolkit
+_t "daemons"
 
 # Start one time message
 [ ! -f "$HOME/.config/bspwm/config/.first_run_done" ] && alacritty --hold -e sh -c 'cat "$HOME/.config/bspwm/config/FirstMessage.txt"; sleep 0.1' && touch "$HOME/.config/bspwm/config/.first_run_done"
@@ -211,6 +242,7 @@ run lxpolkit
 if ! pgrep -x dbus-daemon >/dev/null; then
     eval "$(dbus-launch --sh-syntax --exit-with-session)"
 fi
+_t "dbus"
 
 # BT favorite reconnect daemon
 pkill -f bt-reconnect 2>/dev/null
@@ -219,3 +251,4 @@ pkill -f bt-reconnect 2>/dev/null
 # Apply timezone (junest has no systemd; enforce on every startup)
 sudo ln -sf /usr/share/zoneinfo/Europe/Paris /etc/localtime
 echo "Europe/Paris" | sudo tee /etc/timezone > /dev/null 2>&1
+_t "timezone (sudo) - done"
