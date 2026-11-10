@@ -95,6 +95,17 @@ BINARY_PIDS=$(pgrep -f "gnome-session-binary")
 kill -STOP $MONITOR_PID
 for pid in $BINARY_PIDS; do kill -STOP $pid; done
 
+# systemd (Restart=always) respawns gnome-shell as soon as we kill it. The new one hangs at
+# startup (gnome-session is stopped), and after the 90 s start timeout systemd kills it
+# and starts another one, over and over. When bspwm exits we land somewhere in that loop,
+# so GNOME took long to come back or did not come back. A runtime drop-in (in /run, gone
+# at logout) removes the timeout: a single respawn waits, and it is replaced on exit.
+_SHELL_UNIT=org.gnome.Shell@x11.service
+_SHELL_DROPIN="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/user/$_SHELL_UNIT.d"
+mkdir -p "$_SHELL_DROPIN"
+printf '[Service]\nTimeoutStartSec=infinity\n' > "$_SHELL_DROPIN/bspwm.conf"
+systemctl --user daemon-reload 2>/dev/null
+
 _SHELL_PIDS=$(pgrep -x gnome-shell)
 killall -9 gnome-shell 2>/dev/null
 
@@ -220,11 +231,31 @@ for pid in $BINARY_PIDS_NOW; do kill -CONT $pid 2>/dev/null; done
 for pid in $BINARY_PIDS; do kill -CONT $pid 2>/dev/null; done
 [ -n "$MONITOR_PID" ] && kill -CONT $MONITOR_PID 2>/dev/null
 
-# gnome-shell was hard-killed at launch — wait for gnome-session to restart it,
-# then force-start it if it doesn't come back within 3 seconds
-sleep 0.1
-if ! pgrep -x gnome-shell > /dev/null; then
-    DBUS=$(grep -z DBUS_SESSION_BUS_ADDRESS /proc/${BINARY_PIDS_NOW%% *}/environ 2>/dev/null | tr '\0' '\n' | head -1)
-    [ -n "$DBUS" ] && export $DBUS
-    gnome-shell --replace &
+# Bring gnome-shell back. The respawn that waited during the session started while
+# gnome-session was stopped and bspwm held the WM slot: give it a moment, then replace it
+# with a fresh start (RestartSec=0) now that everything is resumed.
+shell_state() { systemctl --user show -p ActiveState --value "$_SHELL_UNIT" 2>/dev/null; }
+wait_shell() {  # $1 = tenths of a second
+    for _ in $(seq "$1"); do [ "$(shell_state)" = active ] && return 0; sleep 0.1; done
+    return 1
+}
+echo "resuming gnome at $(date '+%T.%3N'), shell unit: $(shell_state)" >> "$LOG"
+if ! wait_shell 20; then
+    systemctl --user reset-failed "$_SHELL_UNIT" 2>/dev/null
+    systemctl --user kill -s KILL "$_SHELL_UNIT" 2>/dev/null || killall -9 gnome-shell 2>/dev/null
+fi
+rm -rf "$_SHELL_DROPIN"
+systemctl --user daemon-reload 2>/dev/null
+if wait_shell 150; then
+    echo "gnome-shell back at $(date '+%T.%3N')" >> "$LOG"
+else
+    _st=$(shell_state)
+    echo "gnome-shell unit $_st at $(date '+%T.%3N')" >> "$LOG"
+    # systemd gave up (start limit hit): run it by hand. While the unit is still
+    # activating, leave it alone: a second shell would make them fight for the WM slot.
+    if [ "$_st" != activating ] && ! pgrep -x gnome-shell >/dev/null; then
+        echo "starting gnome-shell --replace by hand" >> "$LOG"
+        systemctl --user reset-failed "$_SHELL_UNIT" 2>/dev/null
+        setsid -f gnome-shell --replace >/dev/null 2>&1 < /dev/null
+    fi
 fi
