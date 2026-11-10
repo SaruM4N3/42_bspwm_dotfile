@@ -4,7 +4,11 @@
 #   tmp     /tmp/steam-ephemeral       gone on reboot
 #   goinfre /goinfre/$USER/steam       kept across reboots, local to this PC
 # Skip the question with: steam-installer.sh --tmp | --goinfre
-#   (or STEAM_LOCATION=tmp|goinfre)
+#   (or STEAM_LOCATION=tmp|goinfre). Without a terminal (steam.desktop,
+#   app launcher) it asks in a small window: rofi in bspwm, zenity in
+#   GNOME; Escape cancels. No window tool at all -> the default is used.
+# Other arguments go to steam (steam://..., %U), so this script is also
+# the `steam` command (~/.local/bin/steam) and the Steam menu entry.
 
 set -e
 
@@ -13,11 +17,17 @@ GOINFRE_ROOT="/goinfre/$USER/steam"
 
 LOCATION="${STEAM_LOCATION:-}"
 case "$1" in
-    --tmp)     LOCATION=tmp ;;
-    --goinfre) LOCATION=goinfre ;;
-    "")        ;;
-    *) echo "Usage: $(basename "$0") [--tmp | --goinfre]" >&2; exit 1 ;;
+    --tmp)     LOCATION=tmp; shift ;;
+    --goinfre) LOCATION=goinfre; shift ;;
+    -h|--help) echo "Usage: $(basename "$0") [--tmp | --goinfre] [steam args...]"; exit 0 ;;
 esac
+
+# Steam already running: reuse its install (menu actions like Store/Library)
+if [ -z "$LOCATION" ]; then
+    if pgrep -u "$USER" -f "$GOINFRE_ROOT/steam-home/" >/dev/null; then LOCATION=goinfre
+    elif pgrep -u "$USER" -f "$TMP_ROOT/steam-home/" >/dev/null; then LOCATION=tmp
+    fi
+fi
 
 if [ -z "$LOCATION" ]; then
     if [ ! -d "/goinfre/$USER" ]; then
@@ -26,11 +36,36 @@ if [ -z "$LOCATION" ]; then
         # Default to wherever Steam already is, else /tmp
         default=1
         [ -d "$GOINFRE_ROOT/steam-home" ] && [ ! -d "$TMP_ROOT/steam-home" ] && default=2
-        mark() { [ -d "$1/steam-home" ] && echo " [existing install]"; }
-        echo "Where should Steam be installed?"
-        echo "  1) /tmp      ($TMP_ROOT) - erased on reboot$(mark "$TMP_ROOT")"
-        echo "  2) goinfre   ($GOINFRE_ROOT) - kept, this PC only$(mark "$GOINFRE_ROOT")"
-        read -rp "Choice [$default]: " choice
+        mark() { if [ -d "$1/steam-home" ]; then echo " [existing install]"; fi; }
+        OPT1="/tmp - erased on reboot$(mark "$TMP_ROOT")"
+        OPT2="goinfre - kept, this PC only$(mark "$GOINFRE_ROOT")"
+        if [ -t 0 ]; then
+            echo "Where should Steam be installed?"
+            echo "  1) /tmp      ($TMP_ROOT) - erased on reboot$(mark "$TMP_ROOT")"
+            echo "  2) goinfre   ($GOINFRE_ROOT) - kept, this PC only$(mark "$GOINFRE_ROOT")"
+            read -rp "Choice [$default]: " choice
+        else
+            # Launched from a menu: ask in a window, default entry first
+            if [ "$default" = 2 ]; then opts="$OPT2"$'\n'"$OPT1"; else opts="$OPT1"$'\n'"$OPT2"; fi
+            THEME="$HOME/.config/bspwm/config/rofi-themes/Keyboard.rasi"
+            if [ "$JUNEST_ENV" = "1" ] && command -v rofi >/dev/null; then
+                [ -f "$THEME" ] && theme=(-theme "$THEME" -theme-str 'listview { columns: 1; lines: 2; }') || theme=()
+                picked=$(printf '%s\n' "$opts" | rofi -dmenu -i -p "Steam" \
+                    -mesg "Where should Steam be installed?" "${theme[@]}") || exit 0
+            elif command -v zenity >/dev/null; then
+                picked=$(printf '%s\n' "$opts" | zenity --list --title="Steam" \
+                    --text="Where should Steam be installed?" --column="Location" \
+                    --width=420 --height=220 2>/dev/null) || exit 0
+            else
+                picked=$default
+            fi
+            case "$picked" in
+                /tmp*)    choice=1 ;;
+                goinfre*) choice=2 ;;
+                1|2)      choice=$picked ;;
+                *)        exit 0 ;;   # empty = cancelled
+            esac
+        fi
         case "${choice:-$default}" in
             1|tmp)     LOCATION=tmp ;;
             2|goinfre) LOCATION=goinfre ;;
@@ -104,7 +139,9 @@ $GPU_ENV
 
 mkdir -p "\$STEAM_DIR" "\$STEAMCONFIG"
 
-exec steam
+# /usr/bin/steam, not "steam": that name is this installer (~/.local/bin/steam)
+export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+exec /usr/bin/steam "\$@"
 INNEREOF
 chmod +x "$INNER_SCRIPT"
 
@@ -112,8 +149,8 @@ chmod +x "$INNER_SCRIPT"
 # refuses to nest ("Nested JuNest environments are not allowed"): run directly.
 if [ "$JUNEST_ENV" = "1" ]; then
     echo "==> Already inside junest, running setup..."
-    bash "$INNER_SCRIPT"
+    exec bash "$INNER_SCRIPT" "$@"
 else
     echo "==> Entering junest and running setup..."
-    junest -- bash "$INNER_SCRIPT"
+    exec junest -- bash "$INNER_SCRIPT" "$@"
 fi

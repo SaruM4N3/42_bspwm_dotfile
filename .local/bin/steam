@@ -1,0 +1,4 @@
+#!/bin/sh
+# `steam` goes through the installer: sets up / picks the tmp or goinfre
+# install, then starts the real client (/usr/bin/steam in junest).
+exec "$HOME/.local/bin/steam-installer.sh" "$@"

@@ -249,6 +249,9 @@ info "Step 4/7 — Installing fonts, desktop entries, and bin scripts..."
 [ -d "$REPO/.local/share/applications" ] && {
     mkdir -p "$HOME/.local/share/applications"
     cp -r "$REPO/.local/share/applications/." "$HOME/.local/share/applications/"
+    # Exec= needs an absolute path: @HOME@ placeholders (steam.desktop)
+    grep -l '@HOME@' "$HOME/.local/share/applications/"*.desktop 2>/dev/null |
+        while read -r f; do sed -i "s#@HOME@#$HOME#g" "$f"; done
     info "Desktop entries installed."
 }
 
