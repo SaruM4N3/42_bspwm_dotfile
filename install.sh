@@ -15,9 +15,12 @@ set -e
 
 RED='\033[0;31m'; YEL='\033[1;33m'; GRN='\033[0;32m'; BLU='\033[0;34m'
 BLD='\033[1m'; NC='\033[0m'
-info()  { echo -e "${BLD}${GRN}[+]${NC} $*"; }
-warn()  { echo -e "${BLD}${YEL}[!]${NC} $*"; }
-error() { echo -e "${BLD}${RED}[✗]${NC} $*"; exit 1; }
+# BSPWM_STATUS (set by the graphical installer): progress lines for its window
+status() { [ -n "$BSPWM_STATUS" ] && printf '%s\n' "$*" >> "$BSPWM_STATUS" 2>/dev/null; return 0; }
+info()  { echo -e "${BLD}${GRN}[+]${NC} $*"; status "info $*"; }
+warn()  { echo -e "${BLD}${YEL}[!]${NC} $*"; status "warn $*"; }
+error() { echo -e "${BLD}${RED}[✗]${NC} $*"; status "error $*"; exit 1; }
+step()  { info "Step $1/7 — $2"; status "step $1 $2"; }
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 STAMP=$(date +"%Y%m%d-%H%M%S")
@@ -39,13 +42,23 @@ FRESH=0
 WIPE_JUNEST=0
 UPDATE=0
 PULLED=0
-for arg in "$@"; do
+CLI=0
+ANSWERS=""
+ARGS=("$@")
+while [ $# -gt 0 ]; do
+    arg=$1; shift
     case "$arg" in
         --fresh|-f)  FRESH=1 ;;
         --update|-u) UPDATE=1 ;;
         --pulled)    PULLED=1 ;;     # internal: set when re-run after git pull
+        --cli)       CLI=1 ;;
+        # internal: answers of the graphical installer, no question asked
+        --answers)   ANSWERS=$1; shift; [ -f "$ANSWERS" ] || error "Answers file not found: $ANSWERS" ;;
         -h|--help)
-            echo "Usage: $0 [--update|-u | --fresh|-f]"
+            echo "Usage: $0 [--update|-u | --fresh|-f] [--cli]"
+            echo "  Opens the graphical installer when a display and GTK are"
+            echo "  available, the questions in this terminal otherwise."
+            echo "  --cli         Questions in the terminal, no window."
             echo "  --update, -u  Update an existing install: new dotfiles and scripts,"
             echo "                your settings kept, only missing packages installed"
             echo "                (no junest setup, no package questions)."
@@ -60,6 +73,27 @@ for arg in "$@"; do
 done
 [ "$FRESH" -eq 1 ] && [ "$UPDATE" -eq 1 ] && error "--update and --fresh cannot be used together."
 
+# The answers of the graphical installer (also read by install_prerequisites_pacman.sh
+# inside junest). A terminal install must not pick up the ones of an old aborted run.
+ANSWERS_FILE="$HOME/.cache/bspwm-install-answers"
+if [ -n "$ANSWERS" ]; then
+    [ "$ANSWERS" -ef "$ANSWERS_FILE" ] || { mkdir -p "$HOME/.cache"; cp "$ANSWERS" "$ANSWERS_FILE"; }
+    # shellcheck disable=SC1090
+    . "$ANSWERS_FILE"
+    # The window shows the whole log: keep it on screen
+    clear() { :; }
+else
+    rm -f "$ANSWERS_FILE"
+fi
+
+# Graphical installer: host python3 with GTK 3 + VTE (Ubuntu ships both).
+# It asks the questions, then runs this script again with --answers in its terminal.
+GUI="$REPO/.bspwminstaller/install_gui.py"
+if [ -z "$ANSWERS" ] && [ "$CLI" -eq 0 ] && [ -f "$GUI" ] && { [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; } &&
+   /usr/bin/python3 -c 'import gi; gi.require_version("Gtk", "3.0"); gi.require_version("Gdk", "3.0"); gi.require_version("Vte", "2.91"); from gi.repository import Gtk, Vte' 2>/dev/null; then
+    exec /usr/bin/python3 "$GUI" "${ARGS[@]}"
+fi
+
 JUNEST_BIN="$HOME/.local/share/junest/bin/junest"
 INSTALLED=0
 [ -d "$HOME/.config/bspwm" ] && [ -f "$HOME/.junest/usr/bin/pacman" ] && [ -x "$JUNEST_BIN" ] && INSTALLED=1
@@ -72,7 +106,7 @@ CONFIG_DIRS="bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi b
 SAVED_CHOICES="$HOME/.local/state/bspwm/install-choices"
 
 # ── Welcome ───────────────────────────────────────────────────
-if [ "$INSTALLED" -eq 1 ] && [ "$FRESH" -eq 0 ] && [ "$UPDATE" -eq 0 ]; then
+if [ "$INSTALLED" -eq 1 ] && [ "$FRESH" -eq 0 ] && [ "$UPDATE" -eq 0 ] && [ -z "$ANSWERS" ]; then
     echo ""
     echo -e "${BLD}${BLU}[?]${NC} bspwm is already installed. What do you want to do?"
     echo -e "    ${GRN}1)${NC} Update: new version of the dotfiles, your settings kept ${BLD}[default]${NC}"
@@ -84,14 +118,18 @@ fi
 
 # Update: get the latest version of the repo first, then run the new install.sh
 if [ "$UPDATE" -eq 1 ] && [ "$PULLED" -eq 0 ] && git -C "$REPO" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
-    echo ""
-    printf "%b" "${BLD}${BLU}[?]${NC} Download the latest version from GitHub first (git pull)? [Y/n]: "
-    read -r gp
+    if [ -n "$ANSWERS" ]; then
+        [ "${A_GIT_PULL:-1}" = 1 ] && gp=y || gp=n
+    else
+        echo ""
+        printf "%b" "${BLD}${BLU}[?]${NC} Download the latest version from GitHub first (git pull)? [Y/n]: "
+        read -r gp
+    fi
     case "$gp" in
         [Nn]) ;;
         *)
             if git -C "$REPO" pull --ff-only; then
-                exec bash "$REPO/install.sh" --update --pulled
+                exec bash "$REPO/install.sh" --update --pulled ${ANSWERS:+--answers "$ANSWERS_FILE"}
             fi
             warn "git pull failed (local changes or no network?): updating from the local copy."
             ;;
@@ -142,10 +180,14 @@ if [ "$FRESH" -eq 1 ]; then
     echo ""
     warn "Fresh reinstall: ~/.oh-my-zsh and ~/.bspwminstaller will be wiped"
     warn "and rebuilt from scratch instead of upgraded in place."
-    echo ""
-    printf "%b" "${BLD}${BLU}[?]${NC} Also wipe the junest Arch environment (~/.junest)? "
-    printf "%b" "This removes ANY manually pacman-installed packages too. [y/N]: "
-    read -r wj
+    if [ -n "$ANSWERS" ]; then
+        [ "${A_WIPE_JUNEST:-0}" = 1 ] && wj=y || wj=n
+    else
+        echo ""
+        printf "%b" "${BLD}${BLU}[?]${NC} Also wipe the junest Arch environment (~/.junest)? "
+        printf "%b" "This removes ANY manually pacman-installed packages too. [y/N]: "
+        read -r wj
+    fi
     case "$wj" in [Yy]) WIPE_JUNEST=1 ;; *) WIPE_JUNEST=0 ;; esac
 fi
 
@@ -155,6 +197,8 @@ fi
 if [ "$UPDATE" -eq 1 ]; then
     # Same mode as the install being updated: "keep" removed ~/.zshrc.bak
     if [ -f "$HOME/.zshrc.bak" ]; then ZSHRC_MODE=mine; else ZSHRC_MODE=keep; fi
+elif [ -n "$ANSWERS" ]; then
+    case "$A_ZSHRC" in keep) ZSHRC_MODE=keep ;; *) ZSHRC_MODE=mine ;; esac
 else
 echo ""
 echo -e "${BLD}${BLU}[?]${NC} zsh config inside bspwm:"
@@ -169,6 +213,8 @@ fi
 KEEP_SETTINGS=0
 if [ "$UPDATE" -eq 1 ]; then
     KEEP_SETTINGS=1
+elif [ -d "$HOME/.config/bspwm" ] && [ -n "$ANSWERS" ]; then
+    [ "${A_KEEP_SETTINGS:-1}" = 0 ] || KEEP_SETTINGS=1
 elif [ -d "$HOME/.config/bspwm" ]; then
     echo ""
     echo -e "${BLD}${BLU}[?]${NC} An existing bspwm config was found."
@@ -179,10 +225,12 @@ elif [ -d "$HOME/.config/bspwm" ]; then
     case "$ks" in [Nn]) KEEP_SETTINGS=0 ;; *) KEEP_SETTINGS=1 ;; esac
 fi
 
+if [ -z "$ANSWERS" ]; then
 echo ""
 printf "%b" "${BLD}${BLU}[?]${NC} Continue? [y/N]: "
 read -r yn
 case "$yn" in [Yy]) ;; *) echo "Cancelled."; exit 0 ;; esac
+fi
 
 # ── Free space check ──────────────────────────────────────────
 # junest + packages ≈ 6.5 GB on a first install, the rest (configs, fonts,
@@ -197,8 +245,12 @@ fi
 FREE_GB=$(df --output=avail -BG "$HOME" 2>/dev/null | tail -1 | tr -dc '0-9')
 if [ -n "$FREE_GB" ] && [ "$FREE_GB" -lt "$NEED_GB" ]; then
     warn "Only ${FREE_GB} GB free in $HOME — about ${NEED_GB} GB are needed."
-    printf "%b" "${BLD}${BLU}[?]${NC} Continue anyway? [y/N]: "
-    read -r ans
+    if [ -n "$ANSWERS" ]; then
+        [ "${A_LOW_SPACE_OK:-0}" = 1 ] && ans=y || ans=n
+    else
+        printf "%b" "${BLD}${BLU}[?]${NC} Continue anyway? [y/N]: "
+        read -r ans
+    fi
     case "$ans" in [Yy]) ;; *) echo "Cancelled — free some space first (du -sh ~/* ~/.[!.]* | sort -h)."; exit 0 ;; esac
 else
     info "Free space: ${FREE_GB:-?} GB (needs ~${NEED_GB} GB)."
@@ -216,7 +268,7 @@ fi
 # ── Step 1: junest setup ──────────────────────────────────────
 clear
 if [ "$UPDATE" -eq 1 ]; then
-    info "Step 1/7 — Checking for packages added by the new version..."
+    step 1 "Checking for packages added by the new version..."
     # Package names of the full install (literal ones only: the browser, editor
     # and icon packs come from the install questions and are already there).
     PKGS=$(awk '
@@ -253,13 +305,13 @@ if [ "$UPDATE" -eq 1 ]; then
             warn "Could not install: $MISSING. Run $0 (full install) to update the package database."
     fi
 else
-    info "Step 1/7 — Installing junest and packages..."
+    step 1 "Installing junest and packages..."
     bash "$REPO/.bspwminstaller/install_junest.sh"
 fi
 
 # ── Step 2: Backup ────────────────────────────────────────────
 clear
-info "Step 2/7 — Backing up existing configs..."
+step 2 "Backing up existing configs..."
 BACKUP="$HOME/.config-backup-$STAMP"
 mkdir -p "$BACKUP"
 backed=0
@@ -287,7 +339,7 @@ done
 
 # ── Step 3: Deploy dotfiles ───────────────────────────────────
 clear
-info "Step 3/7 — Deploying dotfiles..."
+step 3 "Deploying dotfiles..."
 
 mkdir -p "$HOME/.config" "$HOME/.local/bin" "$HOME/.local/share"
 
@@ -495,7 +547,7 @@ done
 
 # ── Step 4: Fonts + desktop entries + bin ────────────────────
 clear
-info "Step 4/7 — Installing fonts, desktop entries, and bin scripts..."
+step 4 "Installing fonts, desktop entries, and bin scripts..."
 
 [ -d "$REPO/.local/share/fonts" ] && {
     mkdir -p "$HOME/.local/share/fonts"
@@ -530,7 +582,7 @@ command -v xdg-user-dirs-update >/dev/null && xdg-user-dirs-update
 
 # ── Step 5: GNOME Super+Shift+B shortcut────────────────────────
 clear
-info "Step 5/7 — Registering GNOME keyboard shortcut (Super+Shift+B → bspwm)..."
+step 5 "Registering GNOME keyboard shortcut (Super+Shift+B → bspwm)..."
 if [ -n "$BSPWM_SKIP_GNOME_SHORTCUT" ]; then
     warn "BSPWM_SKIP_GNOME_SHORTCUT set — skipping the GNOME shortcut."
 elif command -v dconf >/dev/null 2>&1; then
@@ -541,7 +593,7 @@ fi
 
 # ── Step 6: oh-my-zsh ────────────────────────────────────────
 clear
-info "Step 6/7 — Installing oh-my-zsh..."
+step 6 "Installing oh-my-zsh..."
 
 if [ -d "$HOME/.oh-my-zsh" ]; then
     info "oh-my-zsh already installed — skipping."
@@ -562,7 +614,7 @@ fi
 
 # ── Step 7: zshrc swap setup ─────────────────────────────────
 clear
-info "Step 7/7 — Patching ~/.zshrc with junest/bspwm swap..."
+step 7 "Patching ~/.zshrc with junest/bspwm swap..."
 
 ZSHRC="$HOME/.zshrc"
 [ -f "$ZSHRC" ] || { echo "# ~/.zshrc" > "$ZSHRC"; info "No ~/.zshrc — created an empty one."; }
@@ -610,6 +662,8 @@ cat "$ZSHRC" >> "$ZSHRC.new" && mv "$ZSHRC.new" "$ZSHRC"
 info "~/.zshrc patched (mode: $ZSHRC_MODE)."
 
 # ── Done ──────────────────────────────────────────────────────
+rm -f "$ANSWERS_FILE"
+status "done"
 clear
 echo ""
 if [ "$UPDATE" -eq 1 ]; then

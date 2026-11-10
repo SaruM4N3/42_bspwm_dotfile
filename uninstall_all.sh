@@ -23,12 +23,15 @@ UNINSTALLER="$HOME/.bspwminstaller/uninstall_prerequisites_pacman.sh"
 printf "\n%b\n" "${RED}[!]${NC} This will remove EVERYTHING installed by this dotfiles setup:"
 printf "    packages, config files, junest, GNOME shortcut, and leftover files.\n"
 printf "    Your dotfiles repository will NOT be deleted.\n"
-printf "\nContinue? [y/N]: "
-read -r ans
-case "$ans" in
-    y|Y) ;;
-    *) echo "Aborted."; exit 0 ;;
-esac
+# UNINSTALL_SKIP_CONFIRM: already confirmed (graphical installer)
+if [ -z "$UNINSTALL_SKIP_CONFIRM" ]; then
+    printf "\nContinue? [y/N]: "
+    read -r ans
+    case "$ans" in
+        y|Y) ;;
+        *) echo "Aborted."; exit 0 ;;
+    esac
+fi
 
 # ── Step 1: Remove packages + config files (inside junest) ───────────────────
 if [ -x "$JUNEST_BIN" ] && [ -f "$UNINSTALLER" ]; then

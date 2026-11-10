@@ -21,7 +21,14 @@ It is no longer a direct copy of the original project: most parts were adapted, 
 
 ## Install
 
-Use the provided `install.sh` script to install the setup.
+From a GNOME terminal, run `./install.sh`. A window opens: pick install,
+update, fresh reinstall or uninstall, choose your terminal / editor / browser /
+rice, check the summary, and the install runs in a terminal inside the window
+with a progress bar (log saved to `~/.BspwmLogs/install.log`).
+
+The window uses the host's python3 with GTK 3 + VTE (Ubuntu ships both). Without
+a display or without them, or with `./install.sh --cli`, the same questions are
+asked in the terminal instead.
 
 ## Update
 

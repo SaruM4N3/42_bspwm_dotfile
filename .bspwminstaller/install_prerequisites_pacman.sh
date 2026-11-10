@@ -8,20 +8,32 @@
 set -e
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
-info()  { echo -e "${GREEN}[+]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
-error() { echo -e "${RED}[✗]${NC} $*"; exit 1; }
+# BSPWM_STATUS: progress lines for the graphical installer's window
+status() { [ -n "$BSPWM_STATUS" ] && printf '%s\n' "$*" >> "$BSPWM_STATUS" 2>/dev/null; return 0; }
+info()  { echo -e "${GREEN}[+]${NC} $*"; status "info $*"; }
+warn()  { echo -e "${YELLOW}[!]${NC} $*"; status "warn $*"; }
+error() { echo -e "${RED}[✗]${NC} $*"; status "error $*"; exit 1; }
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Answers of the graphical installer (install.sh copies them here, removes them
+# after a terminal install): A_EDITOR, A_BROWSER, A_TERM, A_RICES. Unset = ask.
+A_EDITOR=""; A_BROWSER=""; A_TERM=""; A_RICES=""
+# shellcheck disable=SC1091
+[ -f "$HOME/.cache/bspwm-install-answers" ] && . "$HOME/.cache/bspwm-install-answers"
+
 ask_editor() {
-    printf "\nWhich editor do you want to install?\n"
-    printf "  1) micro   (terminal, already included — default)\n"
-    printf "  2) neovim  (terminal, via kitty)\n"
-    printf "  3) vscode  (visual-studio-code-bin)\n"
-    printf "  4) zed     (GUI, zed-preview-bin)\n"
-    printf "Enter number [1]: "
-    read -r editor_choice </dev/tty || true
+    if [ -n "$A_EDITOR" ]; then
+        editor_choice=$A_EDITOR
+    else
+        printf "\nWhich editor do you want to install?\n"
+        printf "  1) micro   (terminal, already included — default)\n"
+        printf "  2) neovim  (terminal, via kitty)\n"
+        printf "  3) vscode  (visual-studio-code-bin)\n"
+        printf "  4) zed     (GUI, zed-preview-bin)\n"
+        printf "Enter number [1]: "
+        read -r editor_choice </dev/tty || true
+    fi
     case "$editor_choice" in
         1|""|micro)  EDITOR_PKG="";                          EDITOR_BIN="micro"; EDITOR_GUI=0 ;;
         2|neovim)    EDITOR_PKG="neovim";                    EDITOR_BIN="nvim";  EDITOR_GUI=0 ;;
@@ -63,7 +75,17 @@ ask_rice() {
     done
     [ ${#rices[@]} -gt 0 ] || error "No rices found in $rices_dir"
 
-    if [ ${#rices[@]} -eq 1 ]; then
+    if [ -n "$A_RICES" ]; then
+        # Names, first one = active rice; "all" or unknown names only = all of them
+        SELECTED_RICES=()
+        local r
+        [ "$A_RICES" = all ] && A_RICES="${rices[*]}"
+        for r in $A_RICES; do
+            [ -f "$rices_dir/$r/theme-config.bash" ] && SELECTED_RICES+=("$r") || warn "Unknown rice: $r"
+        done
+        [ ${#SELECTED_RICES[@]} -gt 0 ] || SELECTED_RICES=("${rices[@]}")
+        info "Selected rices: ${SELECTED_RICES[*]}"
+    elif [ ${#rices[@]} -eq 1 ]; then
         SELECTED_RICES=("${rices[0]}")
         info "Only one rice available: ${rices[0]} (selected automatically)"
     else
@@ -115,10 +137,14 @@ ask_rice() {
 }
 
 ask_browser() {
-    printf "\nWhich browser do you want to install? (default: brave)\n"
-    printf "  1) brave\n  2) firefox\n  3) chromium\n  4) google-chrome\n"
-    printf "Enter number [1]: "
-    read -r browser_choice </dev/tty || true
+    if [ -n "$A_BROWSER" ]; then
+        browser_choice=$A_BROWSER
+    else
+        printf "\nWhich browser do you want to install? (default: brave)\n"
+        printf "  1) brave\n  2) firefox\n  3) chromium\n  4) google-chrome\n"
+        printf "Enter number [1]: "
+        read -r browser_choice </dev/tty || true
+    fi
     case "$browser_choice" in
         1|""|brave)      BROWSER_PKG="brave-bin";      BROWSER_BIN="brave" ;;
         2|firefox)       BROWSER_PKG="firefox";        BROWSER_BIN="firefox" ;;
@@ -130,14 +156,18 @@ ask_browser() {
 }
 
 ask_terminal() {
-    printf "\nWhich terminal do you want as default? (default: alacritty)\n"
-    printf "  1) alacritty  (default)\n  2) kitty\n  3) st\n"
-    printf "Enter number [1]: "
-    read -r term_choice </dev/tty || true
+    if [ -n "$A_TERM" ]; then
+        term_choice=$A_TERM
+    else
+        printf "\nWhich terminal do you want as default? (default: alacritty)\n"
+        # (no st: no package provides it, see bin/Term)
+        printf "  1) alacritty  (default)\n  2) kitty\n"
+        printf "Enter number [1]: "
+        read -r term_choice </dev/tty || true
+    fi
     case "$term_choice" in
         1|""|alacritty) TERM_BIN="alacritty" ;;
         2|kitty)        TERM_BIN="kitty" ;;
-        3|st)           TERM_BIN="st" ;;
         *)              TERM_BIN="alacritty" ;;
     esac
     info "Terminal selected: $TERM_BIN"
