@@ -469,11 +469,27 @@ do
 done
 info "GL host shim created at $GL_SHIM"
 
-# Animated wallpapers (4K archives, if present)
+# Animated wallpapers (4K archives, if present). Each archive is extracted once
+# (or again when it changes), so wallpapers deleted to save quota stay deleted.
+# --fresh extracts them all again.
 mkdir -p "$HOME/Pictures"
+WALL_STATE="$HOME/.local/state/bspwm/wallpaper-archives"
+mkdir -p "$(dirname "$WALL_STATE")"; touch "$WALL_STATE"
 for tar in "$REPO/Pictures"/AnimatedWallpaper-*.tar; do
     [ -f "$tar" ] || continue
+    id="$(basename "$tar") $(stat -c %s "$tar")"
+    if [ "$FRESH" -eq 0 ] && ! grep -qxF "$id" "$WALL_STATE"; then
+        # Installs older than this state file: already extracted if any of its files is there
+        while IFS= read -r m; do
+            [ -f "$HOME/Pictures/$m" ] && { echo "$id" >> "$WALL_STATE"; break; }
+        done < <(tar -tf "$tar")
+    fi
+    if [ "$FRESH" -eq 0 ] && grep -qxF "$id" "$WALL_STATE"; then
+        info "Already extracted: $(basename "$tar")"
+        continue
+    fi
     tar -xf "$tar" -C "$HOME/Pictures/"
+    grep -qxF "$id" "$WALL_STATE" || echo "$id" >> "$WALL_STATE"
     info "Extracted: $(basename "$tar")"
 done
 
@@ -505,7 +521,8 @@ info "Step 4/7 — Installing fonts, desktop entries, and bin scripts..."
 [ -d "$REPO/.local/bin" ] && {
     mkdir -p "$HOME/.local/bin"
     cp -r "$REPO/.local/bin/." "$HOME/.local/bin/"
-    chmod +x "$HOME/.local/bin/"*
+    # Only the repo's scripts, not the user's own files in ~/.local/bin
+    for f in "$REPO/.local/bin/"*; do chmod +x "$HOME/.local/bin/${f##*/}"; done
     info "Local bin scripts installed."
 }
 

@@ -226,9 +226,14 @@ rmdir "$HOME/.icons" 2>/dev/null || true
 
 # ── Deployed config directories ───────────────────────────────────────────────
 info "Removing deployed ~/.config entries..."
-for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch Thunar; do
+for cfg in bspwm micro alacritty kitty clipcat mpd ncmpcpp paru yazi btop fastfetch Thunar; do
     [ -d "$HOME/.config/$cfg" ] && rm -rf "$HOME/.config/$cfg" && info "  removed: ~/.config/$cfg"
 done
+# gtk-3.0 is GNOME's too (bookmarks of Files, the file chooser): only the theme file we put there
+if [ -f "$HOME/.config/gtk-3.0/settings.ini" ]; then
+    rm -f "$HOME/.config/gtk-3.0/settings.ini" && info "  removed: ~/.config/gtk-3.0/settings.ini"
+    rmdir "$HOME/.config/gtk-3.0" 2>/dev/null || true
+fi
 
 # ── Home dotfiles ──────────────────────────────────────────────────────────────
 info "Removing deployed home dotfiles..."
@@ -242,8 +247,14 @@ if [ -f "$HOME/.zshrc" ] && grep -q '^# >>> bspwm-dotfiles >>>$' "$HOME/.zshrc";
 fi
 
 # ── oh-my-zsh ─────────────────────────────────────────────────────────────────
-info "Removing ~/.oh-my-zsh/..."
-rm -rf "$HOME/.oh-my-zsh"
+# The bspwm zshrc doesn't use it: keep it when the user's own ~/.zshrc does
+# (it was already there before the install, or they adopted it).
+if [ -f "$HOME/.zshrc" ] && grep -qE '^[^#]*oh-my-zsh\.sh' "$HOME/.zshrc"; then
+    warn "Keeping ~/.oh-my-zsh: your ~/.zshrc uses it."
+else
+    info "Removing ~/.oh-my-zsh/..."
+    rm -rf "$HOME/.oh-my-zsh"
+fi
 
 # ── bt-reconnect favorites ─────────────────────────────────────────────────────
 info "Removing bt-reconnect favorites file..."
