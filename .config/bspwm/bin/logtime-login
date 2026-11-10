@@ -12,8 +12,15 @@ from datetime import datetime, timezone
 
 import gi
 gi.require_version("Gtk", "3.0")
-gi.require_version("Soup", "2.4")
-gi.require_version("WebKit2", "4.0")
+# WebKit2GTK 4.1 (libsoup 3) is the one Arch ships now; 4.0 (libsoup 2.4) was
+# dropped from the repos but may still be installed on older setups.
+# WebKit first: requiring Soup 3.0 before finding 4.1 missing would block 2.4.
+try:
+    gi.require_version("WebKit2", "4.1")
+    gi.require_version("Soup", "3.0")
+except ValueError:
+    gi.require_version("WebKit2", "4.0")
+    gi.require_version("Soup", "2.4")
 from gi.repository import Gtk, WebKit2
 
 BASE_URL = "https://attendance.42lyon.fr"

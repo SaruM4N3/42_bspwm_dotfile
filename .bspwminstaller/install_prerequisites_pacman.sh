@@ -304,7 +304,7 @@ sudo pacman -S --needed --noconfirm \
     libwebp \
     webp-pixbuf-loader \
     python-gobject \
-    webkit2gtk \
+    webkit2gtk-4.1 \
     pacman-contrib
 
 # ── CLI tools ────────────────────────────────────────────────────────────────
@@ -344,7 +344,7 @@ sudo pacman -S --needed --noconfirm \
     fontconfig \
     ttf-jetbrains-mono \
     ttf-jetbrains-mono-nerd \
-    ttf-font-awesome
+    otf-font-awesome
 
 # ── Clipboard ────────────────────────────────────────────────────────────────
 info "Installing clipcat..."
