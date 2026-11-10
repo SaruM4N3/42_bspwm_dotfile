@@ -1,0 +1,101 @@
+#!/bin/bash
+# =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
+#  pacman - run package changes outside the bspwm overlay
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
+# =============================================================
+#
+# In the bspwm session /usr = Arch (~/.junest/usr) over the host's Ubuntu /usr.
+# pacman sees the Ubuntu files as unowned and refuses upgrades ("conflicting
+# files ... exists in filesystem"), and removals can't free host files. So
+# -S / -U / -R are sent to the host (bspwm.sh's bspwm_host_req watcher) and
+# run there in a plain junest (no overlay), in a pty so prompts, progress
+# bars and Ctrl+C work. Queries (-Q, -Ss, -Si, -F...) stay local.
+# `sudo pacman` lands here too: junest's sudo runs "$@" through PATH.
+# PACMAN_LOCAL=1 pacman ... = the real pacman, here, as before.
+
+REAL=/usr/bin/pacman
+HOST_REQ="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm_host_req"
+JUNEST="$HOME/.local/share/junest/bin/junest"
+
+# Does this command line change packages?
+modifies() {
+    local a op="" short
+    for a in "$@"; do
+        case "$a" in
+            --sync|--upgrade|--remove) op=${a#--}; op=${op:0:1}; op=${op^^} ;;
+            --search|--info|--list|--groups|--print|--print-format*) [ "$op" = S ] && return 1 ;;
+            --) break ;;
+            --*) ;;
+            -*)
+                short=${a#-}
+                case "$short" in *S*) op=S ;; *U*) op=U ;; *R*) op=R ;; esac
+                # -Ss -Si -Sl -Sg -Sp: read only
+                [ "$op" = S ] && [[ "$short" == *[silgp]* ]] && return 1
+                ;;
+        esac
+    done
+    [ -n "$op" ]
+}
+
+if [ -n "$PACMAN_LOCAL" ] || [ -z "$JUNEST_ENV" ] || ! modifies "$@"; then
+    exec "$REAL" "$@"
+fi
+if [ ! -p "$HOST_REQ" ] || [ ! -x "$JUNEST" ]; then
+    echo "pacman: no host watcher ($HOST_REQ) — running here, upgrades may hit file conflicts" >&2
+    exec "$REAL" "$@"
+fi
+
+dir=$(mktemp -d "${XDG_RUNTIME_DIR:-/tmp}/pacman-host.XXXXXX") || exit 1
+mkfifo "$dir/in" "$dir/out"
+cleanup() {
+    [ -n "$tty_saved" ] && stty "$tty_saved" 2>/dev/null
+    [ -n "$fwd_pid" ] && kill "$fwd_pid" 2>/dev/null
+    rm -rf "$dir"
+}
+trap cleanup EXIT
+
+printf -v args '%q ' "$@"
+printf -v cwd '%q' "$PWD"
+if [ -t 0 ] && [ -t 1 ]; then
+    # Interactive: run in a pty (util-linux script), our terminal in raw mode
+    # forwards every key, the remote pty does echo / line editing / Ctrl+C.
+    size=$(stty size 2>/dev/null)
+    inner="stty rows ${size% *} cols ${size#* } 2>/dev/null; $JUNEST -- sudo pacman $args"
+    printf -v inner_q '%q' "$inner"
+    cmd="cd $cwd 2>/dev/null; script -qfec $inner_q /dev/null <$dir/in >$dir/out 2>&1; echo \$? >$dir/rc"
+    interactive=1
+else
+    cmd="cd $cwd 2>/dev/null; $JUNEST -- sudo pacman $args </dev/null >$dir/out 2>&1; echo \$? >$dir/rc"
+    interactive=0
+fi
+
+echo "==> pacman runs on the host (plain junest, no bspwm overlay)" >&2
+cat "$dir/out" &                    # opens the read end, waits for the host
+out_pid=$!
+printf '%s\n' "$cmd" > "$HOST_REQ"
+if [ "$interactive" = 1 ]; then
+    exec 3>"$dir/in"                # host's "<in" opens once we have the write end
+    tty_saved=$(stty -g)
+    stty raw -echo
+    # fd 4: background jobs get /dev/null as stdin, keep the terminal for cat
+    exec 4<&0
+    cat <&4 >&3 &
+    fwd_pid=$!
+fi
+wait "$out_pid"
+[ -n "$tty_saved" ] && stty "$tty_saved" && tty_saved=""
+exec 3>&- 2>/dev/null
+
+for _ in $(seq 50); do [ -s "$dir/rc" ] && break; sleep 0.1; done
+rc=$(cat "$dir/rc" 2>/dev/null); rc=${rc:-1}
+if [ "$rc" = 0 ]; then
+    echo "==> Done. Upgraded/removed files show up in bspwm after a restart (Super+Shift+B twice)." >&2
+fi
+exit "$rc"

@@ -1,0 +1,14 @@
+# bspwm-dotfiles: mesa is pinned (IgnorePkg) while the rest of the system
+# upgrades. Warn when the pinned mesa can no longer load (missing libLLVM,
+# glibc too old for it, ...), before it shows up as a black game / no GPU.
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Checking that the pinned mesa still loads...
+When = PostTransaction
+Exec = /etc/pacman.d/scripts/bspwm-mesa-check

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Called by zz-bspwm-clean-cache.hook. Packages can still be fetched again
+# from the mirrors / archive.archlinux.org if ever needed.
+for dir in $(sed -n 's/^[[:space:]]*CacheDir[[:space:]]*=[[:space:]]*//p' /etc/pacman.conf) /var/cache/pacman/pkg; do
+    [ -d "$dir" ] || continue
+    before=$(du -sk "$dir" 2>/dev/null | cut -f1)
+    # Packages, signatures, interrupted downloads (*.part, download-XXXXXX dirs)
+    find "$dir" -mindepth 1 -maxdepth 1 \
+        \( -name '*.pkg.tar*' -o -name '*.part' -o -name 'download-*' \) \
+        -exec rm -rf {} + 2>/dev/null
+    after=$(du -sk "$dir" 2>/dev/null | cut -f1)
+    echo "  $dir: freed $(( (${before:-0} - ${after:-0}) / 1024 )) MiB"
+done
+exit 0

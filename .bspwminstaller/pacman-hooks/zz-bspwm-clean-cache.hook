@@ -1,0 +1,15 @@
+# bspwm-dotfiles: empty pacman's package cache and leftover downloads after
+# every transaction (the junest home quota is small). zz- = runs after the
+# other hooks. Replaces clean_package_cache.hook (paccache -rk 1 kept a copy
+# of every installed package).
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Emptying pacman cache and downloads...
+When = PostTransaction
+Exec = /etc/pacman.d/scripts/bspwm-clean-cache

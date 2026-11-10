@@ -1,0 +1,24 @@
+#!/bin/sh
+# Called by 90-bspwm-mesa-check.hook. Only warns, never fails the transaction.
+check() {   # $1 = ld.so, $2 = lib dir, $3 = label
+    [ -x "$1" ] || return 0
+    for lib in "$2"/libgallium-*.so "$2"/libvulkan_radeon.so; do
+        [ -e "$lib" ] || continue
+        bad=$(env -u LD_LIBRARY_PATH "$1" --list "$lib" 2>&1 | grep -E "not found|error while loading")
+        [ -z "$bad" ] && continue
+        echo "  WARNING ($3): $(basename "$lib") can't load:"
+        echo "$bad" | sed 's/^[[:space:]]*/      /' | sort -u
+        so=$(echo "$bad" | grep -oE "libLLVM\.so\.[0-9]+" | head -1)
+        major=${so#libLLVM.so.}
+        if echo "$bad" | grep -q "GLIBC_"; then
+            echo "      -> glibc older than a lib needs: run a full 'sudo pacman -Syu'"
+        elif [ -n "$major" ] && [ "$3" = 64-bit ]; then
+            echo "      -> run: sudo pacman -S llvm$major-libs"
+        elif [ -n "$major" ]; then
+            echo "      -> Steam fetches it itself (steam-installer.sh), other 32-bit apps lack it"
+        fi
+    done
+}
+check /usr/lib/ld-linux-x86-64.so.2 /usr/lib 64-bit
+check /usr/lib32/ld-linux.so.2 /usr/lib32 32-bit
+exit 0

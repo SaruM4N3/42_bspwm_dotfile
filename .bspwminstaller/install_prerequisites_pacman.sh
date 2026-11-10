@@ -153,6 +153,10 @@ patch_makepkg() {
 
 aur_install() {
     local pkg="$1"
+    if pacman -Q "$pkg" &>/dev/null; then
+        info "$pkg already installed — skipping build."
+        return
+    fi
     info "Building AUR package: $pkg"
     rm -rf "/tmp/$pkg"
     git clone "https://aur.archlinux.org/${pkg}.git" "/tmp/$pkg"
@@ -198,6 +202,77 @@ set_font_noextract() {
     sudo sed -i '/^\[options\]/a # Unused JetBrains Mono Nerd Font variants (Propo, NL) — ~150 MB saved\nNoExtract   = usr/share/fonts/TTF/JetBrainsMonoNerdFontPropo-* usr/share/fonts/TTF/JetBrainsMonoNL*' /etc/pacman.conf
 }
 
+# ── Mesa pin ─────────────────────────────────────────────────────────────────
+# Mesa 25+ needs DRM 3.54 (kernel 6.6+), the 42 PCs run kernel 5.15: mesa and
+# its drivers stay on 24.3.4 (see .config/brave-flags.conf). The pin alone is a
+# partial upgrade: llvm-libs moves on and 24.3.4's libgallium can no longer
+# find its libLLVM.so.19.1, so the matching llvmNN-libs is installed beside it.
+MESA_PIN="1:24.3.4-1"
+MESA_PKGS="mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon"
+ARCH_ARCHIVE="https://archive.archlinux.org/packages"
+
+set_mesa_ignorepkg() {
+    local p missing=""
+    for p in $MESA_PKGS; do
+        grep -qE "^IgnorePkg.*[= ]$p( |$)" /etc/pacman.conf || missing="$missing $p"
+    done
+    [ -z "$missing" ] && { info "Mesa pin already in pacman.conf."; return; }
+    if grep -q '^IgnorePkg' /etc/pacman.conf; then
+        sudo sed -i "s|^IgnorePkg.*|&$missing|" /etc/pacman.conf
+    else
+        sudo sed -i "/^\[options\]/a # mesa pinned to $MESA_PIN: Mesa 25+ needs kernel 6.6+, 42 PCs run 5.15\nIgnorePkg =$missing" /etc/pacman.conf
+    fi
+    info "Pinned in pacman.conf (IgnorePkg):$missing"
+}
+
+# Install/downgrade the pinned mesa from the Arch archive (pacman -S would take
+# the latest), then provide the libLLVM soname it was built against.
+pin_mesa() {
+    local p v urls=() letter
+    for p in mesa vulkan-radeon lib32-mesa lib32-vulkan-radeon; do
+        v=$(pacman -Q "$p" 2>/dev/null | awk '{print $2}')
+        # mesa itself always; the others only if something installed them
+        { [ "$p" = mesa ] || [ -n "$v" ]; } || continue
+        [ "$v" = "$MESA_PIN" ] && continue
+        letter=${p:0:1}
+        urls+=("$ARCH_ARCHIVE/$letter/$p/$p-$MESA_PIN-x86_64.pkg.tar.zst")
+    done
+    if [ ${#urls[@]} -gt 0 ]; then
+        info "Installing mesa $MESA_PIN from the Arch archive..."
+        sudo pacman -U --noconfirm "${urls[@]}" || warn "mesa $MESA_PIN install failed — GL apps may break."
+    else
+        info "mesa already at $MESA_PIN."
+    fi
+
+    local gallium so major
+    gallium=$(ls /usr/lib/libgallium-*.so 2>/dev/null | head -1)
+    [ -n "$gallium" ] || return 0
+    so=$(grep -aoE 'libLLVM\.so\.[0-9]+\.[0-9]+' "$gallium" | head -1)
+    [ -n "$so" ] && [ ! -e "/usr/lib/$so" ] || return 0
+    major=${so#libLLVM.so.}; major=${major%%.*}
+    info "mesa needs $so — installing llvm$major-libs..."
+    sudo pacman -S --needed --noconfirm "llvm$major-libs" || { warn "llvm$major-libs install failed."; return 0; }
+    # Versioned llvm packages may keep the lib under /usr/lib/llvmNN/lib
+    if [ ! -e "/usr/lib/$so" ] && [ -e "/usr/lib/llvm$major/lib/$so" ]; then
+        sudo ln -sf "/usr/lib/llvm$major/lib/$so" "/usr/lib/$so"
+    fi
+    [ -e "/usr/lib/$so" ] && info "$so available." || warn "$so still missing — Arch mesa won't load."
+}
+
+# pacman hooks (.bspwminstaller/pacman-hooks): empty the package cache after
+# every transaction, warn when the pinned mesa stops loading.
+install_pacman_hooks() {
+    local src="$DOTFILES_DIR/.bspwminstaller/pacman-hooks"
+    [ -d "$src" ] || return 0
+    sudo mkdir -p /etc/pacman.d/hooks /etc/pacman.d/scripts
+    sudo cp "$src"/*.hook /etc/pacman.d/hooks/
+    sudo cp "$src"/bspwm-* /etc/pacman.d/scripts/
+    sudo chmod +x /etc/pacman.d/scripts/bspwm-*
+    # Superseded by zz-bspwm-clean-cache.hook (it kept one copy of each package)
+    sudo rm -f /etc/pacman.d/hooks/clean_package_cache.hook
+    info "pacman hooks installed (cache cleaner, mesa check)."
+}
+
 # ── Interactive setup (ask before any installs) ───────────────────────────────
 ask_editor
 ask_browser
@@ -205,6 +280,10 @@ ask_terminal
 ask_rice
 
 # ── Update keyring + full system sync ────────────────────────────────────────
+# Pin first so the upgrade below never pulls mesa 25+
+set_mesa_ignorepkg
+install_pacman_hooks
+
 info "Syncing package databases..."
 echo "n" | sudo pacman -Syu || true
 
@@ -218,6 +297,9 @@ sudo pacman -Syu --noconfirm
 # ── Base build tools ─────────────────────────────────────────────────────────
 info "Installing base-devel and git..."
 sudo pacman -S --needed --noconfirm base-devel git
+
+# Before the GUI packages, so their libgl dependency is the pinned mesa
+pin_mesa
 
 # ── Chaotic-AUR + gh0stzk custom repo ────────────────────────────────────────
 set_font_noextract
@@ -241,6 +323,7 @@ sudo pacman -S --needed --noconfirm \
     xorg-xsetroot \
     xorg-xwininfo \
     xorg-xinput \
+    xorg-xset \
     xorg-setxkbmap \
     xdotool \
     xdo \
@@ -370,18 +453,7 @@ aur_install fzf-tab-git
 info "Installing ttf-material-design-icons (AUR)..."
 aur_install ttf-material-design-icons-desktop-git
 
-# ── Bundled fonts ─────────────────────────────────────────────────────────────
-info "Copying bundled fonts to ~/.local/share/fonts..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FONTS_SRC="$SCRIPT_DIR/../.local/share/fonts"
-if [ -d "$FONTS_SRC" ]; then
-    mkdir -p "$HOME/.local/share/fonts"
-    cp -r "$FONTS_SRC"/. "$HOME/.local/share/fonts/"
-    fc-cache -fv || warn "fc-cache failed — fonts may need a manual cache refresh."
-    info "Fonts installed."
-else
-    warn "Bundled fonts directory not found at $FONTS_SRC — skipping."
-fi
+# Bundled fonts (.local/share/fonts) are copied by install.sh step 4.
 
 # ── Browser ──────────────────────────────────────────────────────────────────
 info "Installing browser: $BROWSER_PKG..."
