@@ -32,8 +32,10 @@ mpv_opts() {
     case "$1" in
         # iMac18,3 (Radeon RX 570/580): VA-API decode + GPU output through the
         # Ubuntu mesa/VA drivers set up in bspwmrc (GL_SHIM, LIBVA_DRIVERS_PATH).
-        # 4K H.264 wallpaper: ~6% CPU instead of ~59% with the safe profile.
-        mac)    echo "--hwdec=vaapi --vo=gpu" ;;
+        # Force OpenGL: junest's RADV makes mpv pick Vulkan, which can't import
+        # VA-API dmabufs there, so it silently fell back to CPU decoding.
+        # 4K H.264 wallpaper: ~4-6% CPU instead of ~59-74% (safe / Vulkan).
+        mac)    echo "--hwdec=vaapi --vo=gpu --gpu-api=opengl" ;;
         # Dell OptiPlex 7400 AIO (Intel UHD 770): VA-API via the host iHD driver.
         # Vulkan init fails in junest, so force OpenGL to skip that probe.
         # 4K H.264 wallpaper: ~9% CPU instead of ~77% with the safe profile.
