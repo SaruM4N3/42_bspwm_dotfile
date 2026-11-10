@@ -110,6 +110,64 @@ def picom_set(key, val):
     except Exception as e:
         print(f"[picom_set] {e}")
 
+# Per-app opacity: picom rules kept in a marked block of picom.conf (inside `rules:`),
+# right before the animations include, so they override the generic rules above.
+APP_OP_BEGIN = "\t#-app-opacity-begin (managed by RiceSettings, Window page)"
+APP_OP_END   = "\t#-app-opacity-end"
+APP_OP_RE    = re.compile(r"match = \"class_g = '([^']+)'\"; opacity = ([0-9.]+);")
+
+def app_opacity_get():
+    """[(class, opacity), ...] from the managed block of picom.conf."""
+    try:
+        with open(PICOM_CONF) as f: raw = f.read()
+    except OSError:
+        return []
+    m = re.search(r"#-app-opacity-begin.*?\n(.*?)\t#-app-opacity-end", raw, re.S)
+    return [(c, float(o)) for c, o in APP_OP_RE.findall(m.group(1))] if m else []
+
+def app_opacity_set(items):
+    with open(PICOM_CONF) as f: raw = f.read()
+    body = "".join(f'\t{{ match = "class_g = \'{c}\'"; opacity = {o:.2f}; }},\n'
+                   for c, o in items)
+    block = f"{APP_OP_BEGIN}\n{body}{APP_OP_END}\n"
+    new, n = re.subn(r"[ \t]*#-app-opacity-begin.*?#-app-opacity-end[^\n]*\n",
+                     lambda _m: block, raw, flags=re.S)
+    if n == 0:                            # first use: insert before the include line
+        new, n = re.subn(r"^(\s*[@#]include \"picom-animations\.conf\")",
+                         lambda m: block + "\n" + m.group(1), raw, count=1, flags=re.M)
+        if n == 0:
+            raise RuntimeError("picom.conf: animations include line not found")
+    with open(PICOM_CONF, "w") as f: f.write(new)
+
+def open_window_classes():
+    """WM_CLASS class names of the windows bspwm manages (sorted, unique)."""
+    out = set()
+    try:
+        ids = subprocess.run(["bspc", "query", "-N", "-n", ".window"],
+                             capture_output=True, text=True, timeout=2).stdout.split()
+    except Exception:
+        return []
+    for wid in ids:
+        c = window_class(["xprop", "-id", wid, "WM_CLASS"])
+        if c: out.add(c)
+    return sorted(out, key=str.lower)
+
+def window_class(cmd, timeout=2):
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except Exception:
+        return ""
+    names = re.findall(r'"([^"]*)"', r.stdout)   # WM_CLASS = "instance", "Class"
+    return names[-1] if names else ""
+
+def restart_picom():
+    """Restart picom detached so it survives this window (not in gamer mode: picom off)."""
+    subprocess.Popen(["bash","-c",
+        "sleep 0.3; ~/.config/bspwm/bin/GamerMode --is-on && exit 0;"
+        " pkill -x picom; while pgrep -x picom >/dev/null; do sleep 0.1; done;"
+        " picom --config ~/.config/bspwm/config/picom.conf >/dev/null 2>&1 &"],
+        env=child_env(), start_new_session=True)
+
 def xsettingsd_get(key, fallback=""):
     try:
         with open(XSETTINGSD) as f:
@@ -1110,15 +1168,119 @@ def window_page(cfg):
         anim_set_duration("hide",     f"{d_hide.get_value():.2f}")
         anim_set_duration("geometry", f"{d_geom.get_value():.2f}")
         run_module("01-picom.sh")
-        # Wait for 01-picom.sh to finish writing picom.conf, then restart picom
-        # detached so it survives this window closing (not in gamer mode: picom off)
-        subprocess.Popen(["bash","-c",
-            "sleep 0.3; ~/.config/bspwm/bin/GamerMode --is-on && exit 0;"
-            " pkill -x picom; while pgrep -x picom >/dev/null; do sleep 0.1; done;"
-            " picom --config ~/.config/bspwm/config/picom.conf >/dev/null 2>&1 &"],
-            env=child_env(), start_new_session=True)
+        restart_picom()   # waits 0.3 s so 01-picom.sh has written picom.conf
         flash_btn(btn, "✓ Applied!"); notify("Picom applied.")
     picom_btn.connect("clicked", safe_apply(apply_picom))
+
+    # ── Per-app transparency ──────────────────────────────────────────────────
+    app_items = app_opacity_get()
+    app_list = Gtk.ListBox()
+    app_list.set_selection_mode(Gtk.SelectionMode.NONE)
+    app_list.get_style_context().add_class("card-list")
+    app_spins = {}                         # class -> SpinButton
+
+    def rebuild_app_list():
+        for ch in app_list.get_children():
+            app_list.remove(ch)
+        app_spins.clear()
+        if not app_items:
+            e = Gtk.Label(label="No app yet: add one below.", xalign=0)
+            e.get_style_context().add_class("row-sub")
+            e.set_margin_top(11); e.set_margin_bottom(11); e.set_margin_start(16)
+            app_list.add(e)
+        for cls, op in app_items:
+            sp = make_spin(op, 0.1, 1.0, 0.05, 2)
+            app_spins[cls] = sp
+            rm = browse_btn("Remove")
+            rm.connect("clicked", lambda _b, c=cls: remove_app(c))
+            box = Gtk.Box(spacing=8, valign=Gtk.Align.CENTER)
+            box.pack_start(sp, False, False, 0)
+            box.pack_start(rm, False, False, 0)
+            app_list.add(make_row(cls, box))
+        app_list.show_all()
+
+    def sync_spins():                      # keep values typed before add/remove
+        for i, (cls, _op) in enumerate(app_items):
+            if cls in app_spins:
+                app_items[i] = (cls, round(app_spins[cls].get_value(), 2))
+
+    def remove_app(cls):
+        sync_spins()
+        app_items[:] = [it for it in app_items if it[0] != cls]
+        rebuild_app_list()
+
+    add_combo = Gtk.ComboBoxText.new_with_entry()
+    add_combo.set_valign(Gtk.Align.CENTER)
+    add_combo.get_child().set_placeholder_text("Window class")
+    add_combo.get_child().set_width_chars(16)
+    def fill_classes(*_):
+        cur = add_combo.get_child().get_text()
+        add_combo.remove_all()
+        for c in open_window_classes():
+            add_combo.append_text(c)
+        add_combo.get_child().set_text(cur)
+    fill_classes()
+
+    pick_btn = browse_btn("Pick…")
+    pick_btn.set_tooltip_text("Click on a window to get its class")
+    def on_pick(btn):
+        import threading
+        btn.set_label("Click a window…"); btn.set_sensitive(False)
+        def work():
+            c = window_class(["xprop", "WM_CLASS"], timeout=30)
+            def done():
+                btn.set_label("Pick…"); btn.set_sensitive(True)
+                if c: add_combo.get_child().set_text(c)
+                return False
+            GLib.idle_add(done)
+        threading.Thread(target=work, daemon=True).start()
+    pick_btn.connect("clicked", on_pick)
+
+    add_op = make_spin(0.90, 0.1, 1.0, 0.05, 2)
+    add_btn = browse_btn("Add")
+    def on_add(btn):
+        cls = add_combo.get_child().get_text().strip()
+        if not cls:
+            return
+        if not re.fullmatch(r"[^'\"\\]+", cls):
+            raise ValueError("A window class cannot contain quotes or backslashes.")
+        sync_spins()
+        op = round(add_op.get_value(), 2)
+        for i, (c, _o) in enumerate(app_items):
+            if c == cls:
+                app_items[i] = (cls, op); break
+        else:
+            app_items.append((cls, op))
+        add_combo.get_child().set_text("")
+        rebuild_app_list()
+    add_btn.connect("clicked", safe_apply(on_add))
+    add_box = Gtk.Box(spacing=8, valign=Gtk.Align.CENTER)
+    for w in (add_combo, pick_btn, add_op, add_btn):
+        add_box.pack_start(w, False, False, 0)
+
+    app_apply = apply_btn("Apply Transparency")
+    def apply_apps(btn):
+        sync_spins()
+        app_opacity_set(app_items)
+        restart_picom()
+        flash_btn(btn, "✓ Applied!"); notify("App transparency applied.")
+    app_apply.connect("clicked", safe_apply(apply_apps))
+    rebuild_app_list()
+
+    app_frame = Gtk.Frame()
+    app_frame.get_style_context().add_class("card")
+    app_frame.set_shadow_type(Gtk.ShadowType.NONE)
+    app_frame.add(app_list)
+    app_group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+    app_lbl = Gtk.Label(label="APP TRANSPARENCY", xalign=0)
+    app_lbl.get_style_context().add_class("group-lbl")
+    app_group.pack_start(app_lbl, False, False, 0)
+    app_group.pack_start(app_frame, False, False, 0)
+    app_group.pack_start(make_card([
+        make_row("Add app", add_box, "Pick a window or type its class, 0.1 → 1.0"),
+        make_row("Restart picom with these values", app_apply,
+                 "Overrides Terminal Opacity for the apps listed"),
+    ]), False, False, 0)
 
     return page_wrap("Window", "Borders, gaps and compositor settings.", [
         make_group("Borders & Gaps", [
@@ -1139,6 +1301,7 @@ def window_page(cfg):
             make_row("Corner Radius",    corner,        "Rounded corners (0 = off)"),
             make_row("Terminal Opacity", opac,          "0.1 transparent → 1.0 opaque"),
         ]),
+        app_group,
         make_collapsible_group("Animation Durations", [
             make_row("Open",     d_open,  "Window opening"),
             make_row("Close",    d_close, "Window closing"),
