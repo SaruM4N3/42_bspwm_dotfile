@@ -20,6 +20,9 @@ KITTY_CFG     = os.path.expanduser("~/.config/kitty/kitty.conf")
 SXHKDRC       = os.path.expanduser("~/.config/bspwm/config/sxhkdrc")
 XSETTINGSD    = os.path.expanduser("~/.config/bspwm/config/xsettingsd")
 ZSHRC         = os.path.expanduser("~/.zshrc")
+MOUSE_BIN     = os.path.expanduser("~/.config/bspwm/bin/MouseSettings")
+BSPWM_LAUNCH  = os.path.expanduser("~/.bspwminstaller/bspwm.sh")
+AUTOSTART     = os.path.expanduser("~/.config/autostart/bspwm.desktop")
 
 # ── ThemeConfig ───────────────────────────────────────────────────────────────
 
@@ -1445,6 +1448,98 @@ def lock_page(cfg):
     ])
 
 
+# ── System (mouse, session) ───────────────────────────────────────────────────
+
+# GNOME autostart entry running bspwm.sh at login (same as the Super+Shift+B
+# GNOME shortcut). --autostart makes bspwm.sh wait for gnome-shell first: it
+# kills it, and a shell starting after that would fight bspwm for the WM.
+AUTOSTART_DESKTOP = """[Desktop Entry]
+Type=Application
+Name=bspwm
+Comment=Switch from GNOME to bspwm at login (RiceSettings → System)
+Exec={launcher} --autostart
+OnlyShowIn=GNOME;
+X-GNOME-Autostart-enabled=true
+NoDisplay=true
+"""
+
+def autostart_enabled():
+    try:
+        with open(AUTOSTART) as f: raw = f.read()
+        return "X-GNOME-Autostart-enabled=false" not in raw and "Hidden=true" not in raw
+    except OSError:
+        return False
+
+def autostart_set(enabled):
+    if enabled:
+        if not os.path.isfile(BSPWM_LAUNCH):
+            raise FileNotFoundError(f"{BSPWM_LAUNCH} not found")
+        os.makedirs(os.path.dirname(AUTOSTART), exist_ok=True)
+        with open(AUTOSTART, "w") as f:
+            f.write(AUTOSTART_DESKTOP.replace("{launcher}", BSPWM_LAUNCH))
+    else:
+        try: os.remove(AUTOSTART)
+        except FileNotFoundError: pass
+
+def system_page(cfg):
+    # ── Mouse ─────────────────────────────────────────────────────────────────
+    speed = make_spin(cfg.get("MOUSE_SPEED", "0"), -1.0, 1.0, 0.05, 2)
+    accel = make_combo(["adaptive", "flat"], cfg.get("MOUSE_ACCEL", "adaptive"))
+
+    def mouse_run(*args):
+        subprocess.Popen([MOUSE_BIN, *args], env=child_env(),
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    # Live preview while tweaking; Apply makes it persistent
+    def preview(*_):
+        mouse_run(f"{speed.get_value():.2f}", accel.get_active_text())
+    speed.connect("value-changed", preview)
+    accel.connect("changed", preview)
+
+    mouse_btn = apply_btn("Apply Mouse")
+    def apply_mouse(btn):
+        cfg.set("MOUSE_SPEED", f"{speed.get_value():.2f}")
+        cfg.set("MOUSE_ACCEL", accel.get_active_text())
+        cfg.save()
+        mouse_run()
+        flash_btn(btn, "✓ Applied!"); notify("Mouse settings saved.")
+    mouse_btn.connect("clicked", safe_apply(apply_mouse))
+
+    reset_btn = apply_btn("Reset")
+    def reset_mouse(btn):
+        speed.set_value(0); accel.set_active(0)
+        apply_mouse(btn)
+    reset_btn.connect("clicked", safe_apply(reset_mouse))
+
+    # ── Session ───────────────────────────────────────────────────────────────
+    auto = make_switch(autostart_enabled())
+    auto.set_tooltip_text(AUTOSTART)
+    def on_auto(w, _p):
+        if getattr(w, "_reverting", False):
+            return
+        try:
+            autostart_set(w.get_active())
+            notify("bspwm will start at login." if w.get_active()
+                   else "bspwm won't start at login anymore.")
+        except Exception as e:
+            w._reverting = True; w.set_active(not w.get_active()); w._reverting = False
+            notify(f"Autostart: {e}", "normal")
+    auto.connect("notify::active", on_auto)
+
+    return page_wrap("System", "Mouse and session settings.", [
+        make_group("Mouse", [
+            make_row("Speed",        speed, "-1.0 slowest → 1.0 fastest (0 = default)"),
+            make_row("Acceleration", accel, "adaptive = faster moves go further  |  flat = constant"),
+            make_row("Save and apply at every bspwm start", mouse_btn),
+            make_row("Back to default speed", reset_btn),
+        ]),
+        make_group("Session", [
+            make_row("Launch bspwm at login", auto,
+                     "Switch from GNOME to bspwm automatically when you log in"),
+        ]),
+    ])
+
+
 # ── Apps (launcher entries) ───────────────────────────────────────────────────
 # Show/hide .desktop apps in the bspwm launcher only (NotShowIn=bspwm;), through
 # the shared bin/app-visibility helper (also used by the launcher's ctrl+x).
@@ -1788,6 +1883,7 @@ PAGES = [
     ("▶", "Terminal",  terminal_page),
     ("◐", "Lock",      lock_page),
     ("▦", "Apps",      apps_page),
+    ("⚙", "System",    system_page),
     ("⌨", "Keybinds",  keybinds_page),
 ]
 

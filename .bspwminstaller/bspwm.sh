@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# --autostart: started by GNOME at login (~/.config/autostart/bspwm.desktop, toggled
+# in RiceSettings → System). Wait for gnome-shell to be up and settled, otherwise it
+# would start after we kill it below and fight bspwm for the window manager slot.
+if [ "$1" = "--autostart" ]; then
+    for _ in $(seq 100); do pgrep -x gnome-shell >/dev/null && break; sleep 0.2; done
+    sleep 2
+fi
+
 kill $(ps aux | grep ft_ld | grep -v grep | awk '{print $2}')
 [ /tmp/lockbg.so -nt "$HOME/.bspwminstaller/locker/lockbg.c" ] || gcc -shared -fPIC -o /tmp/lockbg.so "$HOME/.bspwminstaller/locker/lockbg.c" -ldl
 LD_PRELOAD=/tmp/lockbg.so /usr/local/bin/ft_lock -d 2>/dev/null || true  # daemon may already be running; that's fine

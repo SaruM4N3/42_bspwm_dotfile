@@ -1,0 +1,40 @@
+#!/bin/sh
+# =============================================================
+#  ███████╗███████╗ ██████╗ ███╗   ██╗██╗███████╗
+#  ╚══███╔╝██╔════╝██╔═══██╗████╗  ██║██║██╔════╝
+#    ███╔╝ ███████╗██║   ██║██╔██╗ ██║██║█████╗
+#   ███╔╝  ╚════██║██║   ██║██║╚██╗██║██║██╔══╝
+#  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
+#  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
+#
+#  MouseSettings - apply pointer speed / acceleration (libinput)
+#  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
+# =============================================================
+# Usage: MouseSettings [speed] [adaptive|flat]
+#   speed: -1.0 (slowest) .. 1.0 (fastest), 0 = default
+#   Without arguments, reads MOUSE_SPEED / MOUSE_ACCEL from theme-config.bash
+#   (set from RiceSettings → System). Applied to every libinput pointer
+#   (mice and touchpads); called by bspwmrc at startup.
+
+CFG="$HOME/.config/bspwm/rices/${RICE:-SaruM4N3}/theme-config.bash"
+cfg_get() { sed -n "s/^$1=[\"']\{0,1\}\([^\"']*\).*/\1/p" "$CFG" 2>/dev/null | head -1; }
+
+SPEED="${1:-$(cfg_get MOUSE_SPEED)}"
+ACCEL="${2:-$(cfg_get MOUSE_ACCEL)}"
+SPEED="${SPEED:-0}"
+ACCEL="${ACCEL:-adaptive}"
+
+# Every slave pointer exposing libinput's accel speed (skips XTEST/virtual ones)
+for id in $(xinput list --id-only 2>/dev/null); do
+    props=$(xinput list-props "$id" 2>/dev/null) || continue
+    echo "$props" | grep -q 'libinput Accel Speed (' || continue
+    xinput set-prop "$id" "libinput Accel Speed" "$SPEED" 2>/dev/null
+    # Profile flags: adaptive, flat[, custom] — the count depends on the libinput version
+    n=$(echo "$props" | sed -n 's/.*libinput Accel Profiles Available ([0-9]*):[[:space:]]*//p' | tr -cd ',' | wc -c)
+    case "$ACCEL" in
+        flat) flags="0 1" ;;
+        *)    flags="1 0" ;;
+    esac
+    [ "$n" -ge 2 ] && flags="$flags 0"
+    xinput set-prop "$id" "libinput Accel Profile Enabled" $flags 2>/dev/null
+done

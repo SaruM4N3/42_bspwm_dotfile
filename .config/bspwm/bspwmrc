@@ -187,6 +187,9 @@ picom --config "${HOME}"/.config/bspwm/config/picom.conf &
 # Launch xsettingsd
 run xsettingsd --config="${HOME}"/.config/bspwm/config/xsettingsd >/dev/null 2>&1
 
+# Mouse speed / acceleration (RiceSettings → System, MOUSE_* in theme-config.bash)
+"${HOME}"/.config/bspwm/bin/MouseSettings &
+
 # Launch clipboard daemon
 run clipcatd
 

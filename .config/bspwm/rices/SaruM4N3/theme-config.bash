@@ -104,3 +104,7 @@ ENGINE="Animated"
 CUSTOM_DIR="/home/zsonie/Pictures/wallpapers"
 DEFAULT_WALL="/home/zsonie/.config/bspwm/rices/SaruM4N3/walls/wall-01.webp"
 ANIMATED_WALL="/home/zsonie/Pictures/AnimatedWallpaper/couple-frogs-snow-day-moewalls-com.mp4"
+
+# Mouse (libinput): speed -1.0 (slow) .. 1.0 (fast), accel = adaptive | flat
+MOUSE_SPEED="0"
+MOUSE_ACCEL="adaptive"
