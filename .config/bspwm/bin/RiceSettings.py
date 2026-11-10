@@ -2024,7 +2024,7 @@ def keybinds_page(_cfg):
     )
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
-# Read-only viewer for the bspwm session logs. Files are found again on every
+# Viewer for the bspwm session logs (Clear empties the selected one). Files are found again on every
 # refresh, so logs created after the window opened show up too.
 
 LOG_DIR      = os.path.expanduser("~/.BspwmLogs")
@@ -2081,7 +2081,7 @@ def logs_page(_cfg):
     t = Gtk.Label(label="Logs", xalign=0)
     t.get_style_context().add_class("page-title")
     inner.pack_start(t, False, False, 0)
-    st = Gtk.Label(label="bspwm session logs (read only).", xalign=0)
+    st = Gtk.Label(label="bspwm session logs.", xalign=0)
     st.get_style_context().add_class("page-sub")
     st.set_margin_bottom(22)
     inner.pack_start(st, False, False, 0)
@@ -2089,6 +2089,8 @@ def logs_page(_cfg):
     combo = Gtk.ComboBoxText(valign=Gtk.Align.CENTER)
     refresh = apply_btn("Refresh")
     copy = browse_btn("Copy")
+    clear = browse_btn("Clear")
+    clear.set_tooltip_text("Empty the selected log file")
     follow = make_switch(False)
     follow.set_tooltip_text("Reload the log every 2 seconds")
 
@@ -2096,6 +2098,7 @@ def logs_page(_cfg):
     controls.pack_start(combo, False, False, 0)
     controls.pack_start(refresh, False, False, 0)
     controls.pack_start(copy, False, False, 0)
+    controls.pack_start(clear, False, False, 0)
     lbl = Gtk.Label(label="Auto-refresh")
     lbl.get_style_context().add_class("row-sub")
     controls.pack_end(follow, False, False, 0)
@@ -2165,6 +2168,29 @@ def logs_page(_cfg):
         cb.store()
         flash_btn(btn, "✓ Copied!")
     copy.connect("clicked", on_copy)
+
+    def on_clear(btn):
+        i = combo.get_active()
+        if i < 0 or i >= len(state["logs"]):
+            return
+        label, path = state["logs"][i]
+        dlg = Gtk.MessageDialog(
+            transient_for=btn.get_toplevel(), modal=True,
+            message_type=Gtk.MessageType.QUESTION,
+            buttons=Gtk.ButtonsType.OK_CANCEL,
+            text=f"Clear \u201c{label}\u201d?")
+        dlg.format_secondary_text(f"{path} will be emptied. This cannot be undone.")
+        ok = dlg.run() == Gtk.ResponseType.OK
+        dlg.destroy()
+        if not ok:
+            return
+        # Truncate in place (not delete): running writers append to the same file.
+        with open(path, "w"):
+            pass
+        state["text"] = None
+        load()
+        flash_btn(btn, "✓ Cleared!")
+    clear.connect("clicked", safe_apply(on_clear))
 
     def tick():
         if not follow.get_active():
