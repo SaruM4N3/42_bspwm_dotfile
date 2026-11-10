@@ -7,7 +7,8 @@
 #  ███████╗███████║╚██████╔╝██║ ╚████║██║███████╗
 #  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝╚═╝╚══════╝
 #
-#  GamerMode - swap the animated wallpaper (mpv) for a still one
+#  GamerMode - swap the animated wallpaper (mpv) for a still one and let
+#  fullscreen windows bypass picom (unredirect: less latency in games)
 #  Repo: https://github.com/SaruM4N3/42_bspwm_dotfile
 # =============================================================
 #
@@ -15,6 +16,7 @@
 #  GamerMode --on|--off
 #  GamerMode --status   polybar label
 #  GamerMode --is-on    exit 0 if on (06-wallpaper.sh, at startup)
+#  GamerMode --picom-sync  write the mode into picom.conf (bspwmrc, before picom)
 #
 #  The still wallpaper is the rice's DEFAULT_WALL. The mode is kept in
 #  $STATE, so it survives bspwm restarts; starting an animated wallpaper
@@ -35,6 +37,25 @@ bar_color() {
 
 is_on() { [ -f "$STATE" ]; }
 
+PICOM_CONF="$HOME/.config/bspwm/config/picom.conf"
+
+# unredir-if-possible follows the mode. picom.conf rules keep non-fullscreen
+# windows from unredirecting, so only fullscreen ones (games) skip picom.
+picom_sync() {
+    v=false; is_on && v=true
+    for f in "$PICOM_CONF" "$HOME/.config/bspwm/config/.session/picom.conf"; do
+        [ -f "$f" ] && sed -i "s/^unredir-if-possible = .*/unredir-if-possible = $v;/" "$f"
+    done
+}
+
+picom_restart() {
+    picom_sync
+    pgrep -x picom >/dev/null || return 0
+    pkill -x picom
+    while pgrep -x picom >/dev/null; do sleep 0.1; done
+    setsid -f picom --config "$PICOM_CONF" >/dev/null 2>&1
+}
+
 refresh_bar() { polybar-msg action gamermode hook 0 >/dev/null 2>&1; }
 
 still_wall() {
@@ -51,8 +72,9 @@ turn_on() {
         wall=$(still_wall)
         [ -n "$wall" ] && feh --no-fehbg --bg-fill "$wall"
     fi
+    picom_restart
     refresh_bar
-    dunstify -u low -r 7043 -i input-gaming "Gamer mode" "On: still wallpaper, mpv stopped" 2>/dev/null
+    dunstify -u low -r 7043 -i input-gaming "Gamer mode" "On: still wallpaper, fullscreen apps bypass picom" 2>/dev/null
 }
 
 turn_off() {
@@ -62,6 +84,7 @@ turn_off() {
         wall=$([ -f "$last" ] && cat "$last" || cfg ANIMATED_WALL)
         [ -n "$wall" ] && AnimatedWall --stop --start "$wall" &
     fi
+    picom_restart
     refresh_bar
     dunstify -u low -r 7043 -i input-gaming "Gamer mode" "Off: animated wallpaper back" 2>/dev/null
 }
@@ -75,8 +98,9 @@ case "$1" in
         fi
         ;;
     --is-on) is_on ;;
+    --picom-sync) picom_sync ;;
     --on)    turn_on ;;
     --off)   turn_off ;;
     ""|--toggle) if is_on; then turn_off; else turn_on; fi ;;
-    *) echo "Usage: GamerMode [--toggle|--on|--off|--status|--is-on]" >&2; exit 1 ;;
+    *) echo "Usage: GamerMode [--toggle|--on|--off|--status|--is-on|--picom-sync]" >&2; exit 1 ;;
 esac
