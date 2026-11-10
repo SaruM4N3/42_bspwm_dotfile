@@ -892,12 +892,15 @@ def page_wrap(title, subtitle, groups):
     scroll.set_hexpand(True); scroll.set_vexpand(True)
     scroll.get_style_context().add_class("content-bg")
     outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-    outer.set_margin_top(30); outer.set_margin_bottom(30)
+    outer.set_margin_top(30 if title else 20); outer.set_margin_bottom(30)
     outer.set_margin_start(30); outer.set_margin_end(30)
-    t = Gtk.Label(label=title, xalign=0)
-    t.get_style_context().add_class("page-title")
-    outer.pack_start(t, False, False, 0)
-    if subtitle:
+    if title:                   # no title: the caller draws its own header (Bar page)
+        t = Gtk.Label(label=title, xalign=0)
+        t.get_style_context().add_class("page-title")
+        outer.pack_start(t, False, False, 0)
+    if not title:
+        pass
+    elif subtitle:
         s = Gtk.Label(label=subtitle, xalign=0)
         s.get_style_context().add_class("page-sub")
         s.set_margin_bottom(22)
@@ -1313,6 +1316,46 @@ def window_page(cfg):
     ])
 
 
+# ── Bar preview helpers ───────────────────────────────────────────────────────
+
+def bar_colors():
+    """[color] section of config.ini as {name: (r, g, b, a)} (polybar #AARRGGBB)."""
+    out = {}
+    try:
+        with open(BAR_CFG) as f: raw = f.read()
+        m = re.search(r"^\[color\]\n(.*?)(?=^\[)", raw, re.S | re.M)
+        for k, v in re.findall(r"^([\w-]+)\s*=\s*#([0-9A-Fa-f]{6,8})\s*$",
+                               m.group(1) if m else "", re.M):
+            a = int(v[:2], 16) / 255 if len(v) == 8 else 1.0
+            r, g, b = hex_to_rgb("#" + v[-6:])
+            out[k] = (r, g, b, a)
+    except OSError:
+        pass
+    return out
+
+def bar_px(val, total):
+    """Polybar size/offset ('12%', '200', '50%:-10') to pixels, None if invalid."""
+    val = (val or "").strip()
+    if not val:
+        return None
+    px = 0.0
+    for part in val.split(":"):
+        part = part.strip().replace(" ", "")
+        try:
+            if part.endswith("%"):
+                px += float(part[:-1]) * total / 100
+            elif part:
+                px += float(part.removesuffix("px").removesuffix("pt"))
+        except ValueError:
+            return None
+    return px
+
+def screen_size():
+    d = Gdk.Display.get_default()
+    m = d.get_primary_monitor() or d.get_monitor(0)
+    g = m.get_geometry()
+    return g.width, g.height
+
 def bar_page(cfg):
     h4k    = make_spin(cfg.get("BAR_HEIGHT_4K",    "40"), 10, 100)
     px4k   = make_spin(cfg.get("BAR_PIXELSIZE_4K", "10"),  4,  30)
@@ -1352,6 +1395,223 @@ def bar_page(cfg):
         ], expanded=first)
 
     mod_groups = [module_section(b, first=(i == 0)) for i, b in enumerate(BARS)]
+    group_of = dict(zip(BARS, mod_groups))
+
+    def open_bar_group(bar):
+        """Expand that bar's section (clicked in the preview) and scroll to it."""
+        vb = group_of[bar]
+        header, revealer = vb.get_children()
+        if not revealer.get_reveal_child():
+            header.clicked()
+        def scroll():
+            sc = vb.get_ancestor(Gtk.ScrolledWindow)
+            if sc:
+                ok, _x, y = vb.translate_coordinates(sc.get_child().get_child(), 0, 0)
+                if ok: sc.get_vadjustment().set_value(max(0, y - 20))
+            layout_entries[bar]["width"].grab_focus()
+            return False
+        GLib.timeout_add(220, scroll)                    # after the slide-down
+
+    # ── Preview ───────────────────────────────────────────────────────────────
+    # Drawn to scale from the values typed above (not saved yet), next to a
+    # capture of the real bar on screen to compare with.
+    scr_w, _scr_h = screen_size()
+    colors = bar_colors()
+    pv = {"hl": None, "rects": [], "snap": None}
+
+    def cur_height():
+        if scr_w <= 1920: return int(h1080.get_value())
+        if scr_w <= 2560: return 30                      # fixed in Bar.bash
+        return int(h4k.get_value())
+
+    def bar_geoms():
+        """[(bar, x, y, w, h, issue)] in screen pixels."""
+        h = cur_height()
+        out = []
+        for bar in BARS:
+            le = layout_entries[bar]
+            w  = bar_px(le["width"].get_text(), scr_w)
+            x  = bar_px(le["offset-x"].get_text(), scr_w)
+            y  = bar_px(le["offset-y"].get_text(), scr_w)
+            if w is None or x is None:
+                out.append((bar, 0, 0, 0, h, "invalid width / offset")); continue
+            out.append((bar, x, y or 0, w, h, None))
+        spans = sorted((g for g in out if not g[5]), key=lambda g: g[1])
+        issues = {}
+        for a, b in zip(spans, spans[1:]):
+            if b[1] < a[1] + a[3] - 0.5:
+                issues[a[0]] = f"overlaps {b[0]}"
+                issues.setdefault(b[0], f"overlaps {a[0]}")
+        for g in spans:
+            if g[1] < 0 or g[1] + g[3] > scr_w + 0.5:
+                issues[g[0]] = "goes off screen"
+        return [(b, x, y, w, h, i or issues.get(b)) for b, x, y, w, h, i in out]
+
+    def rgba(name, fallback):
+        return colors.get(name, fallback)
+
+    def rounded(cr, x, y, w, h, r):
+        r = max(0, min(r, w / 2, h / 2))
+        cr.new_sub_path()
+        cr.arc(x + w - r, y + r, r, -math.pi / 2, 0)
+        cr.arc(x + w - r, y + h - r, r, 0, math.pi / 2)
+        cr.arc(x + r, y + h - r, r, math.pi / 2, math.pi)
+        cr.arc(x + r, y + r, r, math.pi, 1.5 * math.pi)
+        cr.close_path()
+
+    def draw_preview(area, cr):
+        aw = area.get_allocated_width()
+        k = aw / scr_w
+        kv = vscale()
+        geoms = bar_geoms()
+        ah = area.get_allocated_height()
+        cr.set_source_rgb(0.07, 0.08, 0.10); cr.rectangle(0, 0, aw, ah); cr.fill()
+        # 10 % guides
+        cr.set_line_width(1)
+        for i in range(1, 10):
+            x = int(aw * i / 10) + 0.5
+            cr.set_source_rgba(1, 1, 1, 0.06); cr.move_to(x, 0); cr.line_to(x, ah); cr.stroke()
+        pv["rects"] = []
+        bg  = rgba("bg-alt", (0.11, 0.12, 0.16, 0.75))
+        brd = rgba("bg",     (0.2, 0.3, 0.68, 0.2))
+        fg  = rgba("fg",     (1, 1, 1, 1))
+        acc = rgba("blue",   (0.53, 0.59, 0.96, 1))
+        red = rgba("red",    (0.95, 0.5, 0.6, 1))
+        for bar, x, y, w, h, issue in geoms:
+            if w <= 0: continue
+            rx, ry, rw, rh = x * k, 6 + y * kv, w * k, h * kv
+            pv["rects"].append((bar, rx, ry, rw, rh))
+            rounded(cr, rx, ry, rw, rh, 6 * kv)
+            cr.set_source_rgba(*bg); cr.fill_preserve()
+            if issue:              cr.set_source_rgba(*red[:3], 1);  cr.set_line_width(2)
+            elif pv["hl"] == bar:  cr.set_source_rgba(*acc[:3], 1);  cr.set_line_width(2)
+            else:                  cr.set_source_rgba(*brd[:3], 0.9); cr.set_line_width(1)
+            cr.stroke()
+            # module names, clipped to the bar
+            cr.save(); cr.rectangle(rx + 2, ry, max(rw - 4, 0), rh); cr.clip()
+            cr.select_font_face("monospace"); cr.set_font_size(max(7, min(11, rh * 0.45)))
+            mid = ry + rh / 2
+            texts = {sd: " ".join(module_entries[bar][sd].get_text().split())
+                     for sd in ("left", "center", "right")}
+            used = [sd for sd in texts if texts[sd]]
+            slot = (rw - 10) / max(len(used), 1)       # each side gets its share
+            for side, align in (("left", 0), ("center", 0.5), ("right", 1)):
+                txt = texts[side]
+                if not txt: continue
+                while len(txt) > 1 and cr.text_extents(txt).x_advance > slot - 4:
+                    txt = txt[:-2] + "…"
+                ext = cr.text_extents(txt)
+                tx = rx + 5 + (rw - 10 - ext.x_advance) * align
+                cr.set_source_rgba(*(acc if side == "center" else fg)[:3], 0.9)
+                cr.move_to(max(tx, rx + 5), mid + 4)
+                cr.show_text(txt)
+            cr.restore()
+            # bar name under it
+            cr.set_font_size(9)
+            cr.set_source_rgba(*(red if issue else (1, 1, 1, 0.45))[:3], 0.9 if issue else 0.45)
+            cr.move_to(rx + 2, ry + rh + 11); cr.show_text(bar)
+        msgs = [f"{b}: {i}" for b, *_r, i in geoms if i]
+        warn.set_text("  ·  ".join(msgs))
+        warn.set_visible(bool(msgs))
+        return False
+
+    def vscale():
+        """Vertical scale: true proportions, but bars at least 22 px tall to stay readable."""
+        k = (area.get_allocated_width() or 800) / scr_w
+        return max(k, 22 / max(cur_height(), 1))
+
+    def preview_height(*_):
+        h = cur_height()
+        oy = max([bar_px(layout_entries[b]["offset-y"].get_text(), scr_w) or 0 for b in BARS])
+        return int(6 + (oy + h) * vscale() + 18)
+
+    area = Gtk.DrawingArea()
+    area.set_hexpand(True)
+    area.set_size_request(-1, 60)
+    area.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.POINTER_MOTION_MASK)
+    area.connect("draw", draw_preview)
+    def on_size(a, alloc):
+        want = preview_height()
+        if abs(a.get_size_request()[1] - want) > 1:
+            GLib.idle_add(lambda: a.set_size_request(-1, want) or False)
+    area.connect("size-allocate", on_size)
+
+    def bar_at(x, y):
+        for bar, rx, ry, rw, rh in pv["rects"]:
+            if rx <= x <= rx + rw and ry <= y <= ry + rh + 12:
+                return bar
+        return None
+    def on_motion(a, ev):
+        b = bar_at(ev.x, ev.y)
+        a.set_tooltip_text(f"{b} — {BAR_LABELS.get(b, '')}\nClick to edit" if b else None)
+    def on_click(a, ev):
+        b = bar_at(ev.x, ev.y)
+        if b:
+            pv["hl"] = b
+            open_bar_group(b)
+            a.queue_draw()
+    area.connect("motion-notify-event", on_motion)
+    area.connect("button-press-event", on_click)
+
+    warn = Gtk.Label(xalign=0)
+    warn.get_style_context().add_class("row-sub")
+    warn.set_line_wrap(True)
+    warn.set_no_show_all(True)
+
+    # capture of the real bar (what is applied right now)
+    snap = Gtk.Image(halign=Gtk.Align.START)
+    snap_info = Gtk.Label(xalign=0)
+    snap_info.get_style_context().add_class("row-sub")
+    def take_snapshot(*_):
+        try:
+            root = Gdk.get_default_root_window()
+            oy = max([bar_px(bar_get_prop(b, "offset-y", "8"), scr_w) or 0 for b in BARS])
+            strip_h = int(min(oy + cur_height() + 8, 200))
+            pb = Gdk.pixbuf_get_from_window(root, 0, 0, scr_w, strip_h)
+            w = max(area.get_allocated_width(), 400)
+            pb = pb.scale_simple(w, max(1, int(strip_h * w / scr_w)), GdkPixbuf.InterpType.BILINEAR)
+            snap.set_from_pixbuf(pb)
+            import time
+            snap_info.set_text(f"Real bar on screen, captured {time.strftime('%H:%M:%S')}")
+        except Exception as e:
+            snap_info.set_text(f"Capture failed: {e}")
+        return False
+    snap_btn = browse_btn("Refresh capture")
+    snap_btn.connect("clicked", take_snapshot)
+    GLib.timeout_add(400, take_snapshot)
+
+    for bar in BARS:
+        for e in list(layout_entries[bar].values()) + list(module_entries[bar].values()):
+            e.connect("changed", lambda *_: area.queue_draw())
+            e.connect("focus-in-event", lambda _w, _e, b=bar: (pv.__setitem__("hl", b), area.queue_draw(), False)[-1])
+    for sp in (h1080, h4k):
+        sp.connect("value-changed", lambda *_: (area.queue_resize(), area.queue_draw()))
+
+    pv_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    for side in ("top", "bottom", "start", "end"):
+        getattr(pv_box, f"set_margin_{side}")(12)
+    pv_head = Gtk.Box(spacing=10)
+    pv_lbl = Gtk.Label(label=f"From the fields below, not applied yet  ·  {scr_w} px screen"
+                             "  ·  height enlarged  ·  click a bar to edit it", xalign=0)
+    pv_lbl.get_style_context().add_class("row-sub")
+    pv_head.pack_start(pv_lbl, True, True, 0)
+    pv_box.pack_start(pv_head, False, False, 0)
+    pv_box.pack_start(area, False, False, 0)
+    pv_box.pack_start(warn, False, False, 0)
+    snap_head = Gtk.Box(spacing=10)
+    snap_head.pack_start(snap_info, True, True, 0)
+    snap_head.pack_end(snap_btn, False, False, 0)
+    pv_box.pack_start(snap_head, False, False, 0)
+    pv_box.pack_start(snap, False, False, 0)
+    pv_frame = Gtk.Frame()
+    pv_frame.get_style_context().add_class("card")
+    pv_frame.set_shadow_type(Gtk.ShadowType.NONE)
+    pv_frame.add(pv_box)
+    pv_group = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+    pv_title = Gtk.Label(label="PREVIEW", xalign=0)
+    pv_title.get_style_context().add_class("group-lbl")
+    pv_group.pack_start(pv_title, False, False, 0)
+    pv_group.pack_start(pv_frame, False, False, 0)
 
     btn = apply_btn()
     def apply(btn):
@@ -1381,9 +1641,24 @@ def bar_page(cfg):
             env=env)
         flash_btn(btn, "✓ Applied!")
         notify("Bar applied.")
+        GLib.timeout_add(2500, take_snapshot)   # polybar takes ~2 s to come back
     btn.connect("clicked", safe_apply(apply))
 
-    return page_wrap("Bar", "Polybar sizing, position and module layout.", [
+    # Preview pinned above the scrolled settings so it stays in view while editing
+    page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+    page.get_style_context().add_class("content-bg")
+    head = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+    head.set_margin_top(30); head.set_margin_start(30); head.set_margin_end(30)
+    t = Gtk.Label(label="Bar", xalign=0)
+    t.get_style_context().add_class("page-title")
+    st = Gtk.Label(label="Polybar sizing, position and module layout.", xalign=0)
+    st.get_style_context().add_class("page-sub")
+    st.set_margin_bottom(16)
+    head.pack_start(t, False, False, 0)
+    head.pack_start(st, False, False, 0)
+    head.pack_start(pv_group, False, False, 0)
+    page.pack_start(head, False, False, 0)
+    body = page_wrap(None, None, [
         make_group("4K  ( > 2560 px wide )", [
             make_row("Bar Height", h4k,  "pixels"),
             make_row("Font Size",  px4k, "pixelsize"),
@@ -1395,6 +1670,8 @@ def bar_page(cfg):
         *mod_groups,
         make_group("", [make_row("Save sizing + layout + modules, restart polybar", btn)]),
     ])
+    page.pack_start(body, True, True, 0)
+    return page
 
 
 def dunst_page(cfg):
