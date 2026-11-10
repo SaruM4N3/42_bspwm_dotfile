@@ -122,11 +122,58 @@ INNER_SCRIPT="$STEAM_ROOT/run-steam.sh"
 cat > "$INNER_SCRIPT" << INNEREOF
 #!/bin/bash
 set -e
+STEAM_ROOT="$STEAM_ROOT"
+STEAM_HOME="$STEAM_HOME"
+$GPU_ENV
+INNEREOF
+# Rest runs as is inside junest (quoted heredoc: nothing expanded here)
+cat >> "$INNER_SCRIPT" << 'INNEREOF'
 if ! pacman -Qi steam &>/dev/null; then
     echo "==> Installing Steam via pacman..."
-    sudo pacman -Sy --noconfirm steam
+    sudo pacman -S --needed --noconfirm steam || sudo pacman -Sy --noconfirm steam
 else
     echo "==> Steam already installed, skipping."
+fi
+
+# --- 32-bit Mesa (Mac / Dell): the Steam client is 32-bit and uses junest's
+# lib32-mesa. mesa is pinned (IgnorePkg, kernel 5.15) but installing steam can
+# pull a newer lib32-mesa: put it back on mesa's version from the Arch archive.
+ARCHIVE="https://archive.archlinux.org/packages"
+MESA_VER=$(pacman -Q mesa 2>/dev/null | awk '{print $2}')
+if [ -n "$MESA_VER" ]; then
+    for p in lib32-mesa lib32-vulkan-radeon; do
+        v=$(pacman -Q "$p" 2>/dev/null | awk '{print $2}')
+        if [ -n "$v" ] && [ "$v" != "$MESA_VER" ]; then
+            echo "==> $p $v -> $MESA_VER (same as mesa)"
+            sudo pacman -U --noconfirm "$ARCHIVE/l/$p/$p-$MESA_VER-x86_64.pkg.tar.zst" ||
+                echo "==> WARNING: could not install $p $MESA_VER" >&2
+        fi
+    done
+fi
+
+# The pinned lib32-mesa links an older libLLVM (24.3.4 -> libLLVM.so.19.1)
+# than lib32-llvm-libs ships -> libGLX_mesa fails to load and Steam dies on
+# "glXChooseVisual failed". Fetch that libLLVM from the Arch archive into
+# $STEAM_ROOT, only Steam sees it (system packages untouched).
+GALLIUM32=$(ls /usr/lib32/libgallium-*.so 2>/dev/null | head -1)
+LLVM_SO=""
+[ -n "$GALLIUM32" ] && LLVM_SO=$(grep -aoE 'libLLVM\.so\.[0-9]+\.[0-9]+' "$GALLIUM32" | head -1)
+if [ -n "$LLVM_SO" ] && [ ! -e "/usr/lib32/$LLVM_SO" ]; then
+    LLVM32_DIR="$STEAM_ROOT/lib32-llvm"
+    if [ ! -e "$LLVM32_DIR/$LLVM_SO" ]; then
+        LLVM_VER=${LLVM_SO#libLLVM.so.}            # 19.1
+        PKG=$(curl -fsSL "$ARCHIVE/l/lib32-llvm-libs/" |
+              grep -oE "lib32-llvm-libs-$LLVM_VER\.[0-9]+-[0-9]+-x86_64\.pkg\.tar\.zst" | sort -uV | tail -1)
+        if [ -n "$PKG" ]; then
+            echo "==> lib32-mesa needs $LLVM_SO, fetching $PKG..."
+            mkdir -p "$LLVM32_DIR"
+            curl -fSL "$ARCHIVE/l/lib32-llvm-libs/$PKG" |
+                tar --zstd -xf - -C "$LLVM32_DIR" --strip-components=2 "usr/lib32/$LLVM_SO"
+        else
+            echo "==> WARNING: no lib32-llvm-libs $LLVM_VER in the Arch archive, Steam may not start" >&2
+        fi
+    fi
+    export LD_LIBRARY_PATH="$LLVM32_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 fi
 
 export HOME="$STEAM_HOME"
@@ -135,13 +182,35 @@ export STEAMCONFIG="$STEAM_HOME/.steam"
 export XDG_DATA_HOME="$STEAM_HOME/.local/share"
 export XDG_CONFIG_HOME="$STEAM_HOME/.config"
 export XDG_CACHE_HOME="$STEAM_HOME/.cache"
-$GPU_ENV
 
-mkdir -p "\$STEAM_DIR" "\$STEAMCONFIG"
+mkdir -p "$STEAM_DIR" "$STEAMCONFIG"
 
+# GL stack. bspwmrc forces the host Ubuntu libGL (GL_SHIM, mesa 23.2) for 64-bit
+# apps, but pressure-vessel (Proton games) can't rebuild that mixed Ubuntu/Arch
+# stack in its container: the 64-bit dri dir comes out empty ("failed to open
+# iris ... wrong ELF class"). When junest's own 64-bit mesa loads (its libLLVM is
+# installed, e.g. llvm19-libs), Steam uses the pure Arch stack for 32 and 64 bit.
+GALLIUM64=$(ls /usr/lib/libgallium-*.so 2>/dev/null | head -1)
+if [ -z "${__GLX_VENDOR_LIBRARY_NAME:-}" ] && [ -n "$GALLIUM64" ] &&
+   ! ldd "$GALLIUM64" 2>/dev/null | grep -q "not found"; then
+    clean=""
+    IFS=: read -ra parts <<< "${LD_LIBRARY_PATH:-}"
+    for d in "${parts[@]}"; do
+        case "$d" in ""|*/gl-host|/usr/lib/x86_64-linux-gnu) continue ;; esac
+        clean="${clean:+$clean:}$d"
+    done
+    export LD_LIBRARY_PATH="$clean"
+    unset GL_SHIM
+    export LIBGL_DRIVERS_PATH=/usr/lib/dri:/usr/lib32/dri
+    echo "==> GL: junest mesa ($(basename "$GALLIUM64")) for 32 and 64 bit"
+else
+    # 64-bit apps use the host Ubuntu drivers, the 32-bit client junest's lib32-mesa
+    export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri:/usr/lib32/dri
+    [ -z "${__GLX_VENDOR_LIBRARY_NAME:-}" ] &&
+        echo "==> WARNING: junest 64-bit mesa can't load (libLLVM missing?), using host GL; Proton games may fail" >&2
+fi
 # /usr/bin/steam, not "steam": that name is this installer (~/.local/bin/steam)
-export LIBGL_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
-exec /usr/bin/steam "\$@"
+exec /usr/bin/steam "$@"
 INNEREOF
 chmod +x "$INNER_SCRIPT"
 
