@@ -52,17 +52,17 @@ rm -rf "$HOME/.junest"
 info "Removing junest binary (~/.local/share/junest)..."
 rm -rf "$HOME/.local/share/junest"
 
-# Remove junest wrapper bin if present
-[ -d "$HOME/.junest/usr/bin_wrappers" ] && rm -rf "$HOME/.junest/usr/bin_wrappers"
-
 # ── Step 4: Remove GNOME keyboard shortcut ───────────────────────────────────
 if command -v dconf >/dev/null 2>&1; then
     info "Removing GNOME bspwm keyboard shortcut..."
     BASE="/org/gnome/settings-daemon/plugins/media-keys"
-    NEW_KEY="custom5"
-    NEW_DIR="$BASE/custom-keybindings/$NEW_KEY/"
+    # add-gnome-shortcut.sh takes the first free customN: find ours by its command
     current=$(dconf read "$BASE/custom-keybindings" 2>/dev/null)
-    if echo "$current" | grep -q "$NEW_KEY"; then
+    NEW_DIR=""
+    for dir in $(echo "$current" | grep -oE "$BASE/custom-keybindings/[^']+/"); do
+        [ "$(dconf read "${dir}command")" = "'$HOME/.bspwminstaller/bspwm.sh'" ] && { NEW_DIR="$dir"; break; }
+    done
+    if [ -n "$NEW_DIR" ]; then
         new_list=$(echo "$current" | sed "s|, '$NEW_DIR'||;s|'$NEW_DIR', ||;s|'$NEW_DIR'||")
         [ "$new_list" = "[]" ] || [ -z "$new_list" ] && new_list="@as []"
         dconf write "$BASE/custom-keybindings" "$new_list"

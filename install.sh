@@ -27,6 +27,12 @@ STAMP=$(date +"%Y%m%d-%H%M%S")
 [ -n "$JUNEST_ENV" ] && error "Run this from a GNOME terminal, not from inside bspwm/junest."
 # While bspwm runs, ~/.zshrc and ~/.zshrc.bak are swapped and ~/.config/bspwm is in use
 pgrep -x bspwm >/dev/null && error "bspwm is running: quit it first (back to GNOME), then run this again."
+# bspwm killed before bspwm.sh swapped back (Xorg crash, logout): ~/.zshrc is still the
+# bspwm one and ~/.zshrc.bak the user's. Swap back, or the deploy below overwrites theirs.
+if [ -f "$HOME/.zshrc.bak" ] && grep -q '^# Self-check: if loaded outside junest' "$HOME/.zshrc" 2>/dev/null; then
+    mv "$HOME/.zshrc" "$HOME/.zshrc.tmp" && mv "$HOME/.zshrc.bak" "$HOME/.zshrc" && mv "$HOME/.zshrc.tmp" "$HOME/.zshrc.bak"
+    warn "~/.zshrc and ~/.zshrc.bak were left swapped by an unclean bspwm exit: swapped back."
+fi
 
 # ── Args ──────────────────────────────────────────────────────
 FRESH=0
@@ -58,6 +64,9 @@ JUNEST_BIN="$HOME/.local/share/junest/bin/junest"
 INSTALLED=0
 [ -d "$HOME/.config/bspwm" ] && [ -f "$HOME/.junest/usr/bin/pacman" ] && [ -x "$JUNEST_BIN" ] && INSTALLED=1
 [ "$UPDATE" -eq 1 ] && [ "$INSTALLED" -eq 0 ] && error "No existing install found (junest + ~/.config/bspwm): run $0 without --update."
+
+# ~/.config dirs the installer backs up and deploys from the repo
+CONFIG_DIRS="bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch Thunar"
 
 # Choices of the last full install (terminal, rice, browser, editor), reused by updates
 SAVED_CHOICES="$HOME/.local/state/bspwm/install-choices"
@@ -222,6 +231,12 @@ if [ "$UPDATE" -eq 1 ]; then
             }
             if (!cont) grab = 0
         }' "$REPO/.bspwminstaller/install_prerequisites_pacman.sh" | sort -u)
+    # Mesa pin + pacman hooks: installs older than them have neither, and a later
+    # -Syu without the pin pulls mesa 25+ (needs kernel 6.6+, 42 PCs run 5.15).
+    # junest only sees $HOME: bind the repo in when it lives elsewhere (/goinfre).
+    case "$REPO/" in "$HOME"/*) JUNEST_ARGS=() ;; *) JUNEST_ARGS=(-b "--bind $REPO $REPO") ;; esac
+    "$JUNEST_BIN" "${JUNEST_ARGS[@]}" -- bash "$REPO/.bspwminstaller/install_prerequisites_pacman.sh" --system-only ||
+        warn "Could not refresh the mesa pin / pacman hooks in junest."
     # pacman -T prints the ones that are not installed
     # shellcheck disable=SC2086
     # (only names from the list: junest may print its own messages)
@@ -248,7 +263,7 @@ info "Step 2/7 — Backing up existing configs..."
 BACKUP="$HOME/.config-backup-$STAMP"
 mkdir -p "$BACKUP"
 backed=0
-for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch Thunar; do
+for cfg in $CONFIG_DIRS; do
     [ -d "$HOME/.config/$cfg" ] && mv "$HOME/.config/$cfg" "$BACKUP/" && backed=1
 done
 [ -f "$HOME/.gtkrc-2.0" ] && mv "$HOME/.gtkrc-2.0" "$BACKUP/" && backed=1
@@ -285,10 +300,23 @@ chmod +x "$HOME/.bspwminstaller/"*.sh
 info "Deployed: ~/.bspwminstaller"
 
 # Config directories
-for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi btop fastfetch Thunar; do
+for cfg in $CONFIG_DIRS; do
     [ -d "$REPO/.config/$cfg" ] || { warn "$cfg not in repo — skipping"; continue; }
     cp -r "$REPO/.config/$cfg" "$HOME/.config/$cfg"
     info "Deployed: ~/.config/$cfg"
+done
+
+# Files the apps wrote themselves, not in the repo: GTK bookmarks (shared with
+# GNOME Files), mpd database/playlists/state, btop themes, micro history...
+# Brought back from the backup in any case; a repo file is never overwritten.
+# (bspwm is left out: its state files follow the keep-settings answer below.)
+for cfg in $CONFIG_DIRS; do
+    [ "$cfg" != bspwm ] && [ -d "$BACKUP/$cfg" ] && [ -d "$HOME/.config/$cfg" ] || continue
+    (cd "$BACKUP/$cfg" && find . -type f) | while IFS= read -r f; do
+        [ -e "$HOME/.config/$cfg/$f" ] && continue
+        mkdir -p "$(dirname "$HOME/.config/$cfg/$f")"
+        cp -p "$BACKUP/$cfg/$f" "$HOME/.config/$cfg/$f"
+    done
 done
 
 # Per-user state kept in ~/.config/bspwm (moved to the backup above): the lock
@@ -324,8 +352,10 @@ if [ "$KEEP_SETTINGS" -eq 1 ] && [ -d "$BACKUP/bspwm" ]; then
              { if (match($0, /^[A-Za-z_][A-Za-z0-9_]*=/) && (substr($0, 1, RLENGTH) in old)) { print old[substr($0, 1, RLENGTH)]; next } }
              { print }' "$old_cfg" "$new_cfg" > "$new_cfg.tmp" && mv "$new_cfg.tmp" "$new_cfg"
     done
-    # Terminal configs (Rice Settings edits font/opacity there)
-    for f in alacritty/alacritty.toml kitty/kitty.conf; do
+    # App configs: terminals (Rice Settings edits font/opacity there), and the
+    # ones the apps rewrite from their own settings menus
+    for f in alacritty/alacritty.toml kitty/kitty.conf btop/btop.conf \
+             micro/settings.json micro/bindings.json Thunar/accels.scm Thunar/uca.xml; do
         [ -f "$BACKUP/$f" ] && [ -f "$HOME/.config/$f" ] && cp -p "$BACKUP/$f" "$HOME/.config/$f"
     done
     info "Your bspwm settings were kept."
@@ -381,7 +411,7 @@ if [ -f "$CHOICES" ]; then
         [ -n "$ACTIVE_RICE" ] && echo "$ACTIVE_RICE" > "$BSPWM_CFG/.rice"
     fi
     OPENAPPS="$BSPWM_CFG/bin/OpenApps"
-    for sxhkd in "$BSPWM_CFG/config/sxhkdrc" "$BSPWM_CFG/config/.session/sxhkdrc"; do
+    for sxhkd in "$BSPWM_CFG/config/sxhkdrc" "$BSPWM_CFG/config/sxhkdrc.new" "$BSPWM_CFG/config/.session/sxhkdrc"; do
         [ -f "$sxhkd" ] || continue
         # super+w is "brave --password-store=basic": replace the whole line (flag is brave-only)
         [ -n "$BROWSER_BIN" ] && [ "$BROWSER_BIN" != brave ] && sed -i "s|^\tbrave\( .*\)\?$|\t$BROWSER_BIN|" "$sxhkd"

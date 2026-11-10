@@ -185,7 +185,7 @@ add_gh0stzk_repo() {
         return
     fi
     info "Adding gh0stzk-dotfiles repository..."
-    printf '\n[gh0stzk-dotfiles]\nSigLevel = Optional TrustAll\nServer = http://gh0stzk.github.io/pkgs/x86_64\n' \
+    printf '\n[gh0stzk-dotfiles]\nSigLevel = Optional TrustAll\nServer = https://gh0stzk.github.io/pkgs/x86_64\n' \
         | sudo tee -a /etc/pacman.conf
     sudo pacman -Sy --noconfirm
     info "gh0stzk-dotfiles repo added."
@@ -272,6 +272,16 @@ install_pacman_hooks() {
     sudo rm -f /etc/pacman.d/hooks/clean_package_cache.hook
     info "pacman hooks installed (cache cleaner, mesa check)."
 }
+
+# install.sh --update: only refresh the mesa pin and the pacman hooks
+if [ "$1" = "--system-only" ]; then
+    # Older installs added the gh0stzk repo over plain http (unsigned packages)
+    grep -q '^Server = http://gh0stzk.github.io' /etc/pacman.conf &&
+        sudo sed -i 's|^Server = http://gh0stzk.github.io|Server = https://gh0stzk.github.io|' /etc/pacman.conf
+    set_mesa_ignorepkg
+    install_pacman_hooks
+    exit 0
+fi
 
 # ── Interactive setup (ask before any installs) ───────────────────────────────
 ask_editor
