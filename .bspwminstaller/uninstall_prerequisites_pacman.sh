@@ -235,6 +235,11 @@ info "Removing deployed home dotfiles..."
 for f in .zshrc.bak .gtkrc-2.0 .Xresources; do
     [ -f "$HOME/$f" ] && rm -f "$HOME/$f" && info "  removed: ~/$f"
 done
+# The block install.sh step 7 put in ~/.zshrc
+if [ -f "$HOME/.zshrc" ] && grep -q '^# >>> bspwm-dotfiles >>>$' "$HOME/.zshrc"; then
+    sed -i '/^# >>> bspwm-dotfiles >>>$/,/^# <<< bspwm-dotfiles <<<$/d' "$HOME/.zshrc"
+    info "  removed the bspwm-dotfiles block from ~/.zshrc"
+fi
 
 # ── oh-my-zsh ─────────────────────────────────────────────────────────────────
 info "Removing ~/.oh-my-zsh/..."

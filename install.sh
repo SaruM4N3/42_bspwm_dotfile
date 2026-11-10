@@ -81,6 +81,29 @@ if [ "$FRESH" -eq 1 ]; then
     case "$wj" in [Yy]) WIPE_JUNEST=1 ;; *) WIPE_JUNEST=0 ;; esac
 fi
 
+# ── zsh config ────────────────────────────────────────────────
+# mine: inside bspwm the shell uses this repo's zshrc (swapped in by bspwm.sh),
+#       GNOME keeps the user's ~/.zshrc. keep: the user's ~/.zshrc everywhere.
+echo ""
+echo -e "${BLD}${BLU}[?]${NC} zsh config inside bspwm:"
+echo -e "    ${GRN}1)${NC} Use mine in bspwm (prompt, fzf-tab, aliases), yours stays in GNOME ${BLD}[default]${NC}"
+echo -e "    ${GRN}2)${NC} Keep your own ~/.zshrc everywhere"
+printf "%b" "    Choice [1]: "
+read -r zc
+case "$zc" in 2) ZSHRC_MODE=keep ;; *) ZSHRC_MODE=mine ;; esac
+
+# ── Reinstall: keep the user's settings? ──────────────────────
+KEEP_SETTINGS=0
+if [ -d "$HOME/.config/bspwm" ]; then
+    echo ""
+    echo -e "${BLD}${BLU}[?]${NC} An existing bspwm config was found."
+    echo -e "    Keep your settings (Rice Settings, keybinds, picom, wallpaper, mouse...)?"
+    echo -e "    ${YEL}No${NC} = back to the repo defaults (your old config stays in the backup)."
+    printf "%b" "    Keep them? [Y/n]: "
+    read -r ks
+    case "$ks" in [Nn]) KEEP_SETTINGS=0 ;; *) KEEP_SETTINGS=1 ;; esac
+fi
+
 echo ""
 printf "%b" "${BLD}${BLU}[?]${NC} Continue? [y/N]: "
 read -r yn
@@ -129,7 +152,22 @@ for cfg in bspwm micro alacritty kitty clipcat gtk-3.0 mpd ncmpcpp paru yazi bto
 done
 [ -f "$HOME/.gtkrc-2.0" ] && mv "$HOME/.gtkrc-2.0" "$BACKUP/" && backed=1
 [ -f "$HOME/.Xresources" ] && mv "$HOME/.Xresources" "$BACKUP/" && backed=1
-[ "$backed" -eq 1 ] && info "Backups saved to: $BACKUP" || info "Nothing to back up."
+# zshrc: copies only, step 7 edits ~/.zshrc in place
+for f in .zshrc .zshrc.bak; do
+    [ -f "$HOME/$f" ] && cp -p "$HOME/$f" "$BACKUP/" && backed=1
+done
+if [ "$backed" -eq 1 ]; then
+    info "Backups saved to: $BACKUP"
+else
+    rmdir "$BACKUP" 2>/dev/null
+    info "Nothing to back up."
+fi
+
+# Keep only the 3 most recent backups (~25 MB each, the home quota is small)
+ls -1d "$HOME"/.config-backup-* 2>/dev/null | sort -r | tail -n +4 | while read -r old; do
+    rm -rf "$old"
+    info "Removed old backup: $old"
+done
 
 # ── Step 3: Deploy dotfiles ───────────────────────────────────
 clear
@@ -159,10 +197,50 @@ for f in lock-wallpaper.jpg lock-wallpaper.src .hidden-apps-applied; do
     [ -e "$BACKUP/bspwm/$f" ] && cp -p "$BACKUP/bspwm/$f" "$HOME/.config/bspwm/$f" && info "Kept: ~/.config/bspwm/$f"
 done
 
+# Settings written by Rice Settings / the bspwm scripts, restored when asked:
+# whole files for configs and state, key by key for theme-config.bash so the
+# keys added by a newer repo version are kept with their default value.
+if [ "$KEEP_SETTINGS" -eq 1 ] && [ -d "$BACKUP/bspwm" ]; then
+    OLD="$BACKUP/bspwm"; NEW="$HOME/.config/bspwm"
+    for f in .rice \
+             config/picom.conf config/picom-animations.conf config/xsettingsd config/jgmenurc \
+             config/dunstrc config/sxhkdrc config/system.ini config/NetManagerDM.ini \
+             config/hidden-apps config/.term config/.launcher config/.sys config/.first_run_done \
+             config/.animwall_last config/.animwall_index config/.brightness_xrandr config/.bt_favorites; do
+        [ -e "$OLD/$f" ] || continue
+        # New keybinds from the repo would be lost: leave its version next to it
+        if [ "$f" = config/sxhkdrc ] && ! cmp -s "$OLD/$f" "$NEW/$f"; then
+            cp "$NEW/$f" "$NEW/$f.new"
+            warn "Kept your sxhkdrc — the repo version is in ~/.config/bspwm/config/sxhkdrc.new"
+        fi
+        cp -p "$OLD/$f" "$NEW/$f"
+    done
+    [ -d "$OLD/config/.session" ] && rm -rf "$NEW/config/.session" && cp -rp "$OLD/config/.session" "$NEW/config/.session"
+    for old_cfg in "$OLD"/rices/*/theme-config.bash; do
+        new_cfg="$NEW/rices/$(basename "$(dirname "$old_cfg")")/theme-config.bash"
+        [ -f "$new_cfg" ] || continue
+        awk 'NR==FNR { if (match($0, /^[A-Za-z_][A-Za-z0-9_]*=/)) old[substr($0, 1, RLENGTH)] = $0; next }
+             { if (match($0, /^[A-Za-z_][A-Za-z0-9_]*=/) && (substr($0, 1, RLENGTH) in old)) { print old[substr($0, 1, RLENGTH)]; next } }
+             { print }' "$old_cfg" "$new_cfg" > "$new_cfg.tmp" && mv "$new_cfg.tmp" "$new_cfg"
+    done
+    # Terminal configs (Rice Settings edits font/opacity there)
+    for f in alacritty/alacritty.toml kitty/kitty.conf; do
+        [ -f "$BACKUP/$f" ] && [ -f "$HOME/.config/$f" ] && cp -p "$BACKUP/$f" "$HOME/.config/$f"
+    done
+    info "Your bspwm settings were kept."
+fi
+
 # Home dotfiles (.zshrc.bak is the bspwm zshrc — swapped in at login, user's .zshrc untouched)
-for f in .zshrc.bak .gtkrc-2.0 .Xresources; do
+for f in .gtkrc-2.0 .Xresources; do
     [ -f "$REPO/$f" ] && cp "$REPO/$f" "$HOME/$f" && info "Deployed: ~/$f"
 done
+if [ "$ZSHRC_MODE" = mine ]; then
+    cp "$REPO/.zshrc.bak" "$HOME/.zshrc.bak" && info "Deployed: ~/.zshrc.bak (bspwm zshrc)"
+else
+    # No ~/.zshrc.bak = bspwm.sh has nothing to swap in (a copy is in the backup)
+    rm -f "$HOME/.zshrc.bak"
+    info "Keeping your own ~/.zshrc in bspwm too."
+fi
 [ -f "$REPO/.config/brave-flags.conf" ] && cp "$REPO/.config/brave-flags.conf" "$HOME/.config/" && info "Deployed: ~/.config/brave-flags.conf"
 
 # Rewrite any hardcoded paths to match the installing user
@@ -305,33 +383,50 @@ fi
 clear
 info "Step 7/7 — Patching ~/.zshrc with junest/bspwm swap..."
 
-if [ -f "$HOME/.zshrc" ] && ! grep -q 'JUNEST_ENV' "$HOME/.zshrc"; then
-    cat >> "$HOME/.zshrc" << 'EOF'
+ZSHRC="$HOME/.zshrc"
+[ -f "$ZSHRC" ] || { echo "# ~/.zshrc" > "$ZSHRC"; info "No ~/.zshrc — created an empty one."; }
 
-# Swap to bspwm zshrc when running inside junest, then reload.
-_swap_zshrc() {
-    [ -f "$HOME/.zshrc" ] && [ -f "$HOME/.zshrc.bak" ] || return 1
+# Drop the previous block: the marked one, or the unmarked one older installers
+# appended (only when both its first and last lines are there).
+sed -i '/^# >>> bspwm-dotfiles >>>$/,/^# <<< bspwm-dotfiles <<<$/d' "$ZSHRC"
+if grep -q '^# Swap to bspwm zshrc when running inside junest' "$ZSHRC" &&
+   grep -q '^alias unityhub-tmp-install=' "$ZSHRC"; then
+    sed -i '/^# Swap to bspwm zshrc when running inside junest/,/^alias unityhub-tmp-install=/d' "$ZSHRC"
+fi
+
+# The block goes first: in "mine" mode the swap happens before the rest of
+# the GNOME config (oh-my-zsh...) gets loaded inside junest.
+{
+    echo '# >>> bspwm-dotfiles >>>'
+    echo '# Written by bspwm-dotfiles install.sh, rewritten on every install.'
+    if [ "$ZSHRC_MODE" = mine ]; then
+        cat << 'EOF'
+# Inside junest (bspwm) use the bspwm zshrc: swap ~/.zshrc <-> ~/.zshrc.bak, reload.
+if [[ -n "$JUNEST_ENV" && -f "$HOME/.zshrc.bak" ]]; then
     mv "$HOME/.zshrc" "$HOME/.zshrc.tmp"
     mv "$HOME/.zshrc.bak" "$HOME/.zshrc"
     mv "$HOME/.zshrc.tmp" "$HOME/.zshrc.bak"
-}
-if [[ -n "$JUNEST_ENV" ]]; then
-    _swap_zshrc && exec zsh
+    exec zsh
 fi
-unset -f _swap_zshrc
-
-# Junest bin — only reached in GNOME (not inside bspwm)
-export PATH="$HOME/.local/share/junest/bin:$PATH"
-export PATH="$PATH:$HOME/.junest/usr/bin_wrappers"
-
+EOF
+    fi
+    cat << 'EOF'
+# ~/.local/bin: steam, the installers, claude, uv... (nothing else adds it here)
+export PATH="$HOME/.local/bin:$PATH"
+# junest launcher + wrappers, GNOME only (inside bspwm they would shadow sudo/pacman)
+if [[ -z "$JUNEST_ENV" ]]; then
+    export PATH="$HOME/.local/share/junest/bin:$PATH"
+    export PATH="$PATH:$HOME/.junest/usr/bin_wrappers"
+fi
 # /tmp installers (Steam, Unity Hub)
 alias steam-tmp-install="$HOME/.local/bin/steam-installer.sh"
 alias unityhub-tmp-install="$HOME/.local/bin/install_unityhub.sh"
+# <<< bspwm-dotfiles <<<
+
 EOF
-    info "Junest swap added to ~/.zshrc"
-else
-    info "~/.zshrc already patched or not found — skipping."
-fi
+} > "$ZSHRC.new"
+cat "$ZSHRC" >> "$ZSHRC.new" && mv "$ZSHRC.new" "$ZSHRC"
+info "~/.zshrc patched (mode: $ZSHRC_MODE)."
 
 # ── Done ──────────────────────────────────────────────────────
 clear
