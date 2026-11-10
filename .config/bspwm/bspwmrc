@@ -190,6 +190,9 @@ run xsettingsd --config="${HOME}"/.config/bspwm/config/xsettingsd >/dev/null 2>&
 # Mouse speed / acceleration (RiceSettings → System, MOUSE_* in theme-config.bash)
 "${HOME}"/.config/bspwm/bin/MouseSettings &
 
+# Keyboard layout: restore the last one used (KeyBoardL saves it)
+"${HOME}"/.config/bspwm/bin/KeyBoardL --restore &
+
 # Launch clipboard daemon
 run clipcatd
 
