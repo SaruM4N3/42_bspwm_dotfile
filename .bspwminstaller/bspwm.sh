@@ -129,17 +129,27 @@ _HOST_LIBDIR=/usr/lib/x86_64-linux-gnu
 if [ -r /proc/driver/nvidia/version ] && [ -e "$_HOST_LIBDIR/libGLX_nvidia.so.0" ]; then
     _NVLIB="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bspwm-host-nvidia"
     rm -rf "$_NVLIB" && mkdir -p "$_NVLIB"
-    for _f in "$_HOST_LIBDIR"/lib{GLX,EGL,GLESv1_CM,GLESv2}_nvidia.so.* \
+    _NVVER=$(grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' /proc/driver/nvidia/version | head -1)
+    # Every host lib tied to the driver version (*.so.<ver> + soname links), so a lib added
+    # by a future driver is never silently taken from Arch; plus the NVIDIA libs that are
+    # versioned on their own (libnvidia-egl-*).
+    for _f in $(find "$_HOST_LIBDIR" -maxdepth 1 \( -name "*.so.$_NVVER" -o -lname "*.so.$_NVVER" \)) \
+              "$_HOST_LIBDIR"/lib{GLX,EGL,GLESv1_CM,GLESv2}_nvidia.so.* \
               "$_HOST_LIBDIR"/libnvidia-*.so.* "$_HOST_LIBDIR"/libcuda*.so.* \
-              "$_HOST_LIBDIR"/libnvoptix.so.*; do
+              "$_HOST_LIBDIR"/libnvcuvid.so.* "$_HOST_LIBDIR"/libnvoptix.so.*; do
         [ -e "$_f" ] && ln -sf "$_f" "$_NVLIB/"
     done
+    # VDPAU drivers are dlopen'ed from /usr/lib/vdpau (Arch's), not via LD_LIBRARY_PATH
+    for _f in "$_HOST_LIBDIR"/vdpau/libvdpau_nvidia.so*; do
+        [ -e "$_f" ] && ln -sf "$_f" "$_NVLIB/"
+    done
+    export VDPAU_DRIVER_PATH="$_NVLIB"
     _JUNEST_LDPATH="$_NVLIB${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     # bspwmrc prepends /usr/lib (Arch, has its own libGLX_nvidia 595.71) — it re-prepends this
     # dir last so the host libs keep priority.
     export BSPWM_HOST_NVLIB="$_NVLIB"
-    echo "nvidia: using host driver libs $(grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' /proc/driver/nvidia/version | head -1)" >> "$LOG"
-    unset _f _NVLIB
+    echo "nvidia: using host driver libs $_NVVER ($(ls "$_NVLIB" | wc -l) files)" >> "$LOG"
+    unset _f _NVLIB _NVVER
 fi
 unset _HOST_LIBDIR
 

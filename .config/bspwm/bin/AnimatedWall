@@ -38,9 +38,10 @@ mpv_opts() {
         # Vulkan init fails in junest, so force OpenGL to skip that probe.
         # 4K H.264 wallpaper: ~9% CPU instead of ~77% with the safe profile.
         dell)   echo "--hwdec=vaapi --vo=gpu --gpu-api=opengl" ;;
-        # Lenovo (NVIDIA PRIME): not tested yet — keep the safe profile
-        # until tested (e.g. try "--hwdec=nvdec --vo=gpu").
-        lenovo) echo "$SAFE_OPTS" ;;
+        # Lenovo ThinkCentre (NVIDIA RTX 4050, PRIME): NVDEC via the host libnvcuvid/libcuda
+        # that bspwm.sh exposes (BSPWM_HOST_NVLIB). OpenGL skips the Vulkan probe.
+        # 4K H.264 wallpaper: ~3% CPU instead of ~38% with the safe profile.
+        lenovo) echo "--hwdec=nvdec --vo=gpu --gpu-api=opengl" ;;
         *)      echo "$SAFE_OPTS" ;;
     esac
 }
