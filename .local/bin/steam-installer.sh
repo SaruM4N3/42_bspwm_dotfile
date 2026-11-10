@@ -1,14 +1,53 @@
 #!/bin/bash
-# steam-install.sh — Ephemeral Steam install via junest + pacman
-# Everything lives in /tmp and is gone on reboot.
+# steam-install.sh — Steam install via junest + pacman, outside the home quota.
+# Asks where Steam's data (client, config, games) lives:
+#   tmp     /tmp/steam-ephemeral       gone on reboot
+#   goinfre /goinfre/$USER/steam       kept across reboots, local to this PC
+# Skip the question with: steam-installer.sh --tmp | --goinfre
+#   (or STEAM_LOCATION=tmp|goinfre)
 
 set -e
 
-STEAM_ROOT="/tmp/steam-ephemeral"
+TMP_ROOT="/tmp/steam-ephemeral"
+GOINFRE_ROOT="/goinfre/$USER/steam"
+
+LOCATION="${STEAM_LOCATION:-}"
+case "$1" in
+    --tmp)     LOCATION=tmp ;;
+    --goinfre) LOCATION=goinfre ;;
+    "")        ;;
+    *) echo "Usage: $(basename "$0") [--tmp | --goinfre]" >&2; exit 1 ;;
+esac
+
+if [ -z "$LOCATION" ]; then
+    if [ ! -d "/goinfre/$USER" ]; then
+        LOCATION=tmp          # no goinfre on this machine (outside 42)
+    else
+        # Default to wherever Steam already is, else /tmp
+        default=1
+        [ -d "$GOINFRE_ROOT/steam-home" ] && [ ! -d "$TMP_ROOT/steam-home" ] && default=2
+        mark() { [ -d "$1/steam-home" ] && echo " [existing install]"; }
+        echo "Where should Steam be installed?"
+        echo "  1) /tmp      ($TMP_ROOT) - erased on reboot$(mark "$TMP_ROOT")"
+        echo "  2) goinfre   ($GOINFRE_ROOT) - kept, this PC only$(mark "$GOINFRE_ROOT")"
+        read -rp "Choice [$default]: " choice
+        case "${choice:-$default}" in
+            1|tmp)     LOCATION=tmp ;;
+            2|goinfre) LOCATION=goinfre ;;
+            *) echo "Invalid choice: $choice" >&2; exit 1 ;;
+        esac
+    fi
+fi
+
+case "$LOCATION" in
+    tmp)     STEAM_ROOT="$TMP_ROOT" ;;
+    goinfre) STEAM_ROOT="$GOINFRE_ROOT" ;;
+    *) echo "Unknown location: $LOCATION (tmp or goinfre)" >&2; exit 1 ;;
+esac
 STEAM_DATA="$STEAM_ROOT/steamapps"
 STEAM_HOME="$STEAM_ROOT/steam-home"
 
-echo "==> Setting up ephemeral Steam environment in $STEAM_ROOT"
+echo "==> Setting up Steam environment in $STEAM_ROOT"
 mkdir -p "$STEAM_DATA" "$STEAM_HOME"
 
 # --- NVIDIA: junest's nvidia-utils never matches the host kernel module, and
@@ -69,5 +108,12 @@ exec steam
 INNEREOF
 chmod +x "$INNER_SCRIPT"
 
-echo "==> Entering junest and running setup..."
-junest -- bash "$INNER_SCRIPT"
+# Inside the bspwm session we already are in junest (JUNEST_ENV=1), and junest
+# refuses to nest ("Nested JuNest environments are not allowed"): run directly.
+if [ "$JUNEST_ENV" = "1" ]; then
+    echo "==> Already inside junest, running setup..."
+    bash "$INNER_SCRIPT"
+else
+    echo "==> Entering junest and running setup..."
+    junest -- bash "$INNER_SCRIPT"
+fi

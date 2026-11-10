@@ -1,10 +1,14 @@
 #!/bin/sh
-# Installe Unity Hub et Unity CLI dans /tmp sans droits root, configure leurs
+# Installe Unity Hub et Unity CLI sans droits root, configure leurs
 # dossiers et installe la dernière version stable de l'éditeur Unity.
+# Demande où tout installer :
+#   tmp     /tmp/unityhub              effacé au reboot
+#   goinfre /goinfre/$USER/unityhub    gardé entre les reboots, propre à ce PC
 #
-# Usage : sh install_unityhub.sh
+# Usage : sh install_unityhub.sh [--tmp | --goinfre]
 # Variables optionnelles :
-#   INSTALL_DIR=/chemin       dossier de Unity Hub et du CLI  (défaut : /tmp/unityhub)
+#   UNITY_LOCATION=tmp|goinfre  même chose que --tmp / --goinfre (pas de question)
+#   INSTALL_DIR=/chemin       dossier de Unity Hub et du CLI  (pas de question)
 #   EDITOR_DIR=/chemin        dossier d'install des éditeurs (défaut : $INSTALL_DIR/Editor)
 #   DOWNLOAD_DIR=/chemin      dossier des téléchargements    (défaut : $INSTALL_DIR/Downloads)
 #   UNITY_VERSION=6000.x.yfz  version de l'éditeur (défaut : 6000.5.6f1,
@@ -14,7 +18,45 @@
 #   SKIP_EDITOR=1             ne pas installer d'éditeur
 set -eu
 
-INSTALL_DIR="${INSTALL_DIR:-/tmp/unityhub}"
+TMP_DIR="/tmp/unityhub"
+GOINFRE_DIR="/goinfre/$USER/unityhub"
+
+LOCATION="${UNITY_LOCATION:-}"
+case "${1:-}" in
+	--tmp)     LOCATION=tmp ;;
+	--goinfre) LOCATION=goinfre ;;
+	"")        ;;
+	*) echo "Usage : $(basename "$0") [--tmp | --goinfre]" >&2; exit 1 ;;
+esac
+
+if [ -z "${INSTALL_DIR:-}" ]; then
+	if [ -z "$LOCATION" ]; then
+		if [ ! -d "/goinfre/$USER" ]; then
+			LOCATION=tmp      # pas de goinfre sur cette machine (hors 42)
+		else
+			# Par défaut : là où Unity Hub est déjà installé, sinon /tmp
+			default=1
+			[ -d "$GOINFRE_DIR/root" ] && [ ! -d "$TMP_DIR/root" ] && default=2
+			mark() { [ -d "$1/root" ] && echo " [déjà installé]" || true; }
+			echo "Où installer Unity Hub et Unity ?"
+			echo "  1) /tmp      ($TMP_DIR) - effacé au reboot$(mark "$TMP_DIR")"
+			echo "  2) goinfre   ($GOINFRE_DIR) - gardé, ce PC uniquement$(mark "$GOINFRE_DIR")"
+			printf 'Choix [%s] : ' "$default"
+			read -r choice || choice=""
+			case "${choice:-$default}" in
+				1|tmp)     LOCATION=tmp ;;
+				2|goinfre) LOCATION=goinfre ;;
+				*) echo "Choix invalide : $choice" >&2; exit 1 ;;
+			esac
+		fi
+	fi
+	case "$LOCATION" in
+		tmp)     INSTALL_DIR="$TMP_DIR" ;;
+		goinfre) INSTALL_DIR="$GOINFRE_DIR" ;;
+		*) echo "Emplacement inconnu : $LOCATION (tmp ou goinfre)" >&2; exit 1 ;;
+	esac
+fi
+echo "==> Installation dans $INSTALL_DIR"
 EDITOR_DIR="${EDITOR_DIR:-$INSTALL_DIR/Editor}"
 DOWNLOAD_DIR="${DOWNLOAD_DIR:-$INSTALL_DIR/Downloads}"
 UNITY_VERSION="${UNITY_VERSION:-6000.5.6f1}"
@@ -133,7 +175,7 @@ mkdir -p "$EDITOR_DIR" "$DOWNLOAD_DIR" "$HUB_CONFIG"
 printf '"%s"' "$EDITOR_DIR" > "$HUB_CONFIG/secondaryInstallPath.json"
 printf '{"path":"%s"}' "$DOWNLOAD_DIR" > "$HUB_CONFIG/secondaryDownloadLocation.json"
 # Pour le CLI : il télécharge toujours dans ~/.config/unityhub/downloads,
-# qu'on redirige vers /tmp pour ne pas remplir le home
+# qu'on redirige vers $DOWNLOAD_DIR pour ne pas remplir le home
 if [ ! -L "$HUB_CONFIG/downloads" ]; then
 	rm -rf "$HUB_CONFIG/downloads"
 fi
