@@ -34,9 +34,12 @@ mpv_opts() {
         # Ubuntu mesa/VA drivers set up in bspwmrc (GL_SHIM, LIBVA_DRIVERS_PATH).
         # 4K H.264 wallpaper: ~6% CPU instead of ~59% with the safe profile.
         mac)    echo "--hwdec=vaapi --vo=gpu" ;;
-        # Dell / Lenovo: not tested on their GPU yet — keep the safe profile
-        # until tested (e.g. try "--hwdec=vaapi --vo=gpu" or "--hwdec=nvdec --vo=gpu").
-        dell)   echo "$SAFE_OPTS" ;;
+        # Dell OptiPlex 7400 AIO (Intel UHD 770): VA-API via the host iHD driver.
+        # Vulkan init fails in junest, so force OpenGL to skip that probe.
+        # 4K H.264 wallpaper: ~9% CPU instead of ~77% with the safe profile.
+        dell)   echo "--hwdec=vaapi --vo=gpu --gpu-api=opengl" ;;
+        # Lenovo (NVIDIA PRIME): not tested yet — keep the safe profile
+        # until tested (e.g. try "--hwdec=nvdec --vo=gpu").
         lenovo) echo "$SAFE_OPTS" ;;
         *)      echo "$SAFE_OPTS" ;;
     esac
