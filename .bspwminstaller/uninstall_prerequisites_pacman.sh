@@ -247,14 +247,22 @@ if [ -f "$HOME/.zshrc" ] && grep -q '^# >>> bspwm-dotfiles >>>$' "$HOME/.zshrc";
 fi
 
 # ── oh-my-zsh ─────────────────────────────────────────────────────────────────
-# The bspwm zshrc doesn't use it: keep it when the user's own ~/.zshrc does
-# (it was already there before the install, or they adopted it).
-if [ -f "$HOME/.zshrc" ] && grep -qE '^[^#]*oh-my-zsh\.sh' "$HOME/.zshrc"; then
+# Removed only when install.sh installed it (marker) and the user's ~/.zshrc
+# doesn't use it. Installs older than the marker: removed only when ~/.zshrc
+# doesn't use it. An oh-my-zsh the user had before is never touched.
+OMZ_MARK="$HOME/.local/state/bspwm/oh-my-zsh-by-installer"
+if [ ! -d "$HOME/.oh-my-zsh" ]; then
+    :
+elif [ -f "$HOME/.zshrc" ] && grep -qE '^[^#]*oh-my-zsh\.sh' "$HOME/.zshrc"; then
     warn "Keeping ~/.oh-my-zsh: your ~/.zshrc uses it."
+elif [ -d "$HOME/.local/state/bspwm" ] && [ ! -f "$OMZ_MARK" ] && [ -f "$HOME/.local/state/bspwm/install-choices" ]; then
+    # Recent install (it writes install-choices) without the marker: it was already there
+    warn "Keeping ~/.oh-my-zsh: it was there before the bspwm install."
 else
     info "Removing ~/.oh-my-zsh/..."
     rm -rf "$HOME/.oh-my-zsh"
 fi
+rm -f "$OMZ_MARK"
 
 # ── bt-reconnect favorites ─────────────────────────────────────────────────────
 info "Removing bt-reconnect favorites file..."

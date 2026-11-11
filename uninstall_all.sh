@@ -17,7 +17,26 @@ warn()  { echo -e "${YELLOW}[!]${NC} $*"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JUNEST_BIN="$HOME/.local/share/junest/bin/junest"
-UNINSTALLER="$HOME/.bspwminstaller/uninstall_prerequisites_pacman.sh"
+# This repo's uninstaller (latest fixes), the deployed copy as a fallback
+UNINSTALLER="$SCRIPT_DIR/.bspwminstaller/uninstall_prerequisites_pacman.sh"
+[ -f "$UNINSTALLER" ] || UNINSTALLER="$HOME/.bspwminstaller/uninstall_prerequisites_pacman.sh"
+# junest only sees $HOME: bind the repo in when it lives elsewhere (/goinfre)
+case "$UNINSTALLER" in "$HOME"/*) JUNEST_ARGS=() ;; *) JUNEST_ARGS=(-b "--bind $SCRIPT_DIR $SCRIPT_DIR") ;; esac
+
+# Same checks as install.sh: from GNOME only, never while bspwm runs
+if [ -n "$JUNEST_ENV" ]; then
+    echo -e "${RED}[✗]${NC} Run this from a GNOME terminal, not from inside bspwm/junest."; exit 1
+fi
+if pgrep -x bspwm >/dev/null; then
+    echo -e "${RED}[✗]${NC} bspwm is running: quit it first (back to GNOME), then run this again."; exit 1
+fi
+# bspwm killed before bspwm.sh swapped back: ~/.zshrc is the bspwm one and
+# ~/.zshrc.bak the user's. Swap back first, or the user's zshrc gets deleted
+# with ~/.zshrc.bak below (and oh-my-zsh looks unused).
+if [ -f "$HOME/.zshrc.bak" ] && grep -q '^# Self-check: if loaded outside junest' "$HOME/.zshrc" 2>/dev/null; then
+    mv "$HOME/.zshrc" "$HOME/.zshrc.tmp" && mv "$HOME/.zshrc.bak" "$HOME/.zshrc" && mv "$HOME/.zshrc.tmp" "$HOME/.zshrc.bak"
+    warn "~/.zshrc and ~/.zshrc.bak were left swapped by an unclean bspwm exit: swapped back."
+fi
 
 # ── Confirmation ──────────────────────────────────────────────────────────────
 printf "\n%b\n" "${RED}[!]${NC} This will remove EVERYTHING installed by this dotfiles setup:"
@@ -36,7 +55,7 @@ fi
 # ── Step 1: Remove packages + config files (inside junest) ───────────────────
 if [ -x "$JUNEST_BIN" ] && [ -f "$UNINSTALLER" ]; then
     info "Running package and config uninstall inside junest..."
-    UNINSTALL_SKIP_CONFIRM=1 "$JUNEST_BIN" -- bash "$UNINSTALLER"
+    UNINSTALL_SKIP_CONFIRM=1 "$JUNEST_BIN" "${JUNEST_ARGS[@]}" -- bash "$UNINSTALLER"
 elif [ -f "$UNINSTALLER" ]; then
     warn "junest not found — running uninstaller directly (pacman commands may fail)..."
     UNINSTALL_SKIP_CONFIRM=1 bash "$UNINSTALLER"

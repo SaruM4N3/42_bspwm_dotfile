@@ -303,8 +303,8 @@ class Installer(Gtk.Window):
         self.wipe_cb.get_style_context().add_class("danger")
         self.wipe_cb.set_sensitive(False)
         self.rb_fresh = card_radio(self.rb_update, "Fresh reinstall",
-                                   "Like a full install, but ~/.oh-my-zsh and ~/.bspwminstaller are "
-                                   "rebuilt from scratch instead of upgraded in place.", self.wipe_cb)
+                                   "Like a full install, but ~/.bspwminstaller (and ~/.oh-my-zsh if this "
+                                   "installer put it there) is rebuilt from scratch instead of upgraded in place.", self.wipe_cb)
         self.rb_uninstall = card_radio(self.rb_update, "Uninstall everything",
                                        "Removes the packages, configs, junest and the GNOME shortcut. "
                                        "This repository is kept.")
@@ -601,7 +601,7 @@ class Installer(Gtk.Window):
                 lines.append("Install only the packages the new version needs (no system upgrade)")
             else:
                 if m == "fresh":
-                    lines.append("Wipe ~/.oh-my-zsh and ~/.bspwminstaller"
+                    lines.append("Wipe ~/.bspwminstaller (and ~/.oh-my-zsh if the installer put it there)"
                                  + (", and the junest environment" if self.wipe_cb.get_active() else ""))
                 lines.append("Install junest and all the packages" if not self.st.junest or
                              self.wipe_cb.get_active() else "Upgrade junest and install all the packages")

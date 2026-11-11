@@ -62,8 +62,9 @@ while [ $# -gt 0 ]; do
             echo "  --update, -u  Update an existing install: new dotfiles and scripts,"
             echo "                your settings kept, only missing packages installed"
             echo "                (no junest setup, no package questions)."
-            echo "  --fresh, -f   Force a clean reinstall: wipe oh-my-zsh and"
-            echo "                ~/.bspwminstaller before redeploying (and"
+            echo "  --fresh, -f   Force a clean reinstall: wipe ~/.bspwminstaller"
+            echo "                (and oh-my-zsh if this installer put it there)"
+            echo "                before redeploying (and"
             echo "                optionally the junest Arch environment too),"
             echo "                instead of upgrading in place."
             exit 0
@@ -178,8 +179,8 @@ fi
 
 if [ "$FRESH" -eq 1 ]; then
     echo ""
-    warn "Fresh reinstall: ~/.oh-my-zsh and ~/.bspwminstaller will be wiped"
-    warn "and rebuilt from scratch instead of upgraded in place."
+    warn "Fresh reinstall: ~/.bspwminstaller (and ~/.oh-my-zsh if this installer"
+    warn "put it there) will be wiped and rebuilt instead of upgraded in place."
     if [ -n "$ANSWERS" ]; then
         [ "${A_WIPE_JUNEST:-0}" = 1 ] && wj=y || wj=n
     else
@@ -256,9 +257,15 @@ else
     info "Free space: ${FREE_GB:-?} GB (needs ~${NEED_GB} GB)."
 fi
 
+# Set when step 6 installs oh-my-zsh: one the user had before is never removed
+OMZ_MARK="$HOME/.local/state/bspwm/oh-my-zsh-by-installer"
 if [ "$FRESH" -eq 1 ]; then
     info "Fresh reinstall — wiping previous installer state..."
-    rm -rf "$HOME/.oh-my-zsh"
+    if [ -f "$OMZ_MARK" ]; then
+        rm -rf "$HOME/.oh-my-zsh"
+    elif [ -d "$HOME/.oh-my-zsh" ]; then
+        warn "Keeping ~/.oh-my-zsh: it was not installed by this installer."
+    fi
     if [ "$WIPE_JUNEST" -eq 1 ]; then
         info "Wiping junest Arch environment..."
         rm -rf "$HOME/.junest" "$HOME/.local/share/junest"
@@ -598,12 +605,16 @@ step 6 "Installing oh-my-zsh..."
 if [ -d "$HOME/.oh-my-zsh" ]; then
     info "oh-my-zsh already installed — skipping."
 else
+    # KEEP_ZSHRC: the oh-my-zsh installer must not replace the user's ~/.zshrc
     if command -v curl >/dev/null 2>&1; then
-        RUNZSH=no CHSH=no sh -c "$(curl -fsSL https://install.ohmyz.sh)" || warn "oh-my-zsh install failed — continuing."
+        RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c "$(curl -fsSL https://install.ohmyz.sh)" || warn "oh-my-zsh install failed — continuing."
     elif command -v wget >/dev/null 2>&1; then
-        RUNZSH=no CHSH=no sh -c "$(wget -qO- https://install.ohmyz.sh)" || warn "oh-my-zsh install failed — continuing."
+        RUNZSH=no CHSH=no KEEP_ZSHRC=yes sh -c "$(wget -qO- https://install.ohmyz.sh)" || warn "oh-my-zsh install failed — continuing."
     else
         warn "Neither curl nor wget found — skipping oh-my-zsh."
+    fi
+    if [ -d "$HOME/.oh-my-zsh" ]; then
+        mkdir -p "$(dirname "$OMZ_MARK")" && touch "$OMZ_MARK"
     fi
 fi
 
