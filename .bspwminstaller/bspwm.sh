@@ -124,6 +124,25 @@ for _pid in $_SHELL_PIDS; do
 done
 unset _deadline _pid _SHELL_PIDS
 
+# polkit agent: gnome-shell was the session's agent. One inside junest can't work
+# (polkit-agent-helper-1 needs setuid root, a no-op in junest's user namespace), so
+# a small one runs here on the host. Compiled with Ubuntu's gcc/GTK 3 (like lockbg),
+# per machine in /tmp. Stopped below before GNOME comes back.
+_PK_SRC="$HOME/.bspwminstaller/polkit/polkit-agent.c"
+_PK_BIN="/tmp/bspwm-polkit-agent-$(id -u)"
+_PK_PID=""
+if [ -f "$_PK_SRC" ]; then
+    if [ ! "$_PK_BIN" -nt "$_PK_SRC" ]; then
+        gcc -O2 -std=gnu11 "$_PK_SRC" -o "$_PK_BIN" $(pkg-config --cflags --libs gtk+-3.0 2>/dev/null) \
+            -l:libpolkit-agent-1.so.0 -l:libpolkit-gobject-1.so.0 >>"$LOG" 2>&1 ||
+            { echo "polkit agent: build failed (no gcc / GTK 3 headers?)" >> "$LOG"; rm -f "$_PK_BIN"; }
+    fi
+    if [ -x "$_PK_BIN" ]; then
+        "$_PK_BIN" >>"$LOG" 2>&1 &
+        _PK_PID=$!
+    fi
+fi
+
 
 # Swap ~/.zshrc <-> ~/.zshrc.bak before entering bspwm
 swap_zshrc() {
@@ -190,6 +209,14 @@ _BINDS=""
 for _d in /sgoinfre /goinfre; do
     [ -d "$_d" ] && _BINDS="$_BINDS--bind $_d $_d "
 done
+# Ubuntu's /etc/alternatives (and /etc/vim): ~60 host commands in /usr/bin are
+# links into it (vim, vi, editor, pager...) and were "command not found" in junest,
+# whose /etc is Arch's. Read-only, on mount points created in junest's /etc.
+for _d in /etc/alternatives /etc/vim; do
+    if [ -d "$_d" ] && mkdir -p "$HOME/.junest$_d" 2>/dev/null; then
+        _BINDS="$_BINDS--ro-bind $_d $_d "
+    fi
+done
 unset _d
 
 # launch bspwm via junest (proot with fakeroot for sudo/pacman support)
@@ -205,6 +232,8 @@ echo "bspwm exited: $? at $(date '+%T.%3N')" >> "$LOG"
 kill "$_LOCK_WATCHER_PID" 2>/dev/null
 kill "$_CODE_WATCHER_PID" 2>/dev/null
 kill "$_HOST_WATCHER_PID" 2>/dev/null
+# Before GNOME resumes: gnome-shell registers its own polkit agent again
+[ -n "$_PK_PID" ] && kill "$_PK_PID" 2>/dev/null
 exec 5>&- 6>&-
 rm -f "$_CODE_REQ" "$_HOST_REQ"
 

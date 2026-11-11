@@ -235,8 +235,9 @@ run xsettingsd --config="${HOME}"/.config/bspwm/config/xsettingsd >/dev/null 2>&
 # Launch clipboard daemon
 run clipcatd
 
-# Launch polkit
-run lxpolkit
+# polkit agent: runs on the host, started by bspwm.sh (one in junest can't
+# authenticate: its helper can't be setuid root there)
+pkill -x lxpolkit 2>/dev/null
 _t "daemons"
 
 # Start one time message
