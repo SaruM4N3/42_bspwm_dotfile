@@ -272,6 +272,13 @@ if [ "$FRESH" -eq 1 ]; then
     fi
 fi
 
+# Browsers the host (Ubuntu) has: offered as "Ubuntu's, nothing to install" by
+# install_prerequisites_pacman.sh (junest can't see the host's /usr itself)
+BSPWM_HOST_BROWSERS=""
+command -v firefox >/dev/null 2>&1 && BSPWM_HOST_BROWSERS="firefox"
+command -v google-chrome-stable >/dev/null 2>&1 && BSPWM_HOST_BROWSERS="$BSPWM_HOST_BROWSERS google-chrome"
+export BSPWM_HOST_BROWSERS
+
 # ── Step 1: junest setup ──────────────────────────────────────
 clear
 if [ "$UPDATE" -eq 1 ]; then
@@ -311,6 +318,15 @@ if [ "$UPDATE" -eq 1 ]; then
         "$JUNEST_BIN" -- sudo pacman -S --needed --noconfirm $MISSING ||
             warn "Could not install: $MISSING. Run $0 (full install) to update the package database."
     fi
+    # Older installs could put Firefox / Chrome in junest too: that copy shares the
+    # profile with Ubuntu's (GNOME) one and breaks it. bspwm now runs Ubuntu's.
+    for b in firefox google-chrome; do
+        case " $BSPWM_HOST_BROWSERS " in *" $b "*) ;; *) continue ;; esac
+        if "$JUNEST_BIN" -- pacman -Qq "$b" >/dev/null 2>&1; then
+            warn "junest has its own $b package, next to Ubuntu's (shared profile, conflicts)."
+            warn "  bspwm uses Ubuntu's now; remove junest's with: junest -- sudo pacman -Rns $b"
+        fi
+    done
 else
     step 1 "Installing junest and packages..."
     bash "$REPO/.bspwminstaller/install_junest.sh"

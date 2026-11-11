@@ -136,23 +136,42 @@ ask_rice() {
     info "Icon packages needed: ${ICON_PKGS[*]:-none}"
 }
 
+# Firefox / Google Chrome: Ubuntu's own, run on the host from bspwm (app-launch,
+# host-wrappers), never installed in junest: a second copy there shares the
+# profile (~/.mozilla, ~/.config/google-chrome) with GNOME's and breaks it.
+# install.sh (on the host) lists the ones the PC has in BSPWM_HOST_BROWSERS;
+# unset (script run by hand) = offer both.
+host_browser() {
+    case " ${BSPWM_HOST_BROWSERS-firefox google-chrome} " in *" $1 "*) return 0 ;; esac
+    return 1
+}
+
 ask_browser() {
     if [ -n "$A_BROWSER" ]; then
         browser_choice=$A_BROWSER
     else
-        printf "\nWhich browser do you want to install? (default: brave)\n"
-        printf "  1) brave\n  2) firefox\n  3) chromium\n  4) google-chrome\n"
+        printf "\nWhich browser do you want for bspwm? (default: brave)\n"
+        printf "  1) brave     (installed in junest)\n  2) chromium  (installed in junest)\n"
+        host_browser firefox      && printf "  3) firefox        (Ubuntu's, nothing to install)\n"
+        host_browser google-chrome && printf "  4) google-chrome  (Ubuntu's, nothing to install)\n"
         printf "Enter number [1]: "
         read -r browser_choice </dev/tty || true
     fi
     case "$browser_choice" in
-        1|""|brave)      BROWSER_PKG="brave-bin";      BROWSER_BIN="brave" ;;
-        2|firefox)       BROWSER_PKG="firefox";        BROWSER_BIN="firefox" ;;
-        3|chromium)      BROWSER_PKG="chromium";       BROWSER_BIN="chromium" ;;
-        4|google-chrome) BROWSER_PKG="google-chrome";  BROWSER_BIN="google-chrome-stable" ;;
-        *)               BROWSER_PKG="brave-bin";      BROWSER_BIN="brave" ;;
+        2|chromium)      BROWSER_PKG="chromium";  BROWSER_BIN="chromium" ;;
+        3|firefox)       BROWSER_PKG="";          BROWSER_BIN="firefox" ;;
+        4|google-chrome) BROWSER_PKG="";          BROWSER_BIN="google-chrome-stable" ;;
+        *)               BROWSER_PKG="brave-bin"; BROWSER_BIN="brave" ;;
     esac
-    info "Browser selected: $BROWSER_BIN (package: $BROWSER_PKG)"
+    if [ -z "$BROWSER_PKG" ] && ! host_browser "${BROWSER_BIN%-stable}"; then
+        warn "$BROWSER_BIN is not installed on this PC: using brave instead."
+        BROWSER_PKG="brave-bin"; BROWSER_BIN="brave"
+    fi
+    if [ -n "$BROWSER_PKG" ]; then
+        info "Browser selected: $BROWSER_BIN (package: $BROWSER_PKG)"
+    else
+        info "Browser selected: $BROWSER_BIN (Ubuntu's, runs on the host)"
+    fi
 }
 
 ask_terminal() {
@@ -515,8 +534,12 @@ aur_install ttf-material-design-icons-desktop-git
 # Bundled fonts (.local/share/fonts) are copied by install.sh step 4.
 
 # ── Browser ──────────────────────────────────────────────────────────────────
-info "Installing browser: $BROWSER_PKG..."
-sudo pacman -S --needed --noconfirm "$BROWSER_PKG"
+if [ -n "$BROWSER_PKG" ]; then
+    info "Installing browser: $BROWSER_PKG..."
+    sudo pacman -S --needed --noconfirm "$BROWSER_PKG"
+else
+    info "Browser: Ubuntu's $BROWSER_BIN, nothing to install."
+fi
 
 # ── Save the choices — install.sh applies them to the deployed files ─────────
 # (terminal → .term, rice → .rice, browser/editor → sxhkdrc, OpenApps,

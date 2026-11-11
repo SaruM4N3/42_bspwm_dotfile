@@ -40,10 +40,12 @@ EDITORS = [("micro", "micro", "Terminal, simple keybinds (already included)"),
            ("neovim", "Neovim", "Terminal, vim keybinds"),
            ("vscode", "VS Code", "visual-studio-code-bin"),
            ("zed", "Zed", "GUI, zed-preview-bin")]
-BROWSERS = [("brave", "Brave", "Default"),
-            ("firefox", "Firefox", ""),
-            ("chromium", "Chromium", ""),
-            ("google-chrome", "Google Chrome", "")]
+BROWSERS = [("brave", "Brave", "Installed in junest (default)"),
+            ("chromium", "Chromium", "Installed in junest"),
+            ("firefox", "Firefox", "Ubuntu's, nothing to install"),
+            ("google-chrome", "Google Chrome", "Ubuntu's, nothing to install")]
+# Ubuntu's own browsers (run on the host from bspwm): offered only when present
+HOST_BROWSERS = {"firefox": "firefox", "google-chrome": "google-chrome-stable"}
 # install-choices values (binary names) -> answers above
 EDITOR_FROM_BIN = {"micro": "micro", "nvim": "neovim", "code": "vscode", "zed": "zed"}
 BROWSER_FROM_BIN = {"brave": "brave", "firefox": "firefox", "chromium": "chromium",
@@ -334,7 +336,12 @@ class Installer(Gtk.Window):
             group = group or rb
             buttons[key] = rb
             flow.add(rb)
-        (buttons.get(selected) or group).set_active(True)
+        for key, rb in buttons.items():
+            if key in HOST_BROWSERS and not shutil.which(HOST_BROWSERS[key]):
+                rb.set_sensitive(False)
+                rb.set_tooltip_text("Not installed on this PC")
+        pick = buttons.get(selected)
+        (pick if pick and pick.get_sensitive() else group).set_active(True)
         box.pack_start(flow, False, False, 0)
         return buttons
 
