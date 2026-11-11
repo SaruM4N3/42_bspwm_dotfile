@@ -59,24 +59,32 @@ choose_launcher_style() {
 launch_launcher () {
     ROFI_THEME="$styleDir/style_$current_style.rasi"
 
-    # rofi starts the selected app itself (enter or click): -run-command routes
-    # it through app-launch, which runs Ubuntu (GNOME) apps on the host.
-    # ctrl+x = custom-1 (exit 10) → print the .desktop path (-format f) and
-    # hide the app (see app-visibility).
-    result=$(rofi -show drun \
+    # rofi 2.x drun starts the chosen app itself through GIO, inside junest, and
+    # ignores -run-command: Ubuntu (GNOME) apps then crash there. So rofi only
+    # picks (-dmenu, list from app-visibility: shown apps, icons, most used
+    # first) and app-launch starts the app, on the host for Ubuntu apps.
+    # ctrl+x = custom-1 (exit 10) → hide the app (see app-visibility).
+    paths=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/launcher.XXXXXX") || return
+    index=$(app-visibility menu "$paths" | rofi -dmenu -i -no-custom \
         -theme "$ROFI_THEME" \
         -kb-cancel "Escape,Super+space" \
         -kb-custom-1 "ctrl+x" \
-        -format 'f' \
-        -run-command "$HOME/.config/bspwm/bin/app-launch --cmd {cmd}" \
+        -format 'i' \
         ${POLY_ROFI_POS:+-theme-str "$POLY_ROFI_POS"})
     rc=$?
+    case "$index" in ''|*[!0-9]*) rm -f "$paths"; return ;; esac
+    result=$(sed -n "$((index + 1))p" "$paths")
+    rm -f "$paths"
+    [ -n "$result" ] || return
 
     case $rc in
+        0)
+            app-launch "$result" >/dev/null 2>&1 &
+            app-visibility launched "$result" 2>/dev/null
+            ;;
         10)
             # ctrl+x — hide the app from the bspwm launcher only (GNOME keeps it).
             # Shown again from Rice Settings > Apps.
-            [ -z "$result" ] && return
             app_name=$(grep -m1 "^Name=" "$result" 2>/dev/null | cut -d= -f2)
             [ -z "$app_name" ] && app_name=$(basename "$result" .desktop)
             confirm=$(printf "Yes\nNo" | rofi -dmenu \

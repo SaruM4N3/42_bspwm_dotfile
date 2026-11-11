@@ -14,7 +14,13 @@ launcher only and stays in GNOME's menu.
 Usage: app-visibility list               TSV: state  id  name
        app-visibility hide <id|path>
        app-visibility show <id|path>
-Used by RiceSettings (Apps page) and RofiLauncher (ctrl+x).
+       app-visibility menu <paths-file>   rofi -dmenu lines of the shown apps (icon,
+                                          search keywords), most used first; the
+                                          .desktop path of each line goes to <paths-file>
+       app-visibility launched <path>     count one launch (order of the menu)
+       app-visibility programs            TSV: .desktop path  program, for the GUI apps
+                                          a menu lists (not Terminal=true), see host-wrappers
+Used by RiceSettings (Apps page) and RofiLauncher (the launcher + ctrl+x).
 """
 
 import os, shutil, sys
@@ -217,12 +223,96 @@ def show(arg):
         write(path, edit_group(lines, drop_keys=("NotShowIn",)))
 
 
+HISTORY = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"),
+                       "bspwm", "launcher-history")
+
+
+def read_history():
+    """{desktop id: launch count}"""
+    counts = {}
+    try:
+        with open(HISTORY, encoding="utf-8") as f:
+            for line in f:
+                n, _, app_id = line.rstrip("\n").partition(" ")
+                if n.isdigit() and app_id:
+                    counts[app_id] = int(n)
+    except OSError:
+        pass
+    return counts
+
+
+def launched(arg):
+    app_id, _ = resolve(arg)
+    counts = read_history()
+    counts[app_id] = counts.get(app_id, 0) + 1
+    os.makedirs(os.path.dirname(HISTORY), exist_ok=True)
+    tmp = HISTORY + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        for i, n in sorted(counts.items(), key=lambda kv: -kv[1]):
+            f.write(f"{n} {i}\n")
+    os.replace(tmp, HISTORY)
+
+
+def menu(paths_file):
+    """rofi 2.x drun launches apps itself through GIO, inside junest, so Ubuntu
+    (GNOME) apps crash there. RofiLauncher shows this list with rofi -dmenu
+    instead and starts the choice with app-launch."""
+    counts = read_history()
+    shown = [a for a in apps() if not a["hidden"]]
+    shown.sort(key=lambda a: (-counts.get(a["id"], 0), a["name"].lower()))
+    clean = lambda v: v.replace("\n", " ").replace("\0", "").replace("\x1f", " ")
+    with open(paths_file, "w", encoding="utf-8") as paths:
+        for a in shown:
+            e = read_entry(a["path"])
+            # Searchable but not displayed, like drun's match fields
+            meta = " ".join(x for x in (e.get("GenericName", ""), e.get("Keywords", "").replace(";", " "),
+                                        e.get("Categories", "").replace(";", " "),
+                                        (e.get("Exec", "").split() or [""])[0].rsplit("/", 1)[-1]) if x)
+            line = clean(a["name"]) + "\0icon\x1f" + clean(a["icon"])
+            if meta:
+                line += "\x1fmeta\x1f" + clean(meta)
+            sys.stdout.write(line + "\n")
+            paths.write(a["path"] + "\n")
+
+
+def programs():
+    """First program of Exec= of every GUI app entry. Each file is checked on its
+    own: an entry hidden by an override in another dir (42 hides eog, evince...
+    from /usr/local/share) still has its program installed."""
+    seen = set()
+    for d in [user_dir()] + system_dirs() + ["/usr/local/share/applications", "/usr/share/applications"]:
+        for path in scan(d).values() if os.path.isdir(d) else ():
+            if path in seen:
+                continue
+            seen.add(path)
+            e = read_entry(path)
+            probe = dict(e, NotShowIn="")   # hidden in bspwm only: still an app
+            if not listed_anywhere(probe) and not ("GNOME" in split_list(e.get("OnlyShowIn"))
+                                                   and not is_true(e.get("NoDisplay"))):
+                continue
+            if is_true(e.get("Terminal")):
+                continue
+            words = e.get("Exec", "").split()
+            if words and words[0] == "env":
+                words = words[1:]
+            while words and "=" in words[0] and not words[0].startswith("/"):
+                words = words[1:]
+            if words:
+                print(f"{path}\t{words[0].strip(chr(34))}")
+
+
 def main():
     if len(sys.argv) >= 2 and sys.argv[1] == "list":
         for a in apps():
             print(f"{'hidden' if a['hidden'] else 'shown'}\t{a['id']}\t{a['name']}")
     elif len(sys.argv) == 3 and sys.argv[1] in ("hide", "show"):
         (hide if sys.argv[1] == "hide" else show)(sys.argv[2])
+    elif len(sys.argv) == 3 and sys.argv[1] == "menu":
+        menu(sys.argv[2])
+    elif len(sys.argv) == 2 and sys.argv[1] == "programs":
+        programs()
+    elif len(sys.argv) == 3 and sys.argv[1] == "launched":
+        launched(sys.argv[2])
     else:
         print(__doc__.strip(), file=sys.stderr)
         sys.exit(2)

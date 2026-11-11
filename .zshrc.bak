@@ -209,7 +209,8 @@ alias ll='eza --icons=always --color=always -la'
 #  ┴ ┴└─┘ ┴ └─┘  └─┘ ┴ ┴ ┴┴└─ ┴
 $HOME/.local/bin/colorscript -r
 #disable-fzf-tab
-export PATH=$HOME/.config/bspwm/bin:~/.local/share/junest/bin:$PATH
+# gnome-wrappers: Ubuntu GUI apps run on the host (see host-wrappers)
+export PATH=$HOME/.config/bspwm/bin:$HOME/.cache/bspwm/gnome-wrappers:~/.local/share/junest/bin:$PATH
 export PATH=$PATH:~/.junest/usr/bin_wrappers
 typeset -U path  # deduplicate PATH entries
 

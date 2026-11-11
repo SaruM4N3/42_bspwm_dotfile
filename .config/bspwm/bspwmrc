@@ -101,6 +101,10 @@ wait_gone() {
 "$HOME"/.config/bspwm/bin/SetSysVars
 _t "SetSysVars"
 
+# Ubuntu GUI apps typed in a terminal (firefox, nautilus...) run on the host:
+# wrappers in ~/.cache/bspwm/gnome-wrappers, see host-wrappers (background, ~0.3 s)
+"$HOME"/.config/bspwm/bin/host-wrappers >/dev/null 2>&1 &
+
 # Launch sxhkd daemon
 run sxhkd -c "${HOME}"/.config/bspwm/config/sxhkdrc
 

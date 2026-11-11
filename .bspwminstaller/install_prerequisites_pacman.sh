@@ -221,6 +221,22 @@ add_gh0stzk_repo() {
     info "gh0stzk-dotfiles repo added."
 }
 
+# [multilib] (32-bit libs): Steam, wine and the lib32 mesa pin need it. Arch's
+# pacman.conf ships it commented out: uncomment it, or append it if missing.
+enable_multilib() {
+    if grep -q '^\[multilib\]' /etc/pacman.conf 2>/dev/null; then
+        info "multilib already enabled."
+        return 0
+    fi
+    info "Enabling the multilib repository..."
+    if grep -q '^#\[multilib\]' /etc/pacman.conf; then
+        sudo sed -i '/^#\[multilib\]$/,/^#Include/ s/^#//' /etc/pacman.conf
+    else
+        printf '\n[multilib]\nInclude = /etc/pacman.d/mirrorlist\n' | sudo tee -a /etc/pacman.conf >/dev/null
+    fi
+    sudo pacman -Sy --noconfirm || warn "Could not sync the multilib database."
+}
+
 # Skip the JetBrains Mono font variants the config never uses (Nerd Font Propo
 # and the NL / no-ligature families): ~150 MB less, kept out on updates too.
 set_font_noextract() {
@@ -310,6 +326,7 @@ if [ "$1" = "--system-only" ]; then
         sudo sed -i 's|^Server = http://gh0stzk.github.io|Server = https://gh0stzk.github.io|' /etc/pacman.conf
     set_mesa_ignorepkg
     install_pacman_hooks
+    enable_multilib
     exit 0
 fi
 
@@ -323,6 +340,7 @@ ask_rice
 # Pin first so the upgrade below never pulls mesa 25+
 set_mesa_ignorepkg
 install_pacman_hooks
+enable_multilib
 
 info "Syncing package databases..."
 echo "n" | sudo pacman -Syu || true
@@ -427,6 +445,7 @@ sudo pacman -S --needed --noconfirm \
     libwebp \
     webp-pixbuf-loader \
     python-gobject \
+    python-cairo \
     webkit2gtk-4.1 \
     pacman-contrib
 
