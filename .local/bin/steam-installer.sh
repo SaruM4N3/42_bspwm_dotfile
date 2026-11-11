@@ -128,6 +128,37 @@ $GPU_ENV
 INNEREOF
 # Rest runs as is inside junest (quoted heredoc: nothing expanded here)
 cat >> "$INNER_SCRIPT" << 'INNEREOF'
+ARCHIVE="https://archive.archlinux.org/packages"
+MESA_VER=$(pacman -Q mesa 2>/dev/null | awk '{print $2}')
+
+# Steam needs multilib (32-bit client); old installs never enabled it
+if ! grep -q '^\[multilib\]' /etc/pacman.conf; then
+    echo "==> Enabling the multilib repository..."
+    if grep -q '^#\[multilib\]' /etc/pacman.conf; then
+        sudo sed -i '/^#\[multilib\]$/,/^#Include/ s/^#//' /etc/pacman.conf
+    else
+        printf '\n[multilib]\nInclude = /etc/pacman.d/mirrorlist\n' | sudo tee -a /etc/pacman.conf >/dev/null
+    fi
+    sudo pacman -Sy --noconfirm
+fi
+
+# The mesa pin (IgnorePkg mesa lib32-mesa vulkan-radeon lib32-vulkan-radeon)
+# hides these from pacman -S: steam's dependencies would then fall back on
+# other providers (lib32-mesa-amber, which conflicts with mesa; nvidia-utils
+# for vulkan-driver). Install them first, on mesa's version from the archive.
+if [ -n "$MESA_VER" ]; then
+    urls=()
+    for p in vulkan-radeon lib32-mesa lib32-vulkan-radeon; do
+        [ "$(pacman -Q "$p" 2>/dev/null | awk '{print $2}')" = "$MESA_VER" ] && continue
+        urls+=("$ARCHIVE/${p:0:1}/$p/$p-$MESA_VER-x86_64.pkg.tar.zst")
+    done
+    if [ ${#urls[@]} -gt 0 ]; then
+        echo "==> Installing the pinned mesa $MESA_VER drivers (32-bit + Vulkan)..."
+        sudo pacman -U --noconfirm "${urls[@]}" ||
+            echo "==> WARNING: could not install mesa $MESA_VER drivers, steam may pull conflicting ones" >&2
+    fi
+fi
+
 if ! pacman -Qi steam &>/dev/null; then
     echo "==> Installing Steam via pacman..."
     sudo pacman -S --needed --noconfirm steam || sudo pacman -Sy --noconfirm steam
@@ -138,8 +169,6 @@ fi
 # --- 32-bit Mesa (Mac / Dell): the Steam client is 32-bit and uses junest's
 # lib32-mesa. mesa is pinned (IgnorePkg, kernel 5.15) but installing steam can
 # pull a newer lib32-mesa: put it back on mesa's version from the Arch archive.
-ARCHIVE="https://archive.archlinux.org/packages"
-MESA_VER=$(pacman -Q mesa 2>/dev/null | awk '{print $2}')
 if [ -n "$MESA_VER" ]; then
     for p in lib32-mesa lib32-vulkan-radeon; do
         v=$(pacman -Q "$p" 2>/dev/null | awk '{print $2}')
