@@ -312,11 +312,17 @@ if [ "$UPDATE" -eq 1 ]; then
         info "All packages already installed."
     else
         info "Installing: $MISSING"
-        # No -Syu here (slow, and it can break the pinned mesa): if the package
-        # database is too old for these, a full install is needed.
+        # -Syu, not -S: on an old package database the mirrors no longer have
+        # the versions it lists (404/403), and a bare -Sy is a partial upgrade.
+        # mesa stays pinned (IgnorePkg, refreshed above); --pin-mesa then
+        # re-checks that it still finds its libLLVM.
         # shellcheck disable=SC2086
-        "$JUNEST_BIN" -- sudo pacman -S --needed --noconfirm $MISSING ||
-            warn "Could not install: $MISSING. Run $0 (full install) to update the package database."
+        if "$JUNEST_BIN" -- sudo pacman -Syu --needed --noconfirm $MISSING; then
+            "$JUNEST_BIN" "${JUNEST_ARGS[@]}" -- bash "$REPO/.bspwminstaller/install_prerequisites_pacman.sh" --pin-mesa ||
+                warn "Could not check the pinned mesa."
+        else
+            warn "Could not install: $MISSING. Run $0 (full install) to retry."
+        fi
     fi
     # Older installs could put Firefox / Chrome in junest too: that copy shares the
     # profile with Ubuntu's (GNOME) one and breaks it. bspwm now runs Ubuntu's.

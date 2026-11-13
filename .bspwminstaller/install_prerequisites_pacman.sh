@@ -224,7 +224,6 @@ add_chaotic_repo() {
     sudo pacman -U --noconfirm --needed 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst'
     sudo pacman -U --noconfirm --needed 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst'
     echo -e '\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist' | sudo tee -a /etc/pacman.conf
-    sudo pacman -Sy --noconfirm
     info "chaotic-aur added."
 }
 
@@ -236,8 +235,36 @@ add_gh0stzk_repo() {
     info "Adding gh0stzk-dotfiles repository..."
     printf '\n[gh0stzk-dotfiles]\nSigLevel = Optional TrustAll\nServer = https://gh0stzk.github.io/pkgs/x86_64\n' \
         | sudo tee -a /etc/pacman.conf
-    sudo pacman -Sy --noconfirm
     info "gh0stzk-dotfiles repo added."
+}
+
+# junest's setup writes a mirrorlist with ONE server (mirror.rackspace.com).
+# When that mirror refuses a file (it answers 403 on some packages, e.g.
+# gperftools-2.19.3), pacman has no other server to try and the whole
+# transaction fails. Give it a list of Arch mirrors to fall back on; a list
+# that already has several servers (reflector, user edits) is left alone.
+ensure_mirrors() {
+    local ml=/etc/pacman.d/mirrorlist n
+    n=$(grep -cE '^[[:space:]]*Server' "$ml" 2>/dev/null) || n=0
+    if [ "$n" -ge 2 ]; then
+        info "pacman mirrorlist has $n servers."
+        return 0
+    fi
+    info "pacman mirrorlist has $n server(s) — writing a list of Arch mirrors..."
+    [ -f "$ml" ] && sudo cp "$ml" "$ml.junest-default"
+    sudo tee "$ml" >/dev/null <<'EOF'
+# Written by bspwm-dotfiles (junest's default had a single mirror, see
+# mirrorlist.junest-default). pacman tries these in order.
+Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
+Server = https://fastly.mirror.pkgbuild.com/$repo/os/$arch
+Server = https://frankfurt.mirror.pkgbuild.com/$repo/os/$arch
+Server = https://london.mirror.pkgbuild.com/$repo/os/$arch
+Server = https://berlin.mirror.pkgbuild.com/$repo/os/$arch
+Server = https://mirror.theo546.fr/archlinux/$repo/os/$arch
+Server = https://mirror.osbeck.com/archlinux/$repo/os/$arch
+Server = https://mirror.moson.org/arch/$repo/os/$arch
+Server = https://mirror.rackspace.com/archlinux/$repo/os/$arch
+EOF
 }
 
 # [multilib] (32-bit libs): Steam, wine and the lib32 mesa pin need it. Arch's
@@ -343,9 +370,15 @@ if [ "$1" = "--system-only" ]; then
     # Older installs added the gh0stzk repo over plain http (unsigned packages)
     grep -q '^Server = http://gh0stzk.github.io' /etc/pacman.conf &&
         sudo sed -i 's|^Server = http://gh0stzk.github.io|Server = https://gh0stzk.github.io|' /etc/pacman.conf
+    ensure_mirrors
     set_mesa_ignorepkg
     install_pacman_hooks
     enable_multilib
+    exit 0
+fi
+# install.sh --update, after its -Syu: keep the pinned mesa loadable
+if [ "$1" = "--pin-mesa" ]; then
+    pin_mesa
     exit 0
 fi
 
@@ -356,10 +389,16 @@ ask_terminal
 ask_rice
 
 # ── Update keyring + full system sync ────────────────────────────────────────
+ensure_mirrors
 # Pin first so the upgrade below never pulls mesa 25+
 set_mesa_ignorepkg
 install_pacman_hooks
 enable_multilib
+# Chaotic-AUR + gh0stzk repos before the -Syu below, so one -Syu syncs every
+# repo (a bare -Sy after it would be a partial upgrade)
+set_font_noextract
+add_chaotic_repo
+add_gh0stzk_repo
 
 info "Syncing package databases..."
 echo "n" | sudo pacman -Syu || true
@@ -377,11 +416,6 @@ sudo pacman -S --needed --noconfirm base-devel git
 
 # Before the GUI packages, so their libgl dependency is the pinned mesa
 pin_mesa
-
-# ── Chaotic-AUR + gh0stzk custom repo ────────────────────────────────────────
-set_font_noextract
-add_chaotic_repo
-add_gh0stzk_repo
 
 # ── Core WM ──────────────────────────────────────────────────────────────────
 info "Installing core WM packages..."
