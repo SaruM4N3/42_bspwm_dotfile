@@ -15,13 +15,28 @@ gi.require_version("Gtk", "3.0")
 # WebKit2GTK 4.1 (libsoup 3) is the one Arch ships now; 4.0 (libsoup 2.4) was
 # dropped from the repos but may still be installed on older setups.
 # WebKit first: requiring Soup 3.0 before finding 4.1 missing would block 2.4.
+def webkit_missing(err):
+    # Started from polybar / logtime-settings: nobody sees stderr, say it on screen
+    msg = ("Can't open the login window: WebKit2GTK doesn't load "
+           f"({err}). Install it: sudo pacman -S webkit2gtk-4.1")
+    print(msg, file=sys.stderr)
+    try:
+        import subprocess
+        subprocess.run(["dunstify", "-u", "critical", "Logtime", msg], timeout=5)
+    except Exception:
+        pass
+    sys.exit(1)
+
 try:
-    gi.require_version("WebKit2", "4.1")
-    gi.require_version("Soup", "3.0")
-except ValueError:
-    gi.require_version("WebKit2", "4.0")
-    gi.require_version("Soup", "2.4")
-from gi.repository import Gtk, WebKit2
+    try:
+        gi.require_version("WebKit2", "4.1")
+        gi.require_version("Soup", "3.0")
+    except ValueError:
+        gi.require_version("WebKit2", "4.0")
+        gi.require_version("Soup", "2.4")
+    from gi.repository import Gtk, WebKit2
+except Exception as e:
+    webkit_missing(e)
 
 BASE_URL = "https://attendance.42lyon.fr"
 OAUTH_STATE_COOKIE = "attendance-oauth"
@@ -39,10 +54,15 @@ exit_code = 1
 saving = False
 
 os.makedirs(data_dir, mode=0o700, exist_ok=True)
-data_manager = WebKit2.WebsiteDataManager(
-    base_data_directory=data_dir,
-    base_cache_directory=os.path.join(data_dir, "cache"),
-)
+try:
+    data_manager = WebKit2.WebsiteDataManager(
+        base_data_directory=data_dir,
+        base_cache_directory=os.path.join(data_dir, "cache"),
+    )
+except TypeError as e:
+    # The typelib imports even when its library can't load (old webkit2gtk 4.0
+    # after a libjxl update): it only fails here, "could not get a reference to type class"
+    webkit_missing(e)
 context = WebKit2.WebContext.new_with_website_data_manager(data_manager)
 cookie_manager = context.get_cookie_manager()
 # Keep the intra session between logins so expired sessions renew without typing the password again
