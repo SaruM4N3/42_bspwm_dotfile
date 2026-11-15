@@ -415,7 +415,7 @@ if [ "$KEEP_SETTINGS" -eq 1 ] && [ -d "$BACKUP/bspwm" ]; then
     for f in .rice \
              config/picom.conf config/picom-animations.conf config/xsettingsd config/jgmenurc \
              config/dunstrc config/sxhkdrc config/system.ini config/NetManagerDM.ini \
-             config/hidden-apps config/.term config/.launcher config/.sys config/.first_run_done \
+             config/hidden-apps config/.term config/.default-apps config/.launcher config/.sys config/.first_run_done \
              config/.animwall_last config/.animwall_index config/.brightness_xrandr config/.bt_favorites; do
         [ -e "$OLD/$f" ] || continue
         # New keybinds from the repo would be lost: leave its version next to it
@@ -491,25 +491,23 @@ if [ -f "$CHOICES" ]; then
         [ -n "$TERM_BIN" ]    && echo "$TERM_BIN"    > "$BSPWM_CFG/config/.term"
         [ -n "$ACTIVE_RICE" ] && echo "$ACTIVE_RICE" > "$BSPWM_CFG/.rice"
     fi
-    OPENAPPS="$BSPWM_CFG/bin/OpenApps"
-    for sxhkd in "$BSPWM_CFG/config/sxhkdrc" "$BSPWM_CFG/config/sxhkdrc.new" "$BSPWM_CFG/config/.session/sxhkdrc"; do
-        [ -f "$sxhkd" ] || continue
-        # super+w is "brave --password-store=basic": replace the whole line (flag is brave-only)
-        [ -n "$BROWSER_BIN" ] && [ "$BROWSER_BIN" != brave ] && sed -i "s|^\tbrave\( .*\)\?$|\t$BROWSER_BIN|" "$sxhkd"
-        if [ "$EDITOR_GUI" = "1" ]; then
-            sed -i "s|^\tcode \.$|\t$EDITOR_BIN .|" "$sxhkd"
-        elif [ -n "$EDITOR_BIN" ]; then
-            sed -i "s|^\tcode \.$|\tTerm --$EDITOR_BIN|" "$sxhkd"
-        fi
-    done
-    if [ -f "$OPENAPPS" ]; then
-        [ -n "$BROWSER_BIN" ] && sed -i "/--browser)/,/;;/{s|^\t\t[a-z].*$|\t\t$BROWSER_BIN|}" "$OPENAPPS"
-        if [ "$EDITOR_GUI" = "1" ]; then
-            sed -i "/--editor)/,/;;/{s|^\t\t[a-zA-Z].*$|\t\t$EDITOR_BIN|}" "$OPENAPPS"
-        elif [ -n "$EDITOR_BIN" ]; then
-            sed -i "/--editor)/,/;;/{s|^\t\t[a-zA-Z].*$|\t\tTerm --$EDITOR_BIN|}" "$OPENAPPS"
-        fi
+    # Browser / editor / file manager: OpenApps reads config/.default-apps (also
+    # edited by RiceSettings → Apps). An update keeps the one restored from the backup.
+    DEFAULT_APPS="$BSPWM_CFG/config/.default-apps"
+    if [ "$UPDATE" -eq 0 ] || [ ! -f "$DEFAULT_APPS" ]; then
+        {
+            echo "DEFAULT_BROWSER=${BROWSER_BIN:-brave}"
+            echo "DEFAULT_EDITOR=${EDITOR_BIN:-code}"
+            echo "DEFAULT_FILEMANAGER=thunar"
+        } > "$DEFAULT_APPS"
     fi
+    # sxhkdrc kept from an older install: its super+w/e/c ran the apps directly
+    for sxhkd in "$BSPWM_CFG/config/sxhkdrc" "$BSPWM_CFG/config/.session/sxhkdrc"; do
+        [ -f "$sxhkd" ] || continue
+        sed -i -e "s|^\tbrave\( .*\)\?$|\tOpenApps --browser|" \
+               -e "s|^\tthunar \.$|\tOpenApps --filemanager|" \
+               -e "s|^\tcode \.$|\tOpenApps --editor|" "$sxhkd"
+    done
     if [ "$UPDATE" -eq 1 ] && [ -f "$HOME/.zshrc.bak" ] && [ -f "$BACKUP/.zshrc.bak" ]; then
         # Keep the EDITOR / BROWSER of the bspwm zshrc being replaced
         for v in EDITOR BROWSER; do

@@ -13,6 +13,11 @@
 
 WIDGET_DIR="$HOME/.config/bspwm/eww"
 
+# Default apps (RiceSettings → Apps → Default apps, or the installer's choices)
+DEFAULT_BROWSER=brave DEFAULT_EDITOR=code DEFAULT_FILEMANAGER=thunar
+# shellcheck disable=SC1091
+[ -f "$HOME/.config/bspwm/config/.default-apps" ] && . "$HOME/.config/bspwm/config/.default-apps"
+
 case "$1" in
 	--menu)
 		RofiLauncher --launcher
@@ -70,16 +75,26 @@ case "$1" in
 		;;
 		# Apps
 	--filemanager)
-		thunar --new-window
+		case "$DEFAULT_FILEMANAGER" in
+			thunar) thunar --new-window ;;
+			yazi)   Term --yazi ;;
+			*)      $DEFAULT_FILEMANAGER ;;
+		esac
 		;;
 	--browser)
-		brave
+		case "$DEFAULT_BROWSER" in
+			brave) brave --password-store=basic ;;
+			*)     $DEFAULT_BROWSER ;;
+		esac
 		;;
 	--micro)
 		Term --micro
 		;;
 	--editor)
-		code
+		case "$DEFAULT_EDITOR" in
+			micro|nvim) Term --"$DEFAULT_EDITOR" ;;
+			*)          $DEFAULT_EDITOR ;;
+		esac
 		;;
 	--telegram)
 		telegram-desktop

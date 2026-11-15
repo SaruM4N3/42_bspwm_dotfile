@@ -3,7 +3,7 @@
 #  RiceSettings — GTK3 settings panel for SaruM4N3 rice
 # =============================================================
 
-import gi, re, subprocess, os, math, threading
+import gi, re, subprocess, os, math, threading, shutil
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, Pango, GLib, GdkPixbuf
 
@@ -2120,6 +2120,105 @@ def app_icon(icon, size=24):
         img.set_pixel_size(size)
     return img
 
+# ── Default apps ──────────────────────────────────────────────────────────────
+# OpenApps --browser/--editor/--filemanager (super + w/c/e, jgmenu) read
+# config/.default-apps; the terminal is config/.term, read by Term.
+DEFAULT_APPS = os.path.expanduser("~/.config/bspwm/config/.default-apps")
+TERM_FILE    = os.path.expanduser("~/.config/bspwm/config/.term")
+DEFAULT_CHOICES = {   # key: (label, fallback, candidates as (binary, shown name))
+    "DEFAULT_BROWSER":     ("Browser", "brave",
+                            [("brave", "Brave"), ("firefox", "Firefox"), ("chromium", "Chromium"),
+                             ("google-chrome-stable", "Google Chrome")]),
+    "DEFAULT_EDITOR":      ("Editor", "code",
+                            [("code", "VS Code"), ("zeditor", "Zed"), ("zed", "Zed"),
+                             ("micro", "micro (terminal)"), ("nvim", "Neovim (terminal)")]),
+    "DEFAULT_FILEMANAGER": ("File manager", "thunar",
+                            [("thunar", "Thunar"), ("nautilus", "Nautilus"), ("pcmanfm", "PCManFM"),
+                             ("yazi", "yazi (terminal)")]),
+}
+TERMINALS = [("alacritty", "Alacritty"), ("kitty", "Kitty"), ("st", "st"), ("urxvt", "urxvt")]
+# super + key in sxhkdrc → OpenApps flag (older installs ran the app directly)
+SXHKD_APP_KEYS = {"w": "--browser", "e": "--filemanager", "c": "--editor"}
+
+def default_apps_get():
+    vals = {k: v[1] for k, v in DEFAULT_CHOICES.items()}
+    try:
+        with open(DEFAULT_APPS) as f:
+            for line in f:
+                m = re.match(r"^(DEFAULT_[A-Z]+)=['\"]?([^'\"\n]*)", line)
+                if m and m.group(1) in vals: vals[m.group(1)] = m.group(2).strip()
+    except OSError:
+        pass
+    return vals
+
+def default_apps_set(vals):
+    tmp = DEFAULT_APPS + ".tmp"
+    with open(tmp, "w") as f:
+        for k in DEFAULT_CHOICES:
+            f.write(f"{k}={vals[k]}\n")
+    os.replace(tmp, DEFAULT_APPS)
+
+def installed(binary):
+    return shutil.which(binary, path=child_env().get("PATH")) is not None
+
+def sxhkd_use_openapps():
+    """super + w/e/c of an older sxhkdrc launch the app directly: point them at
+    OpenApps so the choice applies. Returns True if sxhkdrc was changed."""
+    try:
+        with open(SXHKDRC) as f: lines = f.read().split("\n")
+    except OSError:
+        return False
+    changed = False
+    for i, line in enumerate(lines[:-1]):
+        m = re.match(r"^super \+ ([wec])\s*$", line)
+        if not m or "OpenApps" in lines[i + 1] or not lines[i + 1].strip():
+            continue
+        indent = re.match(r"^\s*", lines[i + 1]).group(0) or "\t"
+        lines[i + 1] = f"{indent}OpenApps {SXHKD_APP_KEYS[m.group(1)]}"
+        changed = True
+    if changed:
+        with open(SXHKDRC, "w") as f: f.write("\n".join(lines))
+        subprocess.run(["pkill", "-USR1", "-x", "sxhkd"])
+    return changed
+
+def default_apps_group():
+    vals = default_apps_get()
+    combos = {}
+    rows = []
+    def combo_for(cands, cur):
+        c = Gtk.ComboBoxText(valign=Gtk.Align.CENTER)
+        seen, ids = set(), []
+        for b, name in cands:
+            if name in seen or not (installed(b) or b == cur): continue
+            seen.add(name); c.append(b, name); ids.append(b)
+        if cur and cur not in ids:   # set by hand in the file: keep it selectable
+            c.append(cur, cur); ids.append(cur)
+        c.set_active_id(cur if cur in ids else (ids[0] if ids else None))
+        return c
+    try:
+        with open(TERM_FILE) as f: term_cur = f.read().strip().lower()
+    except OSError:
+        term_cur = "alacritty"
+    term = combo_for(TERMINALS, term_cur)
+    rows.append(make_row("Terminal", term, "super + Return"))
+    keys = {"DEFAULT_BROWSER": "super + w", "DEFAULT_EDITOR": "super + c",
+            "DEFAULT_FILEMANAGER": "super + e"}
+    for k, (label, _fb, cands) in DEFAULT_CHOICES.items():
+        combos[k] = combo_for(cands, vals[k])
+        rows.append(make_row(label, combos[k], keys[k]))
+
+    btn = apply_btn("Apply")
+    def apply(b):
+        new = {k: (c.get_active_id() or vals[k]) for k, c in combos.items()}
+        default_apps_set(new)
+        if term.get_active_id():
+            with open(TERM_FILE, "w") as f: f.write(term.get_active_id() + "\n")
+        sxhkd_use_openapps()
+        flash_btn(b, "✓ Applied!"); notify("Default apps saved.")
+    btn.connect("clicked", safe_apply(apply))
+    rows.append(make_row("Save the default apps", btn, "Used by the keybinds and the menu"))
+    return make_group("Default apps", rows)
+
 def apps_page(cfg):
     av = load_app_visibility()
     apps = av.apps()
@@ -2197,8 +2296,8 @@ def apps_page(cfg):
     ])
     lst = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
     lst.pack_start(card, False, False, 0)
-    return page_wrap("Apps", "Choose which apps appear in the launcher (super + space). Hiding only affects bspwm, GNOME keeps them.",
-                     [tools, lst])
+    return page_wrap("Apps", "Default apps, and which apps appear in the launcher (super + space). Hiding only affects bspwm, GNOME keeps them.",
+                     [default_apps_group(), tools, lst])
 
 
 def gtk_page(cfg):
@@ -2593,18 +2692,19 @@ def logs_page(_cfg):
 
 # ── Sidebar nav ───────────────────────────────────────────────────────────────
 
+# Sidebar order: alphabetical (the first one opens at start)
 PAGES = [
-    ("▣", "Window",    window_page),
+    ("▦", "Apps",      apps_page),
     ("▬", "Bar",       bar_page),
     ("◆", "Dunst",     dunst_page),
-    ("◈", "Wallpaper", wallpaper_page),
     ("◉", "GTK",       gtk_page),
-    ("▶", "Terminal",  terminal_page),
-    ("◐", "Lock",      lock_page),
-    ("▦", "Apps",      apps_page),
-    ("⚙", "System",    system_page),
     ("⌨", "Keybinds",  keybinds_page),
+    ("◐", "Lock",      lock_page),
     ("≡", "Logs",      logs_page),
+    ("⚙", "System",    system_page),
+    ("▶", "Terminal",  terminal_page),
+    ("◈", "Wallpaper", wallpaper_page),
+    ("▣", "Window",    window_page),
 ]
 
 def nav_button(icon, label):

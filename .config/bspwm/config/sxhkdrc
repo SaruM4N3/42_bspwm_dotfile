@@ -67,17 +67,17 @@ super + shift + s
 
 # ----- Your Apps ----- #
 
-# Brave
+# Browser (RiceSettings → Apps → Default apps)
 super + w
-	brave --password-store=basic
+	OpenApps --browser
 
-# Thunar (FileManager)
+# File manager
 super + e
-	thunar .
+	OpenApps --filemanager
 
-# Code (editor)
+# Editor
 super + c
-	code .
+	OpenApps --editor
 
 # Apps (browser, editor, filemanager)
 # super + {b,e,f}
