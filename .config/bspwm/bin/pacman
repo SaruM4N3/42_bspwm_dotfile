@@ -76,7 +76,7 @@ else
     interactive=0
 fi
 
-echo "==> pacman runs on the host (plain junest, no bspwm overlay)" >&2
+echo "==> junest's pacman, run from the host without the bspwm overlay (Ubuntu's packages are never touched)" >&2
 cat "$dir/out" &                    # opens the read end, waits for the host
 out_pid=$!
 printf '%s\n' "$cmd" > "$HOST_REQ"
