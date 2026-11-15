@@ -180,30 +180,57 @@ if [ -n "$MESA_VER" ]; then
     done
 fi
 
-# The pinned lib32-mesa links an older libLLVM (24.3.4 -> libLLVM.so.19.1)
-# than lib32-llvm-libs ships -> libGLX_mesa fails to load and Steam dies on
-# "glXChooseVisual failed". Fetch that libLLVM from the Arch archive into
-# $STEAM_ROOT, only Steam sees it (system packages untouched).
-GALLIUM32=$(ls /usr/lib32/libgallium-*.so 2>/dev/null | head -1)
-LLVM_SO=""
-[ -n "$GALLIUM32" ] && LLVM_SO=$(grep -aoE 'libLLVM\.so\.[0-9]+\.[0-9]+' "$GALLIUM32" | head -1)
-if [ -n "$LLVM_SO" ] && [ ! -e "/usr/lib32/$LLVM_SO" ]; then
-    LLVM32_DIR="$STEAM_ROOT/lib32-llvm"
-    if [ ! -e "$LLVM32_DIR/$LLVM_SO" ]; then
-        LLVM_VER=${LLVM_SO#libLLVM.so.}            # 19.1
-        PKG=$(curl -fsSL "$ARCHIVE/l/lib32-llvm-libs/" |
-              grep -oE "lib32-llvm-libs-$LLVM_VER\.[0-9]+-[0-9]+-x86_64\.pkg\.tar\.zst" | sort -uV | tail -1)
-        if [ -n "$PKG" ]; then
-            echo "==> lib32-mesa needs $LLVM_SO, fetching $PKG..."
-            mkdir -p "$LLVM32_DIR"
-            curl -fSL "$ARCHIVE/l/lib32-llvm-libs/$PKG" |
-                tar --zstd -xf - -C "$LLVM32_DIR" --strip-components=2 "usr/lib32/$LLVM_SO"
-        else
-            echo "==> WARNING: no lib32-llvm-libs $LLVM_VER in the Arch archive, Steam may not start" >&2
+# The pinned lib32-mesa (24.3.4) links older libraries than current Arch
+# ships: libLLVM.so.19.1, which in turn needs libxml2.so.2 and ICU 76. Without
+# them the Steam client dies on "glXChooseVisual failed" and 32-bit Proton
+# games crash in dxgi.dll (no 32-bit Vulkan driver). Put the old sonames in
+# /usr/lib32 itself: LD_LIBRARY_PATH would reach the client but not the
+# pressure-vessel container games run in. Only missing sonames are added,
+# pacman-owned files are never overwritten.
+lib32_pkg_for() {   # soname -> "package version-regex" in the Arch archive
+    case "$1" in
+        libLLVM.so.*) echo "lib32-llvm-libs ([0-9]+:)?${1#libLLVM.so.}\.[0-9]+-[0-9]+" ;;
+        libxml2.so.2) echo "lib32-libxml2 ([0-9]+:)?2\.13\.[0-9]+-[0-9]+" ;;
+        libicu*.so.*) echo "lib32-icu ([0-9]+:)?${1##*.so.}\.[0-9.]+-[0-9]+" ;;
+    esac
+}
+LIB32_TMP=$(mktemp -d)
+for round in 1 2 3 4 5; do
+    missing=$(for f in /usr/lib32/libgallium-*.so /usr/lib32/libvulkan_radeon.so /usr/lib32/libGLX_mesa.so.0; do
+                  [ -e "$f" ] && ldd "$f" 2>/dev/null | awk '/not found/ {print $1}'
+                  true
+              done | sort -u)
+    [ -z "$missing" ] && break
+    progress=0
+    for so in $missing; do
+        read -r pkg ver <<< "$(lib32_pkg_for "$so")"
+        if [ -z "$pkg" ]; then
+            echo "==> WARNING: 32-bit mesa needs $so, no known package for it" >&2
+            continue
         fi
-    fi
-    export LD_LIBRARY_PATH="$LLVM32_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-fi
+        PKG=$(curl -fsSL "$ARCHIVE/l/$pkg/" |
+              grep -oE "$pkg-$ver-x86_64\.pkg\.tar\.zst" | sort -uV | tail -1)
+        if [ -z "$PKG" ]; then
+            echo "==> WARNING: 32-bit mesa needs $so, not found in the Arch archive" >&2
+            continue
+        fi
+        if [ ! -d "$LIB32_TMP/$PKG" ]; then
+            echo "==> 32-bit mesa needs $so, fetching $PKG..."
+            mkdir -p "$LIB32_TMP/$PKG"
+            curl -fSL "$ARCHIVE/l/$pkg/$PKG" |
+                tar --zstd -xf - -C "$LIB32_TMP/$PKG" usr/lib32 || continue
+        fi
+        # versioned libs only (never libLLVM.so / libxml2.so dev links), no overwrite
+        for f in "$LIB32_TMP/$PKG"/usr/lib32/*.so.*; do
+            [ -e "/usr/lib32/$(basename "$f")" ] || { sudo cp -a "$f" /usr/lib32/ && progress=1; }
+        done
+    done
+    [ "$progress" = 1 ] || { echo "==> WARNING: 32-bit mesa still misses: $missing (Steam/32-bit games may fail)" >&2; break; }
+done
+rm -rf "$LIB32_TMP"
+# Old installs kept libLLVM in $STEAM_ROOT/lib32-llvm (LD_LIBRARY_PATH): now unused
+[ -d "$STEAM_ROOT/lib32-llvm" ] && ! ldd /usr/lib32/libvulkan_radeon.so 2>/dev/null | grep -q 'not found' &&
+    rm -rf "$STEAM_ROOT/lib32-llvm"
 
 export HOME="$STEAM_HOME"
 export STEAM_DIR="$STEAM_HOME/.local/share/Steam"
