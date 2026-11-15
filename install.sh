@@ -532,6 +532,8 @@ if [ -f "$CHOICES" ]; then
 else
     warn "No installer choices found — keeping the repo defaults (terminal, rice, browser, editor)."
 fi
+# Where this repo lives: RiceSettings → System → Update pulls it and runs install.sh --update
+mkdir -p "$HOME/.local/state/bspwm" && echo "$REPO" > "$HOME/.local/state/bspwm/repo"
 
 # GL shim: symlinks to host Ubuntu mesa so all bspwm apps get hardware OpenGL.
 # Arch mesa (any version) can't negotiate GLX visuals with Ubuntu's Xorg server.

@@ -3,7 +3,7 @@
 #  RiceSettings — GTK3 settings panel for SaruM4N3 rice
 # =============================================================
 
-import gi, re, subprocess, os, math
+import gi, re, subprocess, os, math, threading
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, Pango, GLib, GdkPixbuf
 
@@ -23,6 +23,10 @@ ZSHRC         = os.path.expanduser("~/.zshrc")
 MOUSE_BIN     = os.path.expanduser("~/.config/bspwm/bin/MouseSettings")
 BSPWM_LAUNCH  = os.path.expanduser("~/.bspwminstaller/bspwm.sh")
 AUTOSTART     = os.path.expanduser("~/.config/autostart/bspwm.desktop")
+QUIT_BIN      = os.path.expanduser("~/.config/bspwm/bin/Quit")
+STATE_DIR     = os.path.expanduser("~/.local/state/bspwm")
+REPO_STATE    = os.path.join(STATE_DIR, "repo")             # written by install.sh
+UPDATE_FLAG   = os.path.join(STATE_DIR, "update-pending")   # read by bspwm.sh on exit
 
 # ── ThemeConfig ───────────────────────────────────────────────────────────────
 
@@ -1928,6 +1932,44 @@ def autostart_set(enabled):
         try: os.remove(AUTOSTART)
         except FileNotFoundError: pass
 
+# ── Dotfiles update (git) ────────────────────────────────────────────────────
+# install.sh refuses to run while bspwm runs (it replaces bspwm.sh), so Update
+# leaves a flag and quits bspwm: bspwm.sh then runs install.sh --update in GNOME.
+
+def dotfiles_repo():
+    cands = []
+    try:
+        with open(REPO_STATE) as f: cands.append(f.read().strip())
+    except OSError:
+        pass
+    # installs older than the repo state file
+    cands += [os.path.expanduser(d) for d in
+              ("~/bspwm-dotfiles", "~/42_bspwm_dotfile", "~/.bspwm-dotfiles")]
+    for c in cands:
+        if c and os.path.isfile(os.path.join(c, "install.sh")) and \
+           os.path.exists(os.path.join(c, ".git")):
+            return c
+    return None
+
+def git(repo, *args, timeout=30):
+    r = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True,
+                       timeout=timeout, env=child_env(), stdin=subprocess.DEVNULL)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+def dotfiles_status(repo, fetch=True):
+    """Version and what an update would bring. Runs git fetch: call it off the UI thread."""
+    st = {"version": git(repo, "log", "-1", "--format=%h · %cs") or "?",
+          "dirty": bool(git(repo, "status", "--porcelain", "--untracked-files=no"))}
+    if not git(repo, "rev-parse", "--abbrev-ref", "@{u}"):
+        st["error"] = "no upstream branch"
+        return st
+    if fetch and git(repo, "fetch", "--quiet", timeout=60) is None:
+        st["error"] = "git fetch failed (network?)"
+    st["behind"] = int(git(repo, "rev-list", "--count", "HEAD..@{u}") or 0)
+    st["ahead"]  = int(git(repo, "rev-list", "--count", "@{u}..HEAD") or 0)
+    st["log"]    = git(repo, "log", "--format=• %s", "-n", "15", "HEAD..@{u}") or ""
+    return st
+
 def system_page(cfg):
     # ── Mouse ─────────────────────────────────────────────────────────────────
     speed = make_spin(cfg.get("MOUSE_SPEED", "0"), -1.0, 1.0, 0.05, 2)
@@ -1973,7 +2015,66 @@ def system_page(cfg):
             notify(f"Autostart: {e}", "normal")
     auto.connect("notify::active", on_auto)
 
-    return page_wrap("System", "Mouse and session settings.", [
+    # ── Updates ───────────────────────────────────────────────────────────────
+    repo = dotfiles_repo()
+    upd_label = Gtk.Label(label="Checking…" if repo else "Repository not found",
+                          xalign=1, valign=Gtk.Align.CENTER)
+    upd_label.set_line_wrap(True); upd_label.set_max_width_chars(40)
+    check_btn = apply_btn("Check")
+    update_btn = apply_btn("Update")
+    update_btn.get_style_context().add_class("suggested-action")
+    update_btn.set_tooltip_text("Quits bspwm, updates the dotfiles from GitHub in GNOME "
+                                "(your settings are kept), then offers to relaunch bspwm.")
+    if not repo:
+        check_btn.set_sensitive(False); update_btn.set_sensitive(False)
+        upd_label.set_tooltip_text(f"Clone the repo and run its install.sh once ({REPO_STATE})")
+
+    def show_status(st):
+        check_btn.set_sensitive(True); check_btn.set_label("Check")
+        parts = [st["version"]]
+        if "behind" in st:
+            parts.append(f"{st['behind']} new update{'s' if st['behind'] > 1 else ''}"
+                         if st["behind"] else "up to date")
+        if st.get("ahead"): parts.append(f"{st['ahead']} local commit(s) not pushed")
+        if st["dirty"]:     parts.append("local changes")
+        if "error" in st:   parts.append(st["error"])
+        upd_label.set_text("  ·  ".join(parts))
+        upd_label.set_tooltip_text(st.get("log") or repo)
+        return False
+
+    def check(*_):
+        if not repo: return
+        check_btn.set_sensitive(False); check_btn.set_label("…")
+        def work():
+            try:
+                st = dotfiles_status(repo)
+            except Exception as e:
+                st = {"version": "?", "dirty": False, "error": str(e)}
+            GLib.idle_add(show_status, st)
+        threading.Thread(target=work, daemon=True).start()
+    check_btn.connect("clicked", check)
+    check()
+
+    def do_update(btn):
+        dlg = Gtk.MessageDialog(
+            transient_for=btn.get_toplevel(), modal=True,
+            message_type=Gtk.MessageType.QUESTION,
+            buttons=Gtk.ButtonsType.OK_CANCEL,
+            text="Update bspwm now?")
+        dlg.format_secondary_text(
+            "bspwm closes (windows too, save your work), the installer opens in GNOME, "
+            "downloads the latest version from GitHub and updates, keeping your settings.\n\n"
+            "At the end, click \"Launch bspwm now\".")
+        ok = dlg.run() == Gtk.ResponseType.OK
+        dlg.destroy()
+        if not ok: return
+        os.makedirs(STATE_DIR, exist_ok=True)
+        with open(UPDATE_FLAG, "w") as f: f.write(repo + "\n")
+        subprocess.Popen(["setsid", "-f", QUIT_BIN], env=child_env(),
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    update_btn.connect("clicked", safe_apply(do_update))
+
+    return page_wrap("System", "Mouse, session and updates.", [
         make_group("Mouse", [
             make_row("Speed",        speed, "-1.0 slowest → 1.0 fastest (0 = default)"),
             make_row("Acceleration", accel, "adaptive = faster moves go further  |  flat = constant"),
@@ -1983,6 +2084,12 @@ def system_page(cfg):
         make_group("Session", [
             make_row("Launch bspwm at login", auto,
                      "Switch from GNOME to bspwm automatically when you log in"),
+        ]),
+        make_group("Updates", [
+            make_row("Dotfiles version", upd_label, repo or None),
+            make_row("Look for a new version on GitHub", check_btn),
+            make_row("Update bspwm from GitHub", update_btn,
+                     "Quits bspwm, updates in GNOME, keeps your settings"),
         ]),
     ])
 

@@ -288,3 +288,18 @@ else
         setsid -f gnome-shell --replace >/dev/null 2>&1 < /dev/null
     fi
 fi
+
+# RiceSettings → System → Update quit bspwm to update the dotfiles from git: run the
+# installer now that GNOME is back. exec: install.sh replaces ~/.bspwminstaller/bspwm.sh,
+# which must not be running anymore (bash reads scripts while running them).
+_UPDATE_FLAG="$HOME/.local/state/bspwm/update-pending"
+if [ -f "$_UPDATE_FLAG" ]; then
+    _repo=$(head -n1 "$_UPDATE_FLAG")
+    rm -f "$_UPDATE_FLAG"
+    if [ -f "$_repo/install.sh" ]; then
+        echo "update requested: $_repo/install.sh --update at $(date '+%T.%3N')" >> "$LOG"
+        cd "$_repo" && exec bash "$_repo/install.sh" --update >>"$LOG" 2>&1 </dev/null
+    else
+        echo "update requested but $_repo/install.sh is missing" >> "$LOG"
+    fi
+fi
