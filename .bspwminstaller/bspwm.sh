@@ -124,6 +124,24 @@ for _pid in $_SHELL_PIDS; do
 done
 unset _deadline _pid _SHELL_PIDS
 
+# Even without the start timeout, the respawned gnome-shell still dies about every
+# 10 min and systemd starts a new one at once. Each new one connecting to the X server
+# froze fullscreen games for a moment (Deadlock froze every 5-10 min). Pause it with
+# SIGSTOP: a stopped process can't exit, so there is no respawn. On exit the stuck unit
+# is SIGKILLed below (works on stopped processes) and GNOME starts a fresh shell.
+(
+    while sleep 2; do
+        for _p in $(pgrep -x gnome-shell); do
+            case "$(ps -o stat= -p "$_p" 2>/dev/null)" in
+                T*|"") ;;
+                *) kill -STOP "$_p" 2>/dev/null &&
+                       echo "paused gnome-shell $_p at $(date '+%T.%3N')" >> "$LOG" ;;
+            esac
+        done
+    done
+) &
+_SHELL_PAUSER_PID=$!
+
 # polkit agent: gnome-shell was the session's agent. One inside junest can't work
 # (polkit-agent-helper-1 needs setuid root, a no-op in junest's user namespace), so
 # a small one runs here on the host. Compiled with Ubuntu's gcc/GTK 3 (like lockbg),
@@ -232,6 +250,8 @@ echo "bspwm exited: $? at $(date '+%T.%3N')" >> "$LOG"
 kill "$_LOCK_WATCHER_PID" 2>/dev/null
 kill "$_CODE_WATCHER_PID" 2>/dev/null
 kill "$_HOST_WATCHER_PID" 2>/dev/null
+# Stop pausing gnome-shell before GNOME resumes (the paused one is killed below)
+kill "$_SHELL_PAUSER_PID" 2>/dev/null
 # Before GNOME resumes: gnome-shell registers its own polkit agent again
 [ -n "$_PK_PID" ] && kill "$_PK_PID" 2>/dev/null
 exec 5>&- 6>&-
